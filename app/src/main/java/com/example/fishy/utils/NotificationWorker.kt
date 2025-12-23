@@ -17,7 +17,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
-import java.util.*
+import java.util.Calendar
+import java.util.Date
+import java.util.Locale
 import java.util.concurrent.TimeUnit
 
 class NotificationWorker(
@@ -102,7 +104,6 @@ class NotificationWorker(
         }
     }
 
-    // NotificationWorker.kt - обновленный метод sendNotification
     private fun sendNotification(
         shipment: com.example.fishy.database.entities.ScheduledShipment,
         checklistStatus: ChecklistStatus
@@ -120,12 +121,12 @@ class NotificationWorker(
 
         val pendingIntent = PendingIntent.getActivity(
             applicationContext,
-            shipment.id.toInt(), // Используем ID отгрузки как requestCode для уникальности
+            shipment.id.toInt(),
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        // Создаем канал уведомлений (для Android 8.0+)
+        // Создаем канал уведомлений
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 "fishy_channel",
@@ -159,26 +160,17 @@ class NotificationWorker(
         // Текущее время
         val currentTime = System.currentTimeMillis()
 
-        // Рассчитываем разницу во времени
-        val timeUntilShipment = shipmentTime - currentTime
-        val daysUntil = TimeUnit.MILLISECONDS.toDays(timeUntilShipment)
-        val hoursUntil = TimeUnit.MILLISECONDS.toHours(timeUntilShipment) % 24
-        val minutesUntil = TimeUnit.MILLISECONDS.toMinutes(timeUntilShipment) % 60
+        // Рассчитываем разницу во времени в минутах
+        val timeUntilShipmentMinutes = TimeUnit.MILLISECONDS.toMinutes(shipmentTime - currentTime)
 
-        // Формируем текст о времени
-        val timeText = when {
-            daysUntil > 0 -> "Через $daysUntil дн. $hoursUntil ч."
-            hoursUntil > 0 -> "Через $hoursUntil ч. $minutesUntil мин."
-            minutesUntil > 0 -> "Через $minutesUntil мин."
-            else -> "Сейчас"
-        }
+        // Формируем текст о времени с округлением до 5 минут
+        val timeText = formatTimeWithRounding(timeUntilShipmentMinutes)
 
         // Формируем текст для порта
         val portText = when {
             shipment.shipmentType == "multi_port" && shipment.ports.isNotEmpty() -> {
                 shipment.ports.joinToString(", ")
             }
-
             shipment.port.isNotEmpty() -> shipment.port
             else -> "Не указан"
         }
@@ -221,9 +213,78 @@ class NotificationWorker(
             .setCategory(NotificationCompat.CATEGORY_REMINDER)
             .setAutoCancel(true)
             .setOnlyAlertOnce(true)
-            .setContentIntent(pendingIntent) // Добавляем обработчик клика
+            .setContentIntent(pendingIntent)
             .build()
 
         notificationManager.notify(shipment.id.toInt(), notification)
+    }
+
+    private fun formatTimeWithRounding(totalMinutes: Long): String {
+        if (totalMinutes <= 0) return "Сейчас"
+
+        val days = totalMinutes / (24 * 60)
+        val remainingMinutes = totalMinutes % (24 * 60)
+        val hours = remainingMinutes / 60
+        var minutes = remainingMinutes % 60
+
+        // Округляем минуты до ближайших 5
+        minutes = when {
+            minutes <= 2 -> 0  // 0-2 минут -> округляем до 0
+            minutes in 3..7 -> 5  // 3-7 минут -> округляем до 5
+            minutes in 8..12 -> 10  // 8-12 минут -> округляем до 10
+            minutes in 13..17 -> 15  // 13-17 минут -> округляем до 15
+            minutes in 18..22 -> 20  // 18-22 минут -> округляем до 20
+            minutes in 23..27 -> 25  // 23-27 минут -> округляем до 25
+            minutes in 28..32 -> 30  // 28-32 минут -> округляем до 30
+            minutes in 33..37 -> 35  // 33-37 минут -> округляем до 35
+            minutes in 38..42 -> 40  // 38-42 минут -> округляем до 40
+            minutes in 43..47 -> 45  // 43-47 минут -> округляем до 45
+            minutes in 48..52 -> 50  // 48-52 минут -> округляем до 50
+            minutes in 53..57 -> 55  // 53-57 минут -> округляем до 55
+            else -> {
+                // 58-59 минут -> добавляем час, минуты обнуляем
+                val adjustedHours = hours + 1
+                val adjustedMinutes = 0L
+
+                return if (adjustedHours >= 24) {
+                    // Если превысили сутки, увеличиваем дни
+                    val adjustedDays = days + 1
+                    "Через $adjustedDays дн."
+                } else if (days > 0) {
+                    "Через $days дн. $adjustedHours ч."
+                } else {
+                    "Через $adjustedHours ч."
+                }
+            }
+        }
+
+        // Если после округления минут до 60, добавляем час
+        val finalHours = if (minutes == 60L) {
+            minutes = 0
+            hours + 1
+        } else {
+            hours
+        }
+
+        // Формируем финальный текст
+        return when {
+            days > 0 -> {
+                if (finalHours == 0L && minutes == 0L) {
+                    "Через $days дн."
+                } else if (minutes == 0L) {
+                    "Через $days дн. $finalHours ч."
+                } else {
+                    "Через $days дн. $finalHours ч. $minutes мин."
+                }
+            }
+            finalHours > 0 -> {
+                if (minutes == 0L) {
+                    "Через $finalHours ч."
+                } else {
+                    "Через $finalHours ч. $minutes мин."
+                }
+            }
+            else -> "Через $minutes мин."
+        }
     }
 }

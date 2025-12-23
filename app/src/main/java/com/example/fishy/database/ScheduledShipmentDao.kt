@@ -1,16 +1,20 @@
 package com.example.fishy.database
 
-import androidx.room.*
+import androidx.room.Dao
+import androidx.room.Delete
+import androidx.room.Insert
+import androidx.room.OnConflictStrategy
+import androidx.room.Query
+import androidx.room.Update
 import com.example.fishy.database.entities.ChecklistItem
 import com.example.fishy.database.entities.ScheduledShipment
 import kotlinx.coroutines.flow.Flow
-import java.util.*
+import java.util.Date
 
 @Dao
 interface ScheduledShipmentDao {
 
     // ScheduledShipment операции
-
 
     @Query("SELECT * FROM scheduled_shipments ORDER BY scheduledDate ASC, scheduledTime ASC")
     fun getAllScheduledShipments(): Flow<List<ScheduledShipment>>
@@ -27,8 +31,19 @@ interface ScheduledShipmentDao {
     @Query("SELECT * FROM scheduled_shipments WHERE notificationEnabled = 1 AND notificationSent = 0 AND isCompleted = 0")
     suspend fun getPendingNotifications(): List<ScheduledShipment>
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    // ИЗМЕНЕНО: Убрали REPLACE стратегию для вставки
+    @Insert(onConflict = OnConflictStrategy.IGNORE) // или OnConflictStrategy.ABORT
     suspend fun insertScheduledShipment(scheduledShipment: ScheduledShipment): Long
+
+    // ДОБАВЛЕНО: Метод для вставки с REPLACE только для новых отгрузок
+    suspend fun insertOrReplaceScheduledShipment(scheduledShipment: ScheduledShipment): Long {
+        if (scheduledShipment.id == 0L) {
+            return insertScheduledShipment(scheduledShipment)
+        } else {
+            updateScheduledShipment(scheduledShipment)
+            return scheduledShipment.id
+        }
+    }
 
     @Update
     suspend fun updateScheduledShipment(scheduledShipment: ScheduledShipment)

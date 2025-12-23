@@ -116,7 +116,7 @@ fun AddEditScheduledShipmentDialog(
     }
 
     // Сохраняем состояние чек-листов при загрузке
-    LaunchedEffect(checklistItems) {
+    LaunchedEffect(checklistItems, shipment?.id) {
         val stateMap = mutableMapOf<Long, ChecklistItem>()
         checklistItems.forEach { item ->
             stateMap[item.id] = item
@@ -200,7 +200,7 @@ fun AddEditScheduledShipmentDialog(
     }
 
     var notificationTime by remember { mutableStateOf(shipment?.notificationTime ?: "09:00") }
-    var notificationDaysBefore by remember { mutableStateOf(shipment?.notificationDaysBefore ?: 1) }
+    var notificationDaysBefore by remember { mutableStateOf(shipment?.notificationDaysBefore ?: 0) }
     var notificationHoursBefore by remember { mutableStateOf(shipment?.notificationHoursBefore ?: 0) }
 
     // Флаги валидации
@@ -265,11 +265,19 @@ fun AddEditScheduledShipmentDialog(
             return true
         }
 
+        // ВАЖНО: Если используется абсолютная дата (notificationDaysBefore == 0 && notificationHoursBefore == 0),
+        // но notificationDate не установлен, используем selectedDate
+        if (notificationDaysBefore == 0 && notificationHoursBefore == 0 && notificationDate == null) {
+            notificationDate = selectedDate
+        }
+
         val notificationDateTime: Date? = try {
             if (notificationDaysBefore == 0 && notificationHoursBefore == 0) {
                 // Абсолютная дата уведомления
                 val notificationCalendar = Calendar.getInstance().apply {
-                    time = notificationDate ?: return true
+                    // Используем notificationDate или selectedDate
+                    val dateToUse = notificationDate ?: selectedDate
+                    time = dateToUse
                     val timeParts = notificationTime.split(":")
                     if (timeParts.size == 2) {
                         set(Calendar.HOUR_OF_DAY, timeParts[0].toIntOrNull() ?: 0)
@@ -348,7 +356,13 @@ fun AddEditScheduledShipmentDialog(
                                 selectedDate = selectedDate,
                                 onDateSelected = {
                                     selectedDate = it
+                                    // Если используется абсолютная дата уведомления и дата еще не установлена,
+                                    // обновляем notificationDate на новую дату отгрузки
+                                    if (notificationDaysBefore == 0 && notificationHoursBefore == 0) {
+                                        notificationDate = it
+                                    }
                                     validateShipmentDate()
+                                    validateNotificationDate()
                                 },
                                 label = "Дата отгрузки",
                                 modifier = Modifier.fillMaxWidth()
@@ -575,12 +589,11 @@ fun AddEditScheduledShipmentDialog(
                     "multi_port" -> {
                         // Количество портов
                         item {
-                            SectionCard(title = "Информация о портах") {
+                            SectionCard(title = "Количество портов:") {
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                                 ) {
-                                    Text("Количество портов:")
                                     OutlinedTextField(
                                         value = ports.size.toString(),
                                         onValueChange = {},
@@ -691,12 +704,11 @@ fun AddEditScheduledShipmentDialog(
                     "multi_vehicle" -> {
                         // Количество транспорта
                         item {
-                            SectionCard(title = "Информация о транспорте") {
+                            SectionCard(title = "Количество транспорта:") {
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                                 ) {
-                                    Text("Количество транспортных средств:")
                                     OutlinedTextField(
                                         value = vehicles.size.toString(),
                                         onValueChange = {},
@@ -710,7 +722,7 @@ fun AddEditScheduledShipmentDialog(
 
                         // Общие данные для мультиавто
                         item {
-                            SectionCard(title = "Общие данные для всех транспортных средств") {
+                            SectionCard(title = "Общие данные:") {
                                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                                     DictionaryAutocomplete(
                                         value = port,
@@ -797,7 +809,7 @@ fun AddEditScheduledShipmentDialog(
                                 val dateFormat = SimpleDateFormat("dd.MM.yyyy", Locale.getDefault())
 
                                 DatePickerField(
-                                    selectedDate = notificationDate ?: Date(),
+                                    selectedDate = notificationDate ?: selectedDate,
                                     onDateSelected = {
                                         notificationDate = it
                                         notificationDaysBefore = 0
@@ -812,15 +824,28 @@ fun AddEditScheduledShipmentDialog(
                                     time = notificationTime,
                                     onTimeChange = {
                                         notificationTime = it
+                                        // При изменении времени уведомления переключаемся на абсолютную дату
+                                        notificationDaysBefore = 0
+                                        notificationHoursBefore = 0
+                                        // Убеждаемся, что notificationDate установлен
+                                        if (notificationDate == null) {
+                                            notificationDate = selectedDate
+                                        }
                                         validateNotificationDate()
                                     },
                                     label = "Время уведомления",
                                     modifier = Modifier.fillMaxWidth()
                                 )
 
-                                val notificationDateStr = if (notificationDate != null) {
-                                    dateFormat.format(notificationDate!!) + " в $notificationTime"
+                                val notificationDateStr = if (notificationDaysBefore == 0 && notificationHoursBefore == 0) {
+                                    // Абсолютная дата
+                                    if (notificationDate != null) {
+                                        dateFormat.format(notificationDate!!) + " в $notificationTime"
+                                    } else {
+                                        dateFormat.format(selectedDate) + " в $notificationTime"
+                                    }
                                 } else {
+                                    // Относительная дата
                                     val calendar = Calendar.getInstance().apply {
                                         time = selectedDate
                                         val timeParts = scheduledTime.split(":")
@@ -860,20 +885,20 @@ fun AddEditScheduledShipmentDialog(
                             containerColor = MaterialTheme.colorScheme.surfaceVariant
                         ) {
                             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                if (checklistItems.isEmpty()) {
+                                if (checklistState.isEmpty()) {
                                     Text(
                                         text = "Нет пунктов чек-листа",
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                 } else {
-                                    checklistItems.forEachIndexed { index, item ->
+                                    checklistState.values.sortedBy { it.orderIndex }.forEachIndexed { index, item ->
                                         Row(
                                             verticalAlignment = Alignment.CenterVertically,
                                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                                         ) {
                                             Checkbox(
-                                                checked = checklistState[item.id]?.isCompleted ?: item.isCompleted,
+                                                checked = item.isCompleted,
                                                 onCheckedChange = { isChecked ->
                                                     val updatedItem = item.copy(isCompleted = isChecked)
                                                     val updatedState = checklistState.toMutableMap()
@@ -961,6 +986,11 @@ fun AddEditScheduledShipmentDialog(
                 onClick = {
                     if (validateAllDates()) {
                         coroutineScope.launch {
+                            // ВАЖНО: Сохраняем все изменения в чек-листе перед сохранением отгрузки
+                            checklistState.values.forEach { item ->
+                                viewModel.updateChecklistItem(item)
+                            }
+
                             // Создаем автоматическое название
                             val autoTitle = buildString {
                                 if (customer.isNotEmpty()) append(customer)
@@ -1039,22 +1069,7 @@ fun AddEditScheduledShipmentDialog(
                                 updatedAt = Date()
                             )
 
-                            if (shipment?.id != null) {
-                                viewModel.updateScheduledShipment(newShipment)
-                            } else {
-                                val savedId = viewModel.insertScheduledShipment(newShipment)
-
-                                if (shipment != null && checklistItems.isNotEmpty()) {
-                                    checklistItems.forEach { item ->
-                                        viewModel.addChecklistItem(
-                                            savedId,
-                                            item.title,
-                                            item.isCustom
-                                        )
-                                    }
-                                }
-                            }
-
+                            // Только передаем данные, сохранение будет в onSave в SchedulerScreen
                             onSave(newShipment)
                             onDismiss()
                         }
@@ -1291,7 +1306,7 @@ fun PortCard(
 
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(
-                    text = "Продукция для этого порта:",
+                    text = "Продукция:",
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.Medium
                 )
@@ -1473,7 +1488,7 @@ fun VehicleCard(
 
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(
-                    text = "Продукция для этого транспорта:",
+                    text = "Продукция:",
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.Medium
                 )

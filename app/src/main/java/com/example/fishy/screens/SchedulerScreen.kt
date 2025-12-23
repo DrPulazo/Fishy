@@ -145,7 +145,9 @@ fun SchedulerScreen(navController: NavController) {
             onSave = { newShipment ->
                 coroutineScope.launch {
                     if (editingShipment != null) {
+                        // ВАЖНО: Сохраняем отгрузку с сохранением существующего ID
                         viewModel.updateScheduledShipment(newShipment)
+                        // НЕ удаляем и не сбрасываем чеклист - он остается привязанным к этому ID
                     } else {
                         val id = viewModel.insertScheduledShipment(newShipment)
                         // НЕ создаем чеклист по умолчанию

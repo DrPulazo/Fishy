@@ -87,6 +87,7 @@ class SchedulerViewModel(application: Application) : AndroidViewModel(applicatio
 
     fun updateScheduledShipment(shipment: ScheduledShipment) {
         viewModelScope.launch {
+            // ИСПРАВЛЕНО: Используем update вместо insert с REPLACE
             scheduledShipmentDao.updateScheduledShipment(shipment)
 
             // ВАЖНО: При любом изменении времени/даты сбрасываем статус отправки

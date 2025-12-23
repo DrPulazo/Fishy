@@ -5,7 +5,12 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
-import com.example.fishy.database.entities.*
+import com.example.fishy.database.entities.ChecklistItem
+import com.example.fishy.database.entities.DictionaryItem
+import com.example.fishy.database.entities.Pallet
+import com.example.fishy.database.entities.ProductItem
+import com.example.fishy.database.entities.ScheduledShipment
+import com.example.fishy.database.entities.Shipment
 
 @Database(
     entities = [
@@ -32,7 +37,6 @@ abstract class AppDatabase : RoomDatabase() {
         fun getDatabase(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 // Принудительно удаляем старую БД при конфликте схемы
-                // Это нормально на этапе разработки
                 val instance = Room.databaseBuilder(
                     context.applicationContext,
                     AppDatabase::class.java,
@@ -47,11 +51,5 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
-        // Функция для полной очистки БД (на случай тестирования)
-        fun clearDatabase(context: Context) {
-            INSTANCE?.close()
-            INSTANCE = null
-            // Room автоматически пересоздаст БД при следующем вызове getDatabase
-        }
     }
 }
