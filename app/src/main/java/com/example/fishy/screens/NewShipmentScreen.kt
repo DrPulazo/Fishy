@@ -1,853 +1,1008 @@
 package com.example.fishy.screens
 
-import android.app.Application
+import android.widget.Toast
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.ExpandLess
-import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
-import com.example.fishy.theme.CardBackground
-import com.example.fishy.theme.ErrorColor
-import com.example.fishy.theme.SuccessColor
+import androidx.compose.runtime.collectAsState
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.material.icons.filled.Error
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
+import com.example.fishy.ui.components.DictionaryAutocomplete
+import com.example.fishy.ui.components.ShipmentTypeDropdown
 import com.example.fishy.viewmodels.ShipmentViewModel
 import com.example.fishy.viewmodels.ShipmentViewModelFactory
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Error
-import androidx.compose.material.icons.filled.Warning
-import com.example.fishy.utils.DraftManager
-
-@Composable
-fun NewShipmentScreen(
-    navController: NavController
-) {
-    val context = LocalContext.current
-    val viewModel: ShipmentViewModel = viewModel(
-        factory = ShipmentViewModelFactory(context.applicationContext as Application)
-    )
-
-    // ========== АВТОСОХРАНЕНИЕ ==========
-    val draftManager = remember { DraftManager(context) }
-
-    // Загрузка черновика при первом открытии
-    LaunchedEffect(Unit) {
-        val draft = draftManager.loadDraft()
-        draft?.let {
-            viewModel.updateShipmentField("container", it.containerNumber)
-            viewModel.updateShipmentField("truck", it.truckNumber)
-            viewModel.updateShipmentField("trailer", it.trailerNumber)
-            viewModel.updateShipmentField("wagon", it.wagonNumber)
-            viewModel.updateShipmentField("seal", it.sealNumber)
-            viewModel.updateShipmentField("port", it.port)
-            viewModel.updateShipmentField("vessel", it.vessel)
-            viewModel.updateShipmentField("customer", it.customer)
-        }
-    }
-
-    val currentShipment by viewModel.currentShipment.collectAsState()
-    val currentProducts by viewModel.currentProducts.collectAsState()
-    val currentPallets by viewModel.currentPallets.collectAsState()
-    val productRemainders by viewModel.productRemainders.collectAsState()
-    val totalRemainder by viewModel.totalRemainder.collectAsState()
-    var expandedInfo by remember { mutableStateOf(true) }
-    var expandedProducts by remember { mutableStateOf(true) }
-    var activeProductId by remember { mutableStateOf<Long?>(null) }
-
-    LaunchedEffect(currentProducts) {
-        if (activeProductId == null && currentProducts.isNotEmpty()) {
-            activeProductId = currentProducts.first().id
-        }
-    }
-
-    Surface(
-        modifier = Modifier.fillMaxSize(),
-        color = MaterialTheme.colorScheme.background
-    ) {
-        Box(modifier = Modifier.fillMaxSize()) {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                // Секция информации о погрузке
-                item {
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(
-                            containerColor = CardBackground
-                        )
-                    ) {
-                        Column {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(16.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = "ИНФОРМАЦИЯ О ПОГРУЗКЕ",
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                                IconButton(
-                                    onClick = { expandedInfo = !expandedInfo }
-                                ) {
-                                    Icon(
-                                        imageVector = if (expandedInfo) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                                        contentDescription = if (expandedInfo) "Свернуть" else "Развернуть"
-                                    )
-                                }
-                            }
-
-                            if (expandedInfo) {
-                                Column(
-                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                                ) {
-                                    OutlinedTextField(
-                                        value = currentShipment.containerNumber,
-                                        onValueChange = { viewModel.updateShipmentField("container", it) },
-                                        label = { Text("Номер контейнера") },
-                                        modifier = Modifier.fillMaxWidth(),
-                                        singleLine = true
-                                    )
-
-                                    OutlinedTextField(
-                                        value = currentShipment.truckNumber,
-                                        onValueChange = { viewModel.updateShipmentField("truck", it) },
-                                        label = { Text("Номер авто") },
-                                        modifier = Modifier.fillMaxWidth(),
-                                        singleLine = true
-                                    )
-
-                                    OutlinedTextField(
-                                        value = currentShipment.trailerNumber,
-                                        onValueChange = { viewModel.updateShipmentField("trailer", it) },
-                                        label = { Text("Номер прицепа") },
-                                        modifier = Modifier.fillMaxWidth(),
-                                        singleLine = true
-                                    )
-
-                                    OutlinedTextField(
-                                        value = currentShipment.wagonNumber,
-                                        onValueChange = { viewModel.updateShipmentField("wagon", it) },
-                                        label = { Text("Номер вагона") },
-                                        modifier = Modifier.fillMaxWidth(),
-                                        singleLine = true
-                                    )
-
-                                    OutlinedTextField(
-                                        value = currentShipment.sealNumber,
-                                        onValueChange = { viewModel.updateShipmentField("seal", it) },
-                                        label = { Text("Номер пломбы") },
-                                        modifier = Modifier.fillMaxWidth(),
-                                        singleLine = true
-                                    )
-
-                                    OutlinedTextField(
-                                        value = currentShipment.port,
-                                        onValueChange = { viewModel.updateShipmentField("port", it) },
-                                        label = { Text("Порт") },
-                                        modifier = Modifier.fillMaxWidth(),
-                                        singleLine = true
-                                    )
-
-                                    OutlinedTextField(
-                                        value = currentShipment.vessel,
-                                        onValueChange = { viewModel.updateShipmentField("vessel", it) },
-                                        label = { Text("Судно") },
-                                        modifier = Modifier.fillMaxWidth(),
-                                        singleLine = true
-                                    )
-
-                                    OutlinedTextField(
-                                        value = currentShipment.customer,
-                                        onValueChange = { viewModel.updateShipmentField("customer", it) },
-                                        label = { Text("Заказчик") },
-                                        modifier = Modifier.fillMaxWidth(),
-                                        singleLine = true
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // Секция продукции
-                item {
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(
-                            containerColor = CardBackground
-                        )
-                    ) {
-                        Column {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(16.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = "ПРОДУКЦИЯ",
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                                IconButton(
-                                    onClick = { expandedProducts = !expandedProducts }
-                                ) {
-                                    Icon(
-                                        imageVector = if (expandedProducts) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                                        contentDescription = if (expandedProducts) "Свернуть" else "Развернуть"
-                                    )
-                                }
-                            }
-
-                            if (expandedProducts) {
-                                Column(
-                                    modifier = Modifier.padding(horizontal = 16.dp),
-                                    verticalArrangement = Arrangement.spacedBy(16.dp)
-                                ) {
-                                    // Кнопка добавления продукции
-                                    Button(
-                                        onClick = { viewModel.addProductItem() },
-                                        modifier = Modifier.fillMaxWidth()
-                                    ) {
-                                        Text("Добавить вид продукции")
-                                    }
-
-                                    // Список продукции
-                                    currentProducts.forEachIndexed { idx, product ->
-                                        ProductItemCard(
-                                            product = product,
-                                            index = idx + 1,
-                                            pallets = currentPallets[product.id] ?: emptyList(),
-                                            onUpdate = { field, value ->
-                                                viewModel.updateProductItem(product.id, field, value)
-                                            },
-                                            onDelete = {
-                                                viewModel.deleteProductItem(product.id)
-                                            },
-                                            onAddPallet = {
-                                                viewModel.addPallet(product.id)
-                                                activeProductId = product.id
-                                            },
-                                            onUpdatePallet = { palletId, places ->
-                                                viewModel.updatePalletPlaces(product.id, palletId, places)
-                                            },
-                                            onDeletePallet = { palletId ->
-                                                viewModel.deletePallet(product.id, palletId)
-                                            },
-                                            isActive = product.id == activeProductId,
-                                            onSetActive = { activeProductId = product.id }
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // Итоги
-                item {
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(
-                            containerColor = CardBackground
-                        )
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(16.dp),
-                            verticalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            Text(
-                                text = "ИТОГИ",
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-
-                            // Индивидуальные итоги по видам продукции
-                            currentProducts.forEachIndexed { idx, product ->
-                                Card(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(vertical = 4.dp),
-                                    colors = CardDefaults.cardColors(
-                                        containerColor = Color.Transparent
-                                    ),
-                                    border = CardDefaults.outlinedCardBorder()
-                                ) {
-                                    Column(
-                                        modifier = Modifier.padding(12.dp)
-                                    ) {
-                                        // Динамическое наименование
-                                        val productDisplayName = buildString {
-                                            if (product.name.isNotEmpty()) {
-                                                append(product.name)
-                                                if (product.manufacturer.isNotEmpty()) {
-                                                    append(" - ${product.manufacturer}")
-                                                }
-                                            } else {
-                                                append("Продукция #${idx + 1}")
-                                            }
-                                        }
-
-                                        Text(
-                                            text = productDisplayName,
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            fontWeight = FontWeight.Bold
-                                        )
-
-                                        // Изменено: каждая графа на отдельной строке
-                                        Column(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            verticalArrangement = Arrangement.spacedBy(4.dp)
-                                        ) {
-                                            Text("Поддоны: ${product.palletCount}")
-                                            Text("Места: ${product.placesCount}")
-                                            Text("Масса: ${String.format("%.2f", product.totalWeight)} кг")
-                                        }
-
-                                        // Индивидуальный остаток для каждого продукта - перегруз оранжевым
-                                        val productRemainder = product.quantity - product.placesCount
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.End
-                                        ) {
-                                            Text(
-                                                text = if (productRemainder >= 0)
-                                                    "Остаток: $productRemainder мест"
-                                                else
-                                                    "Перегруз: ${-productRemainder} мест",
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = if (productRemainder < 0) Color(0xFFFF9800) else MaterialTheme.colorScheme.onSurfaceVariant,
-                                                fontWeight = FontWeight.Bold
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-
-                            // Общие итоги
-                            Card(
-                                modifier = Modifier.fillMaxWidth(),
-                                colors = CardDefaults.cardColors(
-                                    containerColor = Color.Transparent
-                                ),
-                                border = CardDefaults.outlinedCardBorder()
-                            ) {
-                                Column(
-                                    modifier = Modifier.padding(12.dp),
-                                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    Text(
-                                        text = "ОБЩИЕ ИТОГИ",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        fontWeight = FontWeight.Bold
-                                    )
-
-                                    val totalProductTypes = currentProducts.size
-                                    val totalPallets = currentProducts.sumOf { it.palletCount }
-                                    val totalPlaces = currentProducts.sumOf { it.placesCount }
-                                    val totalWeight = currentProducts.sumOf { it.totalWeight }
-                                    val totalQuantity = currentProducts.sumOf { it.quantity }
-
-                                    Text("Видов продукции: $totalProductTypes")
-                                    Text("Всего поддонов: $totalPallets")
-                                    Text("Всего мест: $totalPlaces")
-                                    Text("Общая масса: ${String.format("%.2f", totalWeight)} кг")
-
-                                    // Сравнение мест
-                                    val placesMatch = totalPlaces == totalQuantity
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                    ) {
-                                        Text("Места: ")
-
-                                        // Иконка совпадения
-                                        Icon(
-                                            imageVector = if (placesMatch) Icons.Default.CheckCircle else Icons.Default.Warning,
-                                            contentDescription = if (placesMatch) "Совпадают" else "Не совпадают",
-                                            tint = if (placesMatch) SuccessColor else ErrorColor,
-                                            modifier = Modifier.size(20.dp)
-                                        )
-
-                                        // Текст статуса
-                                        Text(
-                                            text = if (placesMatch) "Совпадают" else "Не совпадают",
-                                            color = if (placesMatch) SuccessColor else ErrorColor,
-                                            fontWeight = FontWeight.Bold
-                                        )
-                                    }
-
-                                    // Подсказка при несовпадении
-                                    if (!placesMatch) {
-                                        Text(
-                                            text = "Мест указано: $totalPlaces, должно быть: $totalQuantity",
-                                            color = ErrorColor,
-                                            style = MaterialTheme.typography.bodySmall
-                                        )
-                                    }
-
-                                    // Общий остаток - перегруз оранжевым
-                                    val totalRemainder = totalQuantity - totalPlaces
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                    ) {
-                                        Text(
-                                            text = if (totalRemainder >= 0)
-                                                "Общий остаток: $totalRemainder мест"
-                                            else
-                                                "Общий перегруз: ${-totalRemainder} мест",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = if (totalRemainder < 0) Color(0xFFFF9800) else MaterialTheme.colorScheme.onSurfaceVariant,
-                                            fontWeight = FontWeight.Bold
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // Кнопка сохранения
-                item {
-                    Button(
-                        onClick = {
-                            viewModel.saveShipment()
-                            navController.popBackStack()
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 16.dp),
-                        enabled = currentProducts.isNotEmpty()
-                    ) {
-                        Text("СОХРАНИТЬ ОТГРУЗКУ")
-                    }
-                }
-            }
-
-            // Плавающая кнопка добавления поддона (только если есть товары)
-            if (currentProducts.isNotEmpty() && activeProductId != null) {
-                FloatingActionButton(
-                    onClick = {
-                        // Добавляем поддон к активной продукции
-                        viewModel.addPallet(activeProductId!!)
-                    },
-                    modifier = Modifier
-                        .align(Alignment.BottomEnd)
-                        .padding(16.dp),
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = MaterialTheme.colorScheme.onPrimary
-                ) {
-                    Icon(Icons.Default.Add, contentDescription = "Добавить поддон")
-                }
-            }
-        }
-    }
-}
+import androidx.compose.ui.text.font.FontWeight
+import com.example.fishy.database.AppDatabase
+import com.example.fishy.screens.newshipment.MultiTotals
+import com.example.fishy.theme.Success
+import com.example.fishy.utils.ValidationState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ProductItemCard(
-    product: com.example.fishy.database.entities.ProductItem,
-    index: Int,
-    pallets: List<com.example.fishy.database.entities.Pallet>,
-    onUpdate: (String, Any) -> Unit,
-    onDelete: () -> Unit,
-    onAddPallet: () -> Unit,
-    onUpdatePallet: (Long, Int) -> Unit,
-    onDeletePallet: (Long) -> Unit,
-    isActive: Boolean = false,
-    onSetActive: () -> Unit
+fun NewShipmentScreen(
+    navController: NavController,
+    scheduledShipmentId: Long? = null
 ) {
-    var expanded by remember { mutableStateOf(true) }
-    var showDeleteProductDialog by remember { mutableStateOf(false) }
-    var palletToDelete by remember { mutableStateOf<Long?>(null) }
+    val context = LocalContext.current
+    val viewModel: ShipmentViewModel = viewModel(
+        factory = ShipmentViewModelFactory(
+            context = context,
+            database = AppDatabase.getDatabase(context)
+        )
+    )
 
-    // Локальные состояния для числовых полей
-    var packageWeightText by remember { mutableStateOf("") }
-    var quantityText by remember { mutableStateOf("") }
+    // Состояния для отслеживания процесса сохранения
+    var isSaving by remember { mutableStateOf(false) }
 
-    // Инициализация значений
-    LaunchedEffect(product.id) {
-        packageWeightText = if (product.packageWeight > 0) product.packageWeight.toString() else ""
-        quantityText = if (product.quantity > 0) product.quantity.toString() else ""
-    }
+    val currentShipment by viewModel.currentShipment.collectAsState()
+    val shipmentType by viewModel.shipmentType.collectAsState()
+    val multiPorts by viewModel.multiPorts.collectAsState()
+    val multiVehicles by viewModel.multiVehicles.collectAsState()
+    val currentProducts by viewModel.currentProducts.collectAsState()
 
-    // Обновление при изменении значений извне
-    LaunchedEffect(product.packageWeight) {
-        if (product.packageWeight == 0.0) {
-            packageWeightText = ""
+    // Для исчезающих полей транспорта в общих данных
+    val hasWagon = currentShipment.wagonNumber.isNotEmpty()
+    val hasVehicle = currentShipment.containerNumber.isNotEmpty() ||
+            currentShipment.truckNumber.isNotEmpty() ||
+            currentShipment.trailerNumber.isNotEmpty()
+    val showWagon = !hasVehicle || hasWagon
+    val showVehicle = !hasWagon || hasVehicle
+
+    // Получаем словари для автодополнения
+    val customerDictionary by viewModel.getDictionaryItems("customer").collectAsState(emptyList())
+    val portDictionary by viewModel.getDictionaryItems("port").collectAsState(emptyList())
+    val vesselDictionary by viewModel.getDictionaryItems("vessel").collectAsState(emptyList())
+    val productDictionary by viewModel.getDictionaryItems("product").collectAsState(emptyList())
+    val manufacturerDictionary by viewModel.getDictionaryItems("manufacturer").collectAsState(emptyList())
+
+    // Состояния для аккордеонов
+    var multiPortGeneralDataExpanded by remember { mutableStateOf(true) }
+    var multiVehicleGeneralDataExpanded by remember { mutableStateOf(true) }
+    var multiPortTotalsExpanded by remember { mutableStateOf(true) }
+    var multiVehicleTotalsExpanded by remember { mutableStateOf(true) }
+
+    // Загрузка данных при открытии экрана
+    LaunchedEffect(scheduledShipmentId) {
+        if (scheduledShipmentId != null) {
+            // Загружаем данные из запланированной отгрузки
+            viewModel.loadFromScheduledShipment(scheduledShipmentId)
+        } else {
+            // Загружаем черновик, если есть
+            viewModel.loadDraft()
         }
     }
 
-    LaunchedEffect(product.quantity) {
-        if (product.quantity == 0) {
-            quantityText = ""
+    // Общие итоги для мультипорта с учетом двойного контроля
+    val multiPortTotals = remember(multiPorts) {
+        var totalProductTypes = 0
+        var totalPallets = 0
+        var totalPlaces = 0
+        var totalWeight = 0.0
+        var totalQuantity = 0
+
+        // Счетчики для двойного контроля (если где-то включен)
+        var importedPallets = 0
+        var importedPlaces = 0
+        var totalPalletsWithDC = 0
+        var totalPlacesWithDC = 0
+
+        multiPorts.forEach { port ->
+            totalProductTypes += port.products.size
+
+            port.products.forEach { product ->
+                totalPallets += product.palletCount
+                totalWeight += product.totalWeight
+                totalQuantity += product.quantity
+
+                // Если в порту включен двойной контроль, считаем только завезенные места
+                if (port.doubleControlEnabled) {
+                    val productImportedPlaces = product.pallets.sumOf { if (it.isImported) it.places else 0 }
+                    val productImportedPallets = product.pallets.count { it.isImported }
+                    importedPlaces += productImportedPlaces
+                    importedPallets += productImportedPallets
+                    totalPlaces += productImportedPlaces
+
+                    // Общие счетчики для статистики
+                    totalPalletsWithDC += product.palletCount
+                    totalPlacesWithDC += product.placesCount
+                } else {
+                    totalPlaces += product.placesCount
+                }
+            }
+        }
+
+        // Создаем объект MultiTotals с учетом двойного контроля
+        MultiTotals(
+            totalProductTypes = totalProductTypes,
+            totalPallets = totalPallets,
+            totalPlaces = totalPlaces,
+            totalWeight = totalWeight,
+            totalRemainder = totalQuantity - totalPlaces,
+            totalQuantity = totalQuantity
+        )
+    }
+
+    // Статистика двойного контроля для общих итогов мультипорта
+    val multiPortDoubleControlStats = remember(multiPorts) {
+        val portsWithDC = multiPorts.filter { it.doubleControlEnabled }
+        if (portsWithDC.isEmpty()) {
+            com.example.fishy.viewmodels.DoubleControlStats()
+        } else {
+            val allPallets = portsWithDC.flatMap { port ->
+                port.products.flatMap { it.pallets }
+            }
+            val totalPallets = allPallets.size
+            val importedPallets = allPallets.count { it.isImported }
+            val totalPlaces = allPallets.sumOf { it.places }
+            val importedPlaces = allPallets.sumOf { if (it.isImported) it.places else 0 }
+
+            com.example.fishy.viewmodels.DoubleControlStats(
+                totalPallets = totalPallets,
+                exportedPallets = totalPallets,
+                importedPallets = importedPallets,
+                totalPlaces = totalPlaces,
+                exportedPlaces = totalPlaces,
+                importedPlaces = importedPlaces
+            )
         }
     }
 
-    // Диалог подтверждения удаления поддона
-    if (palletToDelete != null) {
-        AlertDialog(
-            onDismissRequest = { palletToDelete = null },
-            title = { Text("Удаление поддона") },
-            text = { Text("Вы уверены, что хотите удалить этот поддон?") },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        palletToDelete?.let { onDeletePallet(it) }
-                        palletToDelete = null
-                    }
-                ) {
-                    Text("Удалить")
-                }
-            },
-            dismissButton = {
-                TextButton(
-                    onClick = { palletToDelete = null }
-                ) {
-                    Text("Отмена")
+    // Общие итоги для мультиавто с учетом двойного контроля
+    val multiVehicleTotals = remember(multiVehicles) {
+        var totalProductTypes = 0
+        var totalPallets = 0
+        var totalPlaces = 0
+        var totalWeight = 0.0
+        var totalQuantity = 0
+
+        // Счетчики для двойного контроля (если где-то включен)
+        var importedPallets = 0
+        var importedPlaces = 0
+        var totalPalletsWithDC = 0
+        var totalPlacesWithDC = 0
+
+        multiVehicles.forEach { vehicle ->
+            totalProductTypes += vehicle.products.size
+
+            vehicle.products.forEach { product ->
+                totalPallets += product.palletCount
+                totalWeight += product.totalWeight
+                totalQuantity += product.quantity
+
+                // Если в транспорте включен двойной контроль, считаем только завезенные места
+                if (vehicle.doubleControlEnabled) {
+                    val productImportedPlaces = product.pallets.sumOf { if (it.isImported) it.places else 0 }
+                    val productImportedPallets = product.pallets.count { it.isImported }
+                    importedPlaces += productImportedPlaces
+                    importedPallets += productImportedPallets
+                    totalPlaces += productImportedPlaces
+
+                    // Общие счетчики для статистики
+                    totalPalletsWithDC += product.palletCount
+                    totalPlacesWithDC += product.placesCount
+                } else {
+                    totalPlaces += product.placesCount
                 }
             }
+        }
+
+        // Создаем объект MultiTotals с учетом двойного контроля
+        MultiTotals(
+            totalProductTypes = totalProductTypes,
+            totalPallets = totalPallets,
+            totalPlaces = totalPlaces,
+            totalWeight = totalWeight,
+            totalRemainder = totalQuantity - totalPlaces,
+            totalQuantity = totalQuantity
         )
     }
 
-    // Диалог подтверждения удаления всей продукции
-    if (showDeleteProductDialog) {
-        AlertDialog(
-            onDismissRequest = { showDeleteProductDialog = false },
-            title = { Text("Удаление продукции") },
-            text = { Text("Вы уверены, что хотите удалить этот вид продукции?") },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        onDelete()
-                        showDeleteProductDialog = false
-                    }
-                ) {
-                    Text("Удалить")
-                }
-            },
-            dismissButton = {
-                TextButton(
-                    onClick = { showDeleteProductDialog = false }
-                ) {
-                    Text("Отмена")
-                }
+    // Статистика двойного контроля для общих итогов мультиавто
+    val multiVehicleDoubleControlStats = remember(multiVehicles) {
+        val vehiclesWithDC = multiVehicles.filter { it.doubleControlEnabled }
+        if (vehiclesWithDC.isEmpty()) {
+            com.example.fishy.viewmodels.DoubleControlStats()
+        } else {
+            val allPallets = vehiclesWithDC.flatMap { vehicle ->
+                vehicle.products.flatMap { it.pallets }
             }
-        )
+            val totalPallets = allPallets.size
+            val importedPallets = allPallets.count { it.isImported }
+            val totalPlaces = allPallets.sumOf { it.places }
+            val importedPlaces = allPallets.sumOf { if (it.isImported) it.places else 0 }
+
+            com.example.fishy.viewmodels.DoubleControlStats(
+                totalPallets = totalPallets,
+                exportedPallets = totalPallets,
+                importedPallets = importedPallets,
+                totalPlaces = totalPlaces,
+                exportedPlaces = totalPlaces,
+                importedPlaces = importedPlaces
+            )
+        }
     }
 
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = Color.Transparent
-        ),
-        border = CardDefaults.outlinedCardBorder(),
-        onClick = { onSetActive() }
-    ) {
-        Column(
-            modifier = Modifier.padding(12.dp)
+    // Проверяем, включен ли двойной контроль в любом порту/транспорте
+    val anyPortHasDoubleControl = multiPorts.any { it.doubleControlEnabled }
+    val anyVehicleHasDoubleControl = multiVehicles.any { it.doubleControlEnabled }
+
+    // Функция для сохранения отгрузки
+    fun saveShipmentAndNavigate() {
+        if (isSaving) return
+
+        isSaving = true
+        viewModel.saveShipment()
+
+        // Показываем успешное сообщение
+        Toast.makeText(context, "Отгрузка сохранена", Toast.LENGTH_SHORT).show()
+
+        // Возвращаемся на предыдущий экран
+        navController.popBackStack()
+        isSaving = false
+    }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = {
+                    Text(
+                        text = if (scheduledShipmentId != null) "Начать отгрузку" else "Новая погрузка"
+                    )
+                },
+                navigationIcon = {
+                    IconButton(onClick = {
+                        // Если есть запланированная отгрузка, сбрасываем её ID
+                        // чтобы она не удалилась при сохранении в будущем
+                        if (scheduledShipmentId != null) {
+                            viewModel.clearScheduledShipmentId()
+                        }
+                        navController.popBackStack()
+                    }) {
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Назад")
+                    }
+                }
+            )
+        }
+    ) { paddingValues ->
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues),
+            contentPadding = PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // Динамическое наименование продукции
-                val displayName = remember(product.name, product.manufacturer) {
-                    buildString {
-                        if (product.name.isNotEmpty()) {
-                            append(product.name)
-                            if (product.manufacturer.isNotEmpty()) {
-                                append(" - ${product.manufacturer}")
+            // Выбор типа погрузки
+            item {
+                ShipmentTypeDropdown(
+                    selectedType = shipmentType,
+                    onTypeSelected = { viewModel.setShipmentType(it) }
+                )
+            }
+
+            when (shipmentType) {
+                "mono" -> {
+                    item {
+                        MonoModeScreen(
+                            viewModel = viewModel,
+                            navController = navController,
+                            customerDictionary = customerDictionary,
+                            portDictionary = portDictionary,
+                            vesselDictionary = vesselDictionary,
+                            productDictionary = productDictionary,
+                            manufacturerDictionary = manufacturerDictionary
+                        )
+                    }
+                }
+
+                "multi_port" -> {
+                    // Аккордеон "ОБЩИЕ ДАННЫЕ" для мультипорта
+                    item {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.surface
+                            )
+                        ) {
+                            Column {
+                                // Заголовок аккордеона
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(16.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = "ОБЩИЕ ДАННЫЕ",
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    IconButton(
+                                        onClick = { multiPortGeneralDataExpanded = !multiPortGeneralDataExpanded },
+                                        modifier = Modifier.size(24.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = if (multiPortGeneralDataExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                                            contentDescription = if (multiPortGeneralDataExpanded) "Свернуть" else "Развернуть"
+                                        )
+                                    }
+                                }
+
+                                // Контент аккордеона
+                                if (multiPortGeneralDataExpanded) {
+                                    Column(modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 16.dp)) {
+                                        // Заказчик
+                                        DictionaryAutocomplete(
+                                            value = currentShipment.customer,
+                                            onValueChange = { value ->
+                                                viewModel.updateShipmentField("customer", value)
+                                            },
+                                            label = "Заказчик",
+                                            dictionaryType = "customer",
+                                            modifier = Modifier.fillMaxWidth(),
+                                            dictionaryItems = customerDictionary,
+                                            onAddToDictionary = { type, value ->
+                                                viewModel.addDictionaryItem(type, value)
+                                            },
+                                            onSaveToDictionary = { value -> viewModel.saveDictionaryField("customer", value) }
+                                        )
+
+                                        Spacer(modifier = Modifier.height(8.dp))
+
+                                        // Получаем состояния валидации
+                                        val containerValidation by viewModel.containerValidation.collectAsState()
+                                        val wagonValidation by viewModel.wagonValidation.collectAsState()
+
+                                        // Вагон (только если нет авто/контейнера/прицепа)
+                                        if (showWagon) {
+                                            val hasWagonError = wagonValidation is ValidationState.INVALID ||
+                                                    wagonValidation is ValidationState.INVALID_WITH_SUGGESTION
+
+                                            OutlinedTextField(
+                                                value = currentShipment.wagonNumber,
+                                                onValueChange = { viewModel.updateShipmentField("wagon", it.uppercase())},
+                                                label = { Text("Вагон") },
+                                                modifier = Modifier.fillMaxWidth(),
+                                                singleLine = true,
+                                                isError = hasWagonError,
+                                                trailingIcon = {
+                                                    if (hasWagonError) {
+                                                        Icon(
+                                                            Icons.Default.Error,
+                                                            contentDescription = "Ошибка",
+                                                            tint = MaterialTheme.colorScheme.error
+                                                        )
+                                                    }
+                                                }
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.height(8.dp))
+                                        // Контейнер, Авто, Прицеп (только если нет вагона)
+                                        if (showVehicle) {
+                                            val hasContainerError = containerValidation is ValidationState.INVALID ||
+                                                    containerValidation is ValidationState.INVALID_WITH_SUGGESTION
+
+                                            // Контейнер
+                                            OutlinedTextField(
+                                                value = currentShipment.containerNumber,
+                                                onValueChange = { viewModel.updateShipmentField("container", it.uppercase())},
+                                                label = { Text("Контейнер") },
+                                                modifier = Modifier.fillMaxWidth(),
+                                                singleLine = true,
+                                                isError = hasContainerError,
+                                                trailingIcon = {
+                                                    if (hasContainerError) {
+                                                        Icon(
+                                                            Icons.Default.Error,
+                                                            contentDescription = "Ошибка",
+                                                            tint = MaterialTheme.colorScheme.error
+                                                        )
+                                                    }
+                                                }
+                                            )
+
+                                            Spacer(modifier = Modifier.height(8.dp))
+
+                                            // Авто и прицеп вместе
+                                            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                                OutlinedTextField(
+                                                    value = currentShipment.truckNumber,
+                                                    onValueChange = { viewModel.updateShipmentField("truck", it.uppercase())},
+                                                    label = { Text("Авто") },
+                                                    modifier = Modifier.weight(1f),
+                                                    singleLine = true
+                                                )
+
+                                                OutlinedTextField(
+                                                    value = currentShipment.trailerNumber,
+                                                    onValueChange = { viewModel.updateShipmentField("trailer", it.uppercase())},
+                                                    label = { Text("Прицеп") },
+                                                    modifier = Modifier.weight(1f),
+                                                    singleLine = true
+                                                )
+                                            }
+                                        }
+                                        Spacer(modifier = Modifier.height(8.dp))
+                                        // Пломба (всегда показывается)
+                                        OutlinedTextField(
+                                            value = currentShipment.sealNumber,
+                                            onValueChange = { viewModel.updateShipmentField("seal", it.uppercase())},
+                                            label = { Text("Пломба") },
+                                            modifier = Modifier.fillMaxWidth(),
+                                            singleLine = true
+                                        )
+                                    }
+                                }
                             }
-                        } else {
-                            append("Продукция #$index")
+                        }
+                    }
+
+                    // Список портов (каждый порт в своем аккордеоне - уже реализовано в MultiPortItem)
+                    items(multiPorts) { port ->
+                        MultiPortItem(
+                            port = port,
+                            viewModel = viewModel,
+                            onDeletePort = { viewModel.deleteMultiPort(port.id) },
+                            portDictionary = portDictionary,
+                            productDictionary = productDictionary,
+                            manufacturerDictionary = manufacturerDictionary
+                        )
+                    }
+
+                    // Кнопка добавления порта
+                    item {
+                        Button(
+                            onClick = { viewModel.addMultiPort() },
+                            modifier = Modifier.fillMaxWidth(),
+                            contentPadding = PaddingValues(16.dp)
+                        ) {
+                            Icon(Icons.Default.Add, contentDescription = "Добавить порт")
+                            Spacer(Modifier.width(8.dp))
+                            Text("Добавить порт")
+                        }
+                    }
+
+                    // Аккордеон "ОБЩИЕ ИТОГИ" для мультипорта
+                    item {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.surface
+                            )
+                        ) {
+                            Column {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(16.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text("ОБЩИЕ ИТОГИ", style = MaterialTheme.typography.bodyLarge)
+                                    IconButton(
+                                        onClick = { multiPortTotalsExpanded = !multiPortTotalsExpanded },
+                                        modifier = Modifier.size(24.dp)
+                                    ) {
+                                        Icon(
+                                            if (multiPortTotalsExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                                            contentDescription = null
+                                        )
+                                    }
+                                }
+
+                                if (multiPortTotalsExpanded) {
+                                    Column(
+                                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween
+                                        ) {
+                                            Text("Видов продукции:")
+                                            Text("${multiPortTotals.totalProductTypes}")
+                                        }
+
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween
+                                        ) {
+                                            Text("Поддонов:")
+                                            Text("${multiPortTotals.totalPallets}")
+                                        }
+
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween
+                                        ) {
+                                            Text("Мест:")
+                                            Text("${multiPortTotals.totalPlaces}")
+                                        }
+
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween
+                                        ) {
+                                            Text("Общая масса:")
+                                            Text("${String.format("%.2f", multiPortTotals.totalWeight)} кг")
+                                        }
+
+                                        // Учитываем двойной контроль в расчетах
+                                        val actualPlaces = if (anyPortHasDoubleControl) {
+                                            multiPortDoubleControlStats.importedPlaces
+                                        } else {
+                                            multiPortTotals.totalPlaces
+                                        }
+
+                                        val remainder = multiPortTotals.totalQuantity - actualPlaces
+
+                                        // Статус загрузки с учетом двойного контроля
+                                        when {
+                                            remainder > 0 -> {
+                                                Row(
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    horizontalArrangement = Arrangement.SpaceBetween
+                                                ) {
+                                                    Text(
+                                                        text = "Недогруз:",
+                                                        color = MaterialTheme.colorScheme.error
+                                                    )
+                                                    Text(
+                                                        text = "$remainder мест",
+                                                        color = MaterialTheme.colorScheme.error
+                                                    )
+                                                }
+                                            }
+                                            remainder < 0 -> {
+                                                Row(
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    horizontalArrangement = Arrangement.SpaceBetween
+                                                ) {
+                                                    Text(
+                                                        text = "Перегруз:",
+                                                        color = MaterialTheme.colorScheme.tertiary
+                                                    )
+                                                    Text(
+                                                        text = "${-remainder} мест",
+                                                        color = MaterialTheme.colorScheme.tertiary
+                                                    )
+                                                }
+                                            }
+                                            else -> {
+                                                Row(
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    horizontalArrangement = Arrangement.SpaceBetween
+                                                ) {
+                                                    Text(
+                                                        text = "✓ Погрузка завершена",
+                                                        color = Success
+                                                    )
+                                                }
+                                            }
+                                        }
+
+                                        // Статистика двойного контроля
+                                        if (anyPortHasDoubleControl) {
+                                            Spacer(modifier = Modifier.height(8.dp))
+                                            Card(
+                                                colors = CardDefaults.cardColors(
+                                                    containerColor = MaterialTheme.colorScheme.surfaceVariant
+                                                ),
+                                                modifier = Modifier.fillMaxWidth()
+                                            ) {
+                                                Column(
+                                                    modifier = Modifier.padding(12.dp),
+                                                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                                                ) {
+                                                    Text(
+                                                        "Двойной контроль:",
+                                                        style = MaterialTheme.typography.bodySmall,
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                        fontWeight = FontWeight.Bold
+                                                    )
+
+                                                    Row(
+                                                        modifier = Modifier.fillMaxWidth(),
+                                                        horizontalArrangement = Arrangement.SpaceBetween
+                                                    ) {
+                                                        Text(
+                                                            "Поддоны:",
+                                                            style = MaterialTheme.typography.bodySmall,
+                                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                        )
+                                                        Text(
+                                                            "${multiPortDoubleControlStats.importedPallets}/${multiPortDoubleControlStats.totalPallets}",
+                                                            style = MaterialTheme.typography.bodySmall,
+                                                            color = if (multiPortDoubleControlStats.importedPallets == multiPortDoubleControlStats.totalPallets)
+                                                                MaterialTheme.colorScheme.primary
+                                                            else
+                                                                MaterialTheme.colorScheme.error
+                                                        )
+                                                    }
+
+                                                    Row(
+                                                        modifier = Modifier.fillMaxWidth(),
+                                                        horizontalArrangement = Arrangement.SpaceBetween
+                                                    ) {
+                                                        Text(
+                                                            "Места:",
+                                                            style = MaterialTheme.typography.bodySmall,
+                                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                        )
+                                                        Text(
+                                                            "${multiPortDoubleControlStats.importedPlaces}/${multiPortDoubleControlStats.totalPlaces}",
+                                                            style = MaterialTheme.typography.bodySmall,
+                                                            color = if (multiPortDoubleControlStats.importedPlaces == multiPortDoubleControlStats.totalPlaces)
+                                                                MaterialTheme.colorScheme.primary
+                                                            else
+                                                                MaterialTheme.colorScheme.error
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }
 
-                Text(
-                    text = displayName,
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = if (isActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.weight(1f)
-                )
-                Row {
-                    IconButton(
-                        onClick = { expanded = !expanded },
-                        modifier = Modifier.size(24.dp)
-                    ) {
-                        Icon(
-                            imageVector = if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                            contentDescription = if (expanded) "Свернуть" else "Развернуть"
+                "multi_vehicle" -> {
+                    // Аккордеон "ОБЩИЕ ДАННЫЕ" для мультиавто
+                    item {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.surface
+                            )
+                        ) {
+                            Column {
+                                // Заголовок аккордеона
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(16.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = "ОБЩИЕ ДАННЫЕ",
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    IconButton(
+                                        onClick = { multiVehicleGeneralDataExpanded = !multiVehicleGeneralDataExpanded },
+                                        modifier = Modifier.size(24.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = if (multiVehicleGeneralDataExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                                            contentDescription = if (multiVehicleGeneralDataExpanded) "Свернуть" else "Развернуть"
+                                        )
+                                    }
+                                }
+
+                                // Контент аккордеона
+                                if (multiVehicleGeneralDataExpanded) {
+                                    Column(modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 16.dp)) {
+                                        // Заказчик
+                                        DictionaryAutocomplete(
+                                            value = currentShipment.customer,
+                                            onValueChange = { value ->
+                                                viewModel.updateShipmentField("customer", value)
+                                            },
+                                            label = "Заказчик",
+                                            dictionaryType = "customer",
+                                            modifier = Modifier.fillMaxWidth(),
+                                            dictionaryItems = customerDictionary,
+                                            onAddToDictionary = { type, value ->
+                                                viewModel.addDictionaryItem(type, value)
+                                            },
+                                            onSaveToDictionary = { value -> viewModel.saveDictionaryField("customer", value) }
+                                        )
+
+                                        Spacer(modifier = Modifier.height(8.dp))
+
+                                        DictionaryAutocomplete(
+                                            value = currentShipment.port,
+                                            onValueChange = { value ->
+                                                viewModel.updateShipmentField("port", value)
+                                            },
+                                            label = "Порт",
+                                            dictionaryType = "port",
+                                            modifier = Modifier.fillMaxWidth(),
+                                            dictionaryItems = portDictionary,
+                                            onAddToDictionary = { type, value ->
+                                                viewModel.addDictionaryItem(type, value)
+                                            },
+                                            onSaveToDictionary = { value -> viewModel.saveDictionaryField("port", value) }
+                                        )
+
+                                        Spacer(modifier = Modifier.height(8.dp))
+
+                                        DictionaryAutocomplete(
+                                            value = currentShipment.vessel,
+                                            onValueChange = { value ->
+                                                viewModel.updateShipmentField("vessel", value)
+                                            },
+                                            label = "Судно",
+                                            dictionaryType = "vessel",
+                                            modifier = Modifier.fillMaxWidth(),
+                                            dictionaryItems = vesselDictionary,
+                                            onAddToDictionary = { type, value ->
+                                                viewModel.addDictionaryItem(type, value)
+                                            },
+                                            onSaveToDictionary = { value -> viewModel.saveDictionaryField("vessel", value) }
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Список транспорта (каждый транспорт в своем аккордеоне - уже реализовано в MultiVehicleItem)
+                    items(multiVehicles) { vehicle ->
+                        MultiVehicleItem(
+                            vehicle = vehicle,
+                            viewModel = viewModel,
+                            onDeleteVehicle = { viewModel.deleteMultiVehicle(vehicle.id) },
+                            productDictionary = productDictionary,
+                            manufacturerDictionary = manufacturerDictionary
                         )
                     }
-                    IconButton(
-                        onClick = { showDeleteProductDialog = true },
-                        modifier = Modifier.size(24.dp)
-                    ) {
-                        Icon(Icons.Default.Delete, contentDescription = "Удалить")
+
+                    // Кнопка добавления транспорта
+                    item {
+                        Button(
+                            onClick = { viewModel.addMultiVehicle() },
+                            modifier = Modifier.fillMaxWidth(),
+                            contentPadding = PaddingValues(16.dp)
+                        ) {
+                            Icon(Icons.Default.Add, contentDescription = "Добавить транспорт")
+                            Spacer(Modifier.width(8.dp))
+                            Text("Добавить транспорт")
+                        }
+                    }
+
+                    // Аккордеон "ОБЩИЕ ИТОГИ" для мультиавто
+                    item {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.surface
+                            )
+                        ) {
+                            Column {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(16.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text("ОБЩИЕ ИТОГИ", style = MaterialTheme.typography.bodyLarge)
+                                    IconButton(
+                                        onClick = { multiVehicleTotalsExpanded = !multiVehicleTotalsExpanded },
+                                        modifier = Modifier.size(24.dp)
+                                    ) {
+                                        Icon(
+                                            if (multiVehicleTotalsExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                                            contentDescription = null
+                                        )
+                                    }
+                                }
+
+                                if (multiVehicleTotalsExpanded) {
+                                    Column(
+                                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween
+                                        ) {
+                                            Text("Мест:")
+                                            Text("${multiVehicleTotals.totalPlaces}")
+                                        }
+
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween
+                                        ) {
+                                            Text("Общая масса:")
+                                            Text("${String.format("%.2f", multiVehicleTotals.totalWeight)} кг")
+                                        }
+
+                                        // Учитываем двойной контроль в расчетах
+                                        val actualPlaces = if (anyVehicleHasDoubleControl) {
+                                            multiVehicleDoubleControlStats.importedPlaces
+                                        } else {
+                                            multiVehicleTotals.totalPlaces
+                                        }
+
+                                        val remainder = multiVehicleTotals.totalQuantity - actualPlaces
+
+                                        // Статус загрузки с учетом двойного контроля
+                                        when {
+                                            remainder > 0 -> {
+                                                Row(
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    horizontalArrangement = Arrangement.SpaceBetween
+                                                ) {
+                                                    Text(
+                                                        text = "Недогруз:",
+                                                        color = MaterialTheme.colorScheme.error
+                                                    )
+                                                    Text(
+                                                        text = "$remainder мест",
+                                                        color = MaterialTheme.colorScheme.error
+                                                    )
+                                                }
+                                            }
+                                            remainder < 0 -> {
+                                                Row(
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    horizontalArrangement = Arrangement.SpaceBetween
+                                                ) {
+                                                    Text(
+                                                        text = "Перегруз:",
+                                                        color = MaterialTheme.colorScheme.tertiary
+                                                    )
+                                                    Text(
+                                                        text = "${-remainder} мест",
+                                                        color = MaterialTheme.colorScheme.tertiary
+                                                    )
+                                                }
+                                            }
+                                            else -> {
+                                                Row(
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    horizontalArrangement = Arrangement.SpaceBetween
+                                                ) {
+                                                    Text(
+                                                        text = "✓ Погрузка завершена",
+                                                        color = Success
+                                                    )
+                                                }
+                                            }
+                                        }
+
+                                        // Статистика двойного контроля
+                                        if (anyVehicleHasDoubleControl) {
+                                            Spacer(modifier = Modifier.height(8.dp))
+                                            Card(
+                                                colors = CardDefaults.cardColors(
+                                                    containerColor = MaterialTheme.colorScheme.surfaceVariant
+                                                ),
+                                                modifier = Modifier.fillMaxWidth()
+                                            ) {
+                                                Column(
+                                                    modifier = Modifier.padding(12.dp),
+                                                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                                                ) {
+                                                    Text(
+                                                        "Двойной контроль:",
+                                                        style = MaterialTheme.typography.bodySmall,
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                        fontWeight = FontWeight.Bold
+                                                    )
+
+                                                    Row(
+                                                        modifier = Modifier.fillMaxWidth(),
+                                                        horizontalArrangement = Arrangement.SpaceBetween
+                                                    ) {
+                                                        Text(
+                                                            "Поддоны:",
+                                                            style = MaterialTheme.typography.bodySmall,
+                                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                        )
+                                                        Text(
+                                                            "${multiVehicleDoubleControlStats.importedPallets}/${multiVehicleDoubleControlStats.totalPallets}",
+                                                            style = MaterialTheme.typography.bodySmall,
+                                                            color = if (multiVehicleDoubleControlStats.importedPallets == multiVehicleDoubleControlStats.totalPallets)
+                                                                MaterialTheme.colorScheme.primary
+                                                            else
+                                                                MaterialTheme.colorScheme.error
+                                                        )
+                                                    }
+
+                                                    Row(
+                                                        modifier = Modifier.fillMaxWidth(),
+                                                        horizontalArrangement = Arrangement.SpaceBetween
+                                                    ) {
+                                                        Text(
+                                                            "Места:",
+                                                            style = MaterialTheme.typography.bodySmall,
+                                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                        )
+                                                        Text(
+                                                            "${multiVehicleDoubleControlStats.importedPlaces}/${multiVehicleDoubleControlStats.totalPlaces}",
+                                                            style = MaterialTheme.typography.bodySmall,
+                                                            color = if (multiVehicleDoubleControlStats.importedPlaces == multiVehicleDoubleControlStats.totalPlaces)
+                                                                MaterialTheme.colorScheme.primary
+                                                            else
+                                                                MaterialTheme.colorScheme.error
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
 
-            if (expanded) {
+            // Кнопка сохранения черновика и отгрузки
+            item {
                 Column(
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    OutlinedTextField(
-                        value = product.name,
-                        onValueChange = { onUpdate("name", it) },
-                        label = { Text("Наименование") },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true
-                    )
-
-                    OutlinedTextField(
-                        value = product.manufacturer,
-                        onValueChange = { onUpdate("manufacturer", it) },
-                        label = { Text("Изготовитель") },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true
-                    )
-
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        // Поле тары с локальным состоянием - УБРАЛИ "(кг)"
-                        OutlinedTextField(
-                            value = packageWeightText,
-                            onValueChange = { newValue ->
-                                packageWeightText = newValue
-                                val weight = newValue.toDoubleOrNull() ?: 0.0
-                                onUpdate("packageWeight", weight)
-                            },
-                            label = { Text("Тара") }, // Изменено: было "Тара (кг)"
-                            modifier = Modifier.weight(1f),
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                            singleLine = true
-                        )
-
-                        // Поле количества с локальным состоянием
-                        OutlinedTextField(
-                            value = quantityText,
-                            onValueChange = { newValue ->
-                                quantityText = newValue
-                                val qty = newValue.toIntOrNull() ?: 0
-                                onUpdate("quantity", qty)
-                            },
-                            label = { Text("Кол-во") },
-                            modifier = Modifier.weight(1f),
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                            singleLine = true
-                        )
-
-                        // Поле массы - УБРАЛИ "(кг)"
-                        OutlinedTextField(
-                            value = String.format("%.2f", product.totalWeight),
-                            onValueChange = { },
-                            label = { Text("Масса") }, // Изменено: было "Масса (кг)"
-                            modifier = Modifier.weight(1f),
-                            readOnly = true,
-                            singleLine = true
-                        )
-                    }
-
-                    // Таблица поддонов
-                    if (pallets.isNotEmpty()) {
-                        Text(
-                            text = "Поддоны:",
-                            style = MaterialTheme.typography.bodySmall,
-                            fontWeight = FontWeight.Bold
-                        )
-
-                        Column {
-                            // Заголовок таблицы
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 8.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Text(
-                                    text = "№",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    fontWeight = FontWeight.Bold,
-                                    modifier = Modifier.weight(0.4f)
-                                )
-                                Text(
-                                    text = "Кол-во мест",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    fontWeight = FontWeight.Bold,
-                                    modifier = Modifier.weight(1.2f)
-                                )
-                                Text(
-                                    text = "",
-                                    modifier = Modifier.weight(0.4f)
-                                )
-                            }
-
-                            // Строки таблицы
-                            pallets.forEach { pallet ->
-                                PalletRow(
-                                    pallet = pallet,
-                                    onUpdatePallet = { places ->
-                                        onUpdatePallet(pallet.id, places)
-                                    },
-                                    onDeletePallet = {
-                                        palletToDelete = pallet.id
-                                    }
-                                )
-                            }
-                        }
-                    }
-
-                    // Кнопка добавления поддона для этого товара
+                    // Кнопка сохранения черновика
                     Button(
-                        onClick = onAddPallet,
-                        modifier = Modifier.fillMaxWidth()
+                        onClick = {
+                            viewModel.saveDraft()
+                            Toast.makeText(context, "Черновик сохранен", Toast.LENGTH_SHORT).show()
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.surface,
+                            contentColor = MaterialTheme.colorScheme.onSurface
+                        ),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+                        enabled = !isSaving
                     ) {
-                        Icon(Icons.Default.Add, contentDescription = "Добавить поддон")
-                        Text("Добавить поддон")
+                        Text("Сохранить черновик")
                     }
 
-                    // Промежуточные итоги для этой продукции
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 8.dp),
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant
-                        ),
-                        border = CardDefaults.outlinedCardBorder()
+                    // Кнопка сохранения отгрузки
+                    val canSave = when (shipmentType) {
+                        "mono" -> currentProducts.isNotEmpty()
+                        "multi_port" -> multiPorts.isNotEmpty() && multiPorts.any { it.products.isNotEmpty() }
+                        "multi_vehicle" -> multiVehicles.isNotEmpty() && multiVehicles.any { it.products.isNotEmpty() }
+                        else -> false
+                    }
+
+                    Button(
+                        onClick = {
+                            saveShipmentAndNavigate()
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = canSave && !isSaving,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.primary,
+                            contentColor = MaterialTheme.colorScheme.onPrimary
+                        )
                     ) {
-                        Column(
-                            modifier = Modifier.padding(12.dp),
-                            verticalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            Text(
-                                text = "Итоги по продукции:",
-                                style = MaterialTheme.typography.bodySmall,
-                                fontWeight = FontWeight.Bold
+                        if (isSaving) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(20.dp),
+                                strokeWidth = 2.dp,
+                                color = MaterialTheme.colorScheme.onPrimary
                             )
-
-                            // Динамическое наименование для итогов
-                            val productDisplayName = buildString {
-                                if (product.name.isNotEmpty()) {
-                                    append(product.name)
-                                    if (product.manufacturer.isNotEmpty()) {
-                                        append(" - ${product.manufacturer}")
-                                    }
-                                } else {
-                                    append("Продукция #$index")
-                                }
-                            }
-
-                            Text(
-                                text = productDisplayName,
-                                style = MaterialTheme.typography.bodySmall
-                            )
-
-                            Column {
-                                Text("Поддоны: ${product.palletCount}", style = MaterialTheme.typography.bodySmall)
-                                Text("Места: ${product.placesCount}", style = MaterialTheme.typography.bodySmall)
-                                Text("Масса: ${String.format("%.2f", product.totalWeight)} кг",
-                                    style = MaterialTheme.typography.bodySmall)
-
-                                // Остаток в итогах - перегруз оранжевым
-                                val remainder = product.quantity - product.placesCount
-                                Text(
-                                    text = if (remainder >= 0)
-                                        "Остаток: $remainder мест"
-                                    else
-                                        "Перегруз: ${-remainder} мест",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = if (remainder < 0) Color(0xFFFF9800) else MaterialTheme.colorScheme.onSurfaceVariant,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
+                            Spacer(Modifier.width(8.dp))
+                            Text("Сохранение...")
+                        } else {
+                            Text("СОХРАНИТЬ ОТГРУЗКУ")
                         }
                     }
                 }
             }
-        }
-    }
-}
-
-@Composable
-fun PalletRow(
-    pallet: com.example.fishy.database.entities.Pallet,
-    onUpdatePallet: (Int) -> Unit,
-    onDeletePallet: () -> Unit
-) {
-    // Локальное состояние для количества мест в поддоне
-    var placesText by remember(pallet.id) {
-        mutableStateOf(if (pallet.places > 0) pallet.places.toString() else "")
-    }
-
-    // Обновление при изменении извне
-    LaunchedEffect(pallet.places) {
-        if (pallet.places == 0) {
-            placesText = ""
-        }
-    }
-
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(
-            text = pallet.palletNumber.toString(),
-            modifier = Modifier.weight(1f)
-        )
-
-        OutlinedTextField(
-            value = placesText,
-            onValueChange = { newValue ->
-                placesText = newValue
-                val places = newValue.toIntOrNull() ?: 0
-                onUpdatePallet(places)
-            },
-            modifier = Modifier.weight(1f),
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-            singleLine = true
-        )
-
-        IconButton(
-            onClick = onDeletePallet,
-            modifier = Modifier.size(24.dp)
-        ) {
-            Icon(
-                Icons.Default.Delete,
-                contentDescription = "Удалить поддон",
-                tint = ErrorColor
-            )
         }
     }
 }

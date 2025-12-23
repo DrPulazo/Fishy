@@ -1,17 +1,41 @@
 package com.example.fishy.screens
 
-import android.app.Application
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SearchOff
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -21,11 +45,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
-import com.example.fishy.theme.CardBackground
+import com.example.fishy.database.AppDatabase
+import com.example.fishy.database.entities.Shipment
 import com.example.fishy.viewmodels.ShipmentViewModel
 import com.example.fishy.viewmodels.ShipmentViewModelFactory
 import java.text.SimpleDateFormat
-import java.util.*
+import java.util.Date
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -34,13 +60,16 @@ fun ArchiveScreen(
 ) {
     val context = LocalContext.current
     val viewModel: ShipmentViewModel = viewModel(
-        factory = ShipmentViewModelFactory(context.applicationContext as Application)
+        factory = ShipmentViewModelFactory(
+            context = context,
+            database = AppDatabase.getDatabase(context)
+        )
     )
 
     val shipments by viewModel.allShipments.collectAsState(initial = emptyList())
     var searchText by remember { mutableStateOf("") }
     var showDeleteDialog by remember { mutableStateOf(false) }
-    var shipmentToDelete by remember { mutableStateOf<com.example.fishy.database.entities.Shipment?>(null) }
+    var shipmentToDelete by remember { mutableStateOf<Shipment?>(null) }
 
     // ФИЛЬТРУЕМ ОТГРУЗКИ ПО ПОИСКУ
     val filteredShipments = remember(shipments, searchText) {
@@ -159,7 +188,7 @@ fun ArchiveScreen(
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     items(filteredShipments) { shipment ->
-                        ShipmentCard(
+                        SimpleShipmentCard(
                             shipment = shipment,
                             onClick = {
                                 navController.navigate("shipment_detail/${shipment.id}")
@@ -167,60 +196,63 @@ fun ArchiveScreen(
                             onDelete = {
                                 shipmentToDelete = shipment
                                 showDeleteDialog = true
+                            },
+                            onViewReport = {
+                                // Навигация на экран отчета
+                                navController.navigate("report/${shipment.id}")
                             }
                         )
                     }
                 }
             }
         }
+    }
 
-        // ДИАЛОГ ПОДТВЕРЖДЕНИЯ УДАЛЕНИЯ
-        if (showDeleteDialog && shipmentToDelete != null) {
-            AlertDialog(
-                onDismissRequest = {
+    // Диалог подтверждения удаления
+    if (showDeleteDialog && shipmentToDelete != null) {
+        AlertDialog(
+            onDismissRequest = {
+                showDeleteDialog = false
+                shipmentToDelete = null
+            },
+            title = { Text("Удаление отгрузки") },
+            text = { Text("Вы уверены, что хотите удалить эту отгрузку из архива?") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        shipmentToDelete?.let { viewModel.deleteShipment(it) }
+                        showDeleteDialog = false
+                        shipmentToDelete = null
+                    }
+                ) {
+                    Text("УДАЛИТЬ", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = {
                     showDeleteDialog = false
                     shipmentToDelete = null
-                },
-                title = { Text("Удаление отгрузки") },
-                text = { Text("Вы уверены, что хотите удалить эту отгрузку?") },
-                confirmButton = {
-                    TextButton(
-                        onClick = {
-                            shipmentToDelete?.let { viewModel.deleteShipment(it) }
-                            showDeleteDialog = false
-                            shipmentToDelete = null
-                        }
-                    ) {
-                        Text("УДАЛИТЬ")
-                    }
-                },
-                dismissButton = {
-                    TextButton(
-                        onClick = {
-                            showDeleteDialog = false
-                            shipmentToDelete = null
-                        }
-                    ) {
-                        Text("ОТМЕНА")
-                    }
+                }) {
+                    Text("ОТМЕНА")
                 }
-            )
-        }
+            }
+        )
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ShipmentCard(
-    shipment: com.example.fishy.database.entities.Shipment,
+fun SimpleShipmentCard(
+    shipment: Shipment,
     onClick: () -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    onViewReport: () -> Unit
 ) {
     Card(
         onClick = onClick,
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
-            containerColor = CardBackground
+            containerColor = MaterialTheme.colorScheme.surface
         ),
         shape = RoundedCornerShape(12.dp)
     ) {
@@ -229,39 +261,68 @@ fun ShipmentCard(
                 .fillMaxWidth()
                 .padding(16.dp)
         ) {
-            // Заголовок
-            Text(
-                text = getShipmentTitle(shipment),
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurface
-            )
+            // Первая строка: тип отгрузки и номер
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Тип отгрузки
+                val typeName = when (shipment.shipmentType) {
+                    "mono" -> "Моноотгрузка"
+                    "multi_port" -> "Мультипорт"
+                    "multi_vehicle" -> "Мультитранспорт"
+                    else -> "Отгрузка"
+                }
 
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // Детали
-            if (shipment.port.isNotEmpty()) {
                 Text(
-                    text = "Порт: ${shipment.port}",
-                    style = MaterialTheme.typography.bodySmall
+                    text = typeName,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+
+                // ID отгрузки
+                Text(
+                    text = "#${shipment.id}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                 )
             }
 
-            if (shipment.vessel.isNotEmpty()) {
-                Text(
-                    text = "Судно: ${shipment.vessel}",
-                    style = MaterialTheme.typography.bodySmall
-                )
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Основная информация
+            Column(
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                // Заказчик
+                if (shipment.customer.isNotEmpty()) {
+                    Text(
+                        text = "Заказчик: ${shipment.customer}",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+
+                // Порт
+                if (shipment.port.isNotEmpty()) {
+                    Text(
+                        text = "Порт: ${shipment.port}",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+
+                // Транспорт (по новой логике)
+                val transportText = getTransportText(shipment)
+                if (transportText.isNotEmpty()) {
+                    Text(
+                        text = "Транспорт: $transportText",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
             }
 
-            if (shipment.customer.isNotEmpty()) {
-                Text(
-                    text = "Заказчик: ${shipment.customer}",
-                    style = MaterialTheme.typography.bodySmall
-                )
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
             // Статистика
             Row(
@@ -282,20 +343,35 @@ fun ShipmentCard(
                 )
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
-            // Дата и кнопка удаления
+            // Нижняя строка: кнопки по краям, дата по центру
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                // Кнопка отчета - СЛЕВА
+                IconButton(
+                    onClick = onViewReport,
+                    modifier = Modifier.size(24.dp)
+                ) {
+                    Icon(
+                        Icons.Default.Description,
+                        contentDescription = "Показать отчёт",
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
+
+                // Дата и время - ПО ЦЕНТРУ
                 Text(
                     text = formatDate(shipment.createdAt),
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                    modifier = Modifier.padding(horizontal = 8.dp)
                 )
 
+                // Кнопка удаления - СПРАВА
                 IconButton(
                     onClick = onDelete,
                     modifier = Modifier.size(24.dp)
@@ -311,12 +387,23 @@ fun ShipmentCard(
     }
 }
 
-private fun getShipmentTitle(shipment: com.example.fishy.database.entities.Shipment): String {
+// Простая логика отображения транспорта
+private fun getTransportText(shipment: Shipment): String {
     return when {
-        shipment.containerNumber.isNotEmpty() -> "Контейнер: ${shipment.containerNumber}"
-        shipment.truckNumber.isNotEmpty() -> "Авто: ${shipment.truckNumber}"
-        shipment.wagonNumber.isNotEmpty() -> "Вагон: ${shipment.wagonNumber}"
-        else -> "Отгрузка #${shipment.id}"
+        // Сначала контейнер
+        shipment.containerNumber.isNotEmpty() -> "Контейнер ${shipment.containerNumber}"
+        // Потом вагон
+        shipment.wagonNumber.isNotEmpty() -> "Вагон ${shipment.wagonNumber}"
+        // Потом авто и прицеп
+        shipment.truckNumber.isNotEmpty() -> {
+            if (shipment.trailerNumber.isNotEmpty()) {
+                "Авто ${shipment.truckNumber}, Прицеп ${shipment.trailerNumber}"
+            } else {
+                "Авто ${shipment.truckNumber}"
+            }
+        }
+        // Если ничего нет
+        else -> ""
     }
 }
 

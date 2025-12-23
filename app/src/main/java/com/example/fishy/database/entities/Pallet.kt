@@ -20,5 +20,9 @@ data class Pallet(
     val id: Long = 0,
     val productItemId: Long = 0,
     val palletNumber: Int = 1,
-    val places: Int = 0
+    val places: Int = 0,
+    val exportedPlaces: Int = 0, // Вывезено со склада
+    val importedPlaces: Int = 0, // Завезено в контейнер
+    val isExported: Boolean = false, // Галочка "вывезен"
+    val isImported: Boolean = false  // Галочка "завезен"
 )

@@ -2,7 +2,6 @@ package com.example.fishy.screens
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -10,15 +9,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
-import com.example.fishy.theme.CardBackground
 import java.text.SimpleDateFormat
 import java.util.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.text.font.FontWeight
-import android.app.Application
-import androidx.compose.runtime.*
 import androidx.compose.ui.platform.LocalContext
-import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.fishy.database.AppDatabase
 import com.example.fishy.viewmodels.ShipmentViewModel
 import com.example.fishy.viewmodels.ShipmentViewModelFactory
 
@@ -29,15 +25,20 @@ fun ShipmentDetailScreen(
 ) {
     val context = LocalContext.current
     val viewModel: ShipmentViewModel = viewModel(
-        factory = ShipmentViewModelFactory(context.applicationContext as Application)
+        factory = ShipmentViewModelFactory(
+            context = context,
+            database = AppDatabase.getDatabase(context)
+        )
     )
-
     val shipment by viewModel.currentShipment.collectAsState()
     val products by viewModel.selectedShipmentProducts.collectAsState(initial = emptyList())
 
     LaunchedEffect(shipmentId) {
-        shipmentId?.let { viewModel.loadShipment(it) }
-        viewModel.setSelectedShipmentId(shipmentId)
+        if (shipmentId != null) {
+            // Эти функции теперь должны существовать в ViewModel
+            viewModel.loadShipment(shipmentId)
+            viewModel.setSelectedShipmentId(shipmentId)
+        }
     }
 
     Surface(
@@ -59,6 +60,19 @@ fun ShipmentDetailScreen(
                 Text("ВЕРНУТЬСЯ В АРХИВ")
             }
 
+            Button(
+                onClick = {
+                    shipmentId?.let {
+                        navController.navigate("report/$it")
+                    }
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 16.dp)
+            ) {
+                Text("ПОКАЗАТЬ ОТЧЁТ")
+            }
+
             if (shipment.id == 0L) {
                 Box(
                     modifier = Modifier.fillMaxSize(),
@@ -75,7 +89,7 @@ fun ShipmentDetailScreen(
                         Card(
                             modifier = Modifier.fillMaxWidth(),
                             colors = CardDefaults.cardColors(
-                                containerColor = CardBackground
+                                containerColor = MaterialTheme.colorScheme.surface
                             )
                         ) {
                             Column(
@@ -128,7 +142,7 @@ fun ShipmentDetailScreen(
                             Card(
                                 modifier = Modifier.fillMaxWidth(),
                                 colors = CardDefaults.cardColors(
-                                    containerColor = CardBackground
+                                    containerColor = MaterialTheme.colorScheme.surface
                                 )
                             ) {
                                 Column(
@@ -157,7 +171,7 @@ fun ShipmentDetailScreen(
                         Card(
                             modifier = Modifier.fillMaxWidth(),
                             colors = CardDefaults.cardColors(
-                                containerColor = CardBackground
+                                containerColor = MaterialTheme.colorScheme.surface
                             )
                         ) {
                             Column(
