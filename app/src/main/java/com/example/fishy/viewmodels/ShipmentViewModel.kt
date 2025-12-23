@@ -4,17 +4,43 @@ import android.content.Context
 import android.widget.Toast
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.fishy.database.*
-import com.example.fishy.database.entities.*
-import com.example.fishy.utils.DraftManager
-import kotlinx.coroutines.flow.*
-import kotlinx.coroutines.launch
-import java.util.*
-import com.example.fishy.database.entities.toMultiPortJsonString
-import com.example.fishy.database.entities.toMultiVehicleJsonString
+import com.example.fishy.database.AppDatabase
+import com.example.fishy.database.entities.DictionaryItem
+import com.example.fishy.database.entities.MultiPort
+import com.example.fishy.database.entities.MultiPortPallet
+import com.example.fishy.database.entities.MultiPortProduct
+import com.example.fishy.database.entities.MultiVehicle
+import com.example.fishy.database.entities.MultiVehiclePallet
+import com.example.fishy.database.entities.MultiVehicleProduct
+import com.example.fishy.database.entities.Pallet
+import com.example.fishy.database.entities.ProductItem
+import com.example.fishy.database.entities.ScheduledShipment
+import com.example.fishy.database.entities.Shipment
+import com.example.fishy.database.entities.getPortData
+import com.example.fishy.database.entities.getProducts
+import com.example.fishy.database.entities.getVehicleData
 import com.example.fishy.utils.ContainerWagonValidator
+import com.example.fishy.utils.DraftData
+import com.example.fishy.utils.DraftManager
 import com.example.fishy.utils.ValidationState
-import kotlinx.coroutines.*
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
+import java.util.Date
 
 class ShipmentViewModel(private val database: AppDatabase, private val context: Context) : ViewModel() {
 
@@ -25,6 +51,9 @@ class ShipmentViewModel(private val database: AppDatabase, private val context: 
 
     // Для хранения ID запланированной отгрузки (для удаления после сохранения)
     private val _scheduledShipmentId = MutableStateFlow<Long?>(null)
+
+    // Для хранения ID текущего черновика
+    private val _currentDraftId = MutableStateFlow<Long?>(null)
 
     // Для автоматического сохранения черновика
     private var autoSaveJob: Job? = null
@@ -170,11 +199,12 @@ class ShipmentViewModel(private val database: AppDatabase, private val context: 
     private val _wagonValidation = MutableStateFlow<ValidationState>(ValidationState.EMPTY)
     val wagonValidation: StateFlow<ValidationState> = _wagonValidation.asStateFlow()
 
-    // Справочники
+    // ========== СПРАВОЧНИКИ ==========
     fun getDictionaryItems(type: String): Flow<List<DictionaryItem>> {
         return dictionaryDao.getItemsByType(type)
     }
 
+    // ========== ЗАПЛАНИРОВАННЫЕ ОТГРУЗКИ ==========
     fun loadFromScheduledShipment(scheduledShipmentId: Long) {
         viewModelScope.launch {
             // Сохраняем ID для последующего удаления
@@ -455,6 +485,7 @@ class ShipmentViewModel(private val database: AppDatabase, private val context: 
         }
     }
 
+    // ========== АРХИВ ОТГРУЗОК ==========
     fun loadShipment(id: Long) {
         viewModelScope.launch {
             val shipment = dao.getShipmentById(id)
@@ -646,6 +677,7 @@ class ShipmentViewModel(private val database: AppDatabase, private val context: 
         }
     }
 
+    // ========== СОХРАНЕНИЕ ОТГРУЗКИ ==========
     fun saveShipment() {
         viewModelScope.launch {
             val shipmentType = _shipmentType.value
@@ -716,11 +748,14 @@ class ShipmentViewModel(private val database: AppDatabase, private val context: 
                     // Удаляем запланированную отгрузку
                     deleteScheduledShipmentIfNeeded()
 
+                    // Удаляем текущий черновик после сохранения отгрузки
+                    _currentDraftId.value?.let { draftId ->
+                        draftManager.deleteDraft(draftId)
+                        _currentDraftId.value = null
+                    }
+
                     // Сбрасываем данные
                     resetCurrentData()
-
-                    // Очищаем черновик
-                    draftManager.clearDraft()
 
                     showToast("Отгрузка сохранена")
                 }
@@ -741,14 +776,22 @@ class ShipmentViewModel(private val database: AppDatabase, private val context: 
                         totalPlaces = totalPlaces,
                         totalWeight = totalWeight,
                         shipmentType = shipmentType,
-                        multiPortData = ports.toMultiPortJsonString(),
+                        multiPortData = Json.encodeToString(ports),
                         createdAt = Date()
                     )
 
                     dao.insertShipment(shipmentToSave)
+
+                    // Удаляем запланированную отгрузку
                     deleteScheduledShipmentIfNeeded()
+
+                    // Удаляем текущий черновик
+                    _currentDraftId.value?.let { draftId ->
+                        draftManager.deleteDraft(draftId)
+                        _currentDraftId.value = null
+                    }
+
                     resetCurrentData()
-                    draftManager.clearDraft()
                     showToast("Отгрузка сохранена")
                 }
                 "multi_vehicle" -> {
@@ -768,14 +811,22 @@ class ShipmentViewModel(private val database: AppDatabase, private val context: 
                         totalPlaces = totalPlaces,
                         totalWeight = totalWeight,
                         shipmentType = shipmentType,
-                        multiVehicleData = vehicles.toMultiVehicleJsonString(),
+                        multiVehicleData = Json.encodeToString(vehicles),
                         createdAt = Date()
                     )
 
                     dao.insertShipment(shipmentToSave)
+
+                    // Удаляем запланированную отгрузку
                     deleteScheduledShipmentIfNeeded()
+
+                    // Удаляем текущий черновик
+                    _currentDraftId.value?.let { draftId ->
+                        draftManager.deleteDraft(draftId)
+                        _currentDraftId.value = null
+                    }
+
                     resetCurrentData()
-                    draftManager.clearDraft()
                     showToast("Отгрузка сохранена")
                 }
             }
@@ -789,7 +840,7 @@ class ShipmentViewModel(private val database: AppDatabase, private val context: 
         }
     }
 
-    // Функции для работы с товарами (mono режим)
+    // ========== ТОВАРЫ (MONO РЕЖИМ) ==========
     fun addProductItem() {
         val newProduct = ProductItem(
             id = System.currentTimeMillis(),
@@ -817,7 +868,7 @@ class ShipmentViewModel(private val database: AppDatabase, private val context: 
         scheduleAutoSave()
     }
 
-    // Функции для работы с поддонами (mono режим)
+    // ========== ПОДДОНЫ (MONO РЕЖИМ) ==========
     fun addPallet(productItemId: Long) {
         val currentPalletsForProduct = _currentPallets.value[productItemId] ?: emptyList()
         val palletNumber = currentPalletsForProduct.size + 1
@@ -877,7 +928,7 @@ class ShipmentViewModel(private val database: AppDatabase, private val context: 
         scheduleAutoSave()
     }
 
-    // Функции для двойного контроля
+    // ========== ДВОЙНОЙ КОНТРОЛЬ ==========
     fun toggleDoubleControl() {
         _currentShipment.update { current ->
             current.copy(doubleControlEnabled = !current.doubleControlEnabled)
@@ -904,7 +955,7 @@ class ShipmentViewModel(private val database: AppDatabase, private val context: 
         scheduleAutoSave()
     }
 
-    // Вспомогательные функции
+    // ========== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ==========
     private fun loadProductsForShipment(shipmentId: Long) {
         viewModelScope.launch {
             dao.getProductItemsForShipment(shipmentId).collect { products ->
@@ -940,6 +991,7 @@ class ShipmentViewModel(private val database: AppDatabase, private val context: 
     }
 
     private fun resetCurrentData() {
+        _currentDraftId.value = null
         _currentShipment.value = Shipment()
         _currentProducts.value = emptyList()
         _currentPallets.value = emptyMap()
@@ -958,14 +1010,11 @@ class ShipmentViewModel(private val database: AppDatabase, private val context: 
         scheduleAutoSave()
     }
 
-    // УНИФИЦИРОВАННЫЕ ФУНКЦИИ ДЛЯ РАБОТЫ СО СЛОВАРЕМ
-
-    // Добавляет элемент в словарь (вызывается при нажатии кнопки "Добавить")
+    // ========== СЛОВАРИ ==========
     fun addDictionaryItem(type: String, value: String) {
         viewModelScope.launch {
             val existingItem = dictionaryDao.getItemByTypeAndValue(type, value)
             if (existingItem == null) {
-                // Добавляем новый элемент
                 dictionaryDao.insertDictionaryItem(
                     DictionaryItem(
                         type = type,
@@ -976,22 +1025,18 @@ class ShipmentViewModel(private val database: AppDatabase, private val context: 
                 )
                 showToast("'$value' добавлено в словарь")
             } else {
-                // Обновляем существующий элемент
                 updateDictionaryItemUsage(existingItem)
             }
         }
     }
 
-    // Обновляет использование элемента (вызывается при выборе из списка или сохранении)
     private suspend fun updateDictionaryUsage(type: String, value: String) {
         val existingItem = dictionaryDao.getItemByTypeAndValue(type, value)
         if (existingItem != null) {
             updateDictionaryItemUsage(existingItem)
         }
-        // Если элемента нет - ничего не делаем, он не будет добавлен автоматически
     }
 
-    // Вспомогательная функция для обновления использования
     private suspend fun updateDictionaryItemUsage(item: DictionaryItem) {
         dictionaryDao.updateDictionaryItem(
             item.copy(
@@ -1018,10 +1063,10 @@ class ShipmentViewModel(private val database: AppDatabase, private val context: 
         return dictionaryDao.getItemById(id)
     }
 
-    // ========== ФУНКЦИИ ДЛЯ МУЛЬТИПОРТА ==========
-
+    // ========== МУЛЬТИПОРТ ==========
     fun addMultiPort() {
         _multiPorts.value = _multiPorts.value + MultiPort()
+        scheduleAutoSave()
     }
 
     fun updateMultiPort(portId: Long, field: String, value: String) {
@@ -1036,10 +1081,12 @@ class ShipmentViewModel(private val database: AppDatabase, private val context: 
                 port
             }
         }
+        scheduleAutoSave()
     }
 
     fun deleteMultiPort(portId: Long) {
         _multiPorts.value = _multiPorts.value.filter { it.id != portId }
+        scheduleAutoSave()
     }
 
     fun addMultiPortProduct(portId: Long) {
@@ -1050,6 +1097,7 @@ class ShipmentViewModel(private val database: AppDatabase, private val context: 
                 port
             }
         }
+        scheduleAutoSave()
     }
 
     fun updateMultiPortProduct(portId: Long, productId: Long, field: String, value: Any) {
@@ -1097,6 +1145,7 @@ class ShipmentViewModel(private val database: AppDatabase, private val context: 
                 port
             }
         }
+        scheduleAutoSave()
     }
 
     fun deleteMultiPortProduct(portId: Long, productId: Long) {
@@ -1107,6 +1156,7 @@ class ShipmentViewModel(private val database: AppDatabase, private val context: 
                 port
             }
         }
+        scheduleAutoSave()
     }
 
     fun addMultiPortPallet(portId: Long, productId: Long) {
@@ -1132,6 +1182,7 @@ class ShipmentViewModel(private val database: AppDatabase, private val context: 
                 port
             }
         }
+        scheduleAutoSave()
     }
 
     fun updateMultiPortPalletPlaces(portId: Long, productId: Long, palletId: Long, places: Int) {
@@ -1160,6 +1211,7 @@ class ShipmentViewModel(private val database: AppDatabase, private val context: 
                 port
             }
         }
+        scheduleAutoSave()
     }
 
     fun deleteMultiPortPallet(portId: Long, productId: Long, palletId: Long) {
@@ -1184,6 +1236,7 @@ class ShipmentViewModel(private val database: AppDatabase, private val context: 
                 port
             }
         }
+        scheduleAutoSave()
     }
 
     fun toggleMultiPortPalletImported(portId: Long, productId: Long, palletId: Long) {
@@ -1207,6 +1260,7 @@ class ShipmentViewModel(private val database: AppDatabase, private val context: 
                 port
             }
         }
+        scheduleAutoSave()
     }
 
     fun toggleMultiPortDoubleControl(portId: Long) {
@@ -1220,10 +1274,10 @@ class ShipmentViewModel(private val database: AppDatabase, private val context: 
         scheduleAutoSave()
     }
 
-    // ========== ФУНКЦИИ ДЛЯ МУЛЬТИАВТО ==========
-
+    // ========== МУЛЬТИАВТО ==========
     fun addMultiVehicle() {
         _multiVehicles.value = _multiVehicles.value + MultiVehicle()
+        scheduleAutoSave()
     }
 
     fun updateMultiVehicle(vehicleId: Long, field: String, value: String) {
@@ -1241,10 +1295,12 @@ class ShipmentViewModel(private val database: AppDatabase, private val context: 
                 vehicle
             }
         }
+        scheduleAutoSave()
     }
 
     fun deleteMultiVehicle(vehicleId: Long) {
         _multiVehicles.value = _multiVehicles.value.filter { it.id != vehicleId }
+        scheduleAutoSave()
     }
 
     fun toggleMultiVehicleDoubleControl(vehicleId: Long) {
@@ -1255,6 +1311,7 @@ class ShipmentViewModel(private val database: AppDatabase, private val context: 
                 vehicle
             }
         }
+        scheduleAutoSave()
     }
 
     fun addMultiVehicleProduct(vehicleId: Long) {
@@ -1265,6 +1322,7 @@ class ShipmentViewModel(private val database: AppDatabase, private val context: 
                 vehicle
             }
         }
+        scheduleAutoSave()
     }
 
     fun updateMultiVehicleProduct(vehicleId: Long, productId: Long, field: String, value: Any) {
@@ -1312,6 +1370,7 @@ class ShipmentViewModel(private val database: AppDatabase, private val context: 
                 vehicle
             }
         }
+        scheduleAutoSave()
     }
 
     fun deleteMultiVehicleProduct(vehicleId: Long, productId: Long) {
@@ -1322,6 +1381,7 @@ class ShipmentViewModel(private val database: AppDatabase, private val context: 
                 vehicle
             }
         }
+        scheduleAutoSave()
     }
 
     fun addMultiVehiclePallet(vehicleId: Long, productId: Long) {
@@ -1347,6 +1407,7 @@ class ShipmentViewModel(private val database: AppDatabase, private val context: 
                 vehicle
             }
         }
+        scheduleAutoSave()
     }
 
     fun updateMultiVehiclePalletPlaces(vehicleId: Long, productId: Long, palletId: Long, places: Int) {
@@ -1375,6 +1436,7 @@ class ShipmentViewModel(private val database: AppDatabase, private val context: 
                 vehicle
             }
         }
+        scheduleAutoSave()
     }
 
     fun deleteMultiVehiclePallet(vehicleId: Long, productId: Long, palletId: Long) {
@@ -1399,6 +1461,7 @@ class ShipmentViewModel(private val database: AppDatabase, private val context: 
                 vehicle
             }
         }
+        scheduleAutoSave()
     }
 
     fun toggleMultiVehiclePalletImported(vehicleId: Long, productId: Long, palletId: Long) {
@@ -1422,27 +1485,51 @@ class ShipmentViewModel(private val database: AppDatabase, private val context: 
                 vehicle
             }
         }
+        scheduleAutoSave()
     }
 
-    // Сохранение черновика (вручную)
-    fun saveDraft() {
+    // ========== ЧЕРНОВИКИ ==========
+    fun saveDraft(): Long {
+        val draftId = draftManager.saveDraft(
+            id = _currentDraftId.value,
+            shipment = _currentShipment.value,
+            products = _currentProducts.value,
+            pallets = _currentPallets.value,
+            shipmentType = _shipmentType.value,
+            multiPorts = _multiPorts.value,
+            multiVehicles = _multiVehicles.value
+        )
+
+        if (draftId != 0L) {
+            _currentDraftId.value = draftId
+        }
+
+        return draftId
+    }
+
+    // Загрузка черновика по ID
+    fun loadDraftById(draftId: Long) {
         viewModelScope.launch {
-            draftManager.saveDraft(
-                shipment = _currentShipment.value,
-                products = _currentProducts.value,
-                pallets = _currentPallets.value,
-                shipmentType = _shipmentType.value,
-                multiPorts = _multiPorts.value,
-                multiVehicles = _multiVehicles.value,
-            )
+            val draft = draftManager.getDraft(draftId)
+            draft?.let { draftData ->
+                _currentDraftId.value = draftId
+                _currentShipment.value = draftData.shipment
+                _currentProducts.value = draftData.products
+                _currentPallets.value = draftData.pallets
+                _shipmentType.value = draftData.shipmentType
+                _multiPorts.value = draftData.multiPorts
+                _multiVehicles.value = draftData.multiVehicles
+                _scheduledShipmentId.value = null
+            }
         }
     }
 
-    // Загрузка черновика
+    // Загрузка последнего черновика (для обратной совместимости)
     fun loadDraft() {
         viewModelScope.launch {
-            val draft = draftManager.loadDraft()
+            val draft = draftManager.getLastDraft()
             draft?.let { draftData ->
+                _currentDraftId.value = draftData.id
                 _currentShipment.value = draftData.shipment
                 _currentProducts.value = draftData.products
                 _currentPallets.value = draftData.pallets
@@ -1455,7 +1542,34 @@ class ShipmentViewModel(private val database: AppDatabase, private val context: 
     }
 
     suspend fun hasDraft(): Boolean {
-        return draftManager.hasDraft()
+        return draftManager.hasDrafts()
+    }
+
+    // Получение всех черновиков
+    fun getAllDrafts(): List<DraftData> {
+        return draftManager.getDrafts()
+    }
+
+    // Удаление черновика
+    fun deleteDraft(draftId: Long) {
+        viewModelScope.launch {
+            draftManager.deleteDraft(draftId)
+            if (_currentDraftId.value == draftId) {
+                _currentDraftId.value = null
+            }
+        }
+    }
+
+    // Начало новой отгрузки (сброс текущих данных)
+    fun startNewShipment() {
+        _currentDraftId.value = null
+        _currentShipment.value = Shipment()
+        _currentProducts.value = emptyList()
+        _currentPallets.value = emptyMap()
+        _shipmentType.value = "mono"
+        _multiPorts.value = emptyList()
+        _multiVehicles.value = emptyList()
+        _scheduledShipmentId.value = null
     }
 
     private fun scheduleAutoSave() {

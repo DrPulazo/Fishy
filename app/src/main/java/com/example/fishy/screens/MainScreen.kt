@@ -61,13 +61,14 @@ fun MainScreen(navController: NavController) {
     var showEasterEggDialog by remember { mutableStateOf(false) }
     var lastClickTime by remember { mutableStateOf(0L) }
 
-// Сброс счетчика через 3 секунды
+    // Сброс счетчика через 3 секунды
     LaunchedEffect(easterEggClickCount) {
         if (easterEggClickCount > 0) {
             delay(3000)
             easterEggClickCount = 0
         }
     }
+
     val context = LocalContext.current
     val viewModel: ShipmentViewModel = viewModel(
         factory = ShipmentViewModelFactory(
@@ -78,7 +79,7 @@ fun MainScreen(navController: NavController) {
     val coroutineScope = rememberCoroutineScope()
     var hasDraft by remember { mutableStateOf(false) }
 
-    // Проверяем наличие черновика при создании экрана
+    // Проверяем наличие черновиков при создании экрана
     LaunchedEffect(Unit) {
         hasDraft = viewModel.hasDraft()
     }
@@ -108,7 +109,7 @@ fun MainScreen(navController: NavController) {
 
                     // Картинка по центру между заголовком и кнопками
                     Image(
-                        painter = painterResource(id = R.drawable.fishylogo), // Замените your_logo на имя вашего PNG файла
+                        painter = painterResource(id = R.drawable.fishylogo),
                         contentDescription = "Логотип",
                         modifier = Modifier
                             .size(350.dp)
@@ -123,7 +124,7 @@ fun MainScreen(navController: NavController) {
                                 }
                                 lastClickTime = currentTime
                             }
-                            .padding(vertical = 10.dp) // Отступ сверху и снизу
+                            .padding(vertical = 10.dp)
                     )
 
                     // Кнопки
@@ -134,11 +135,11 @@ fun MainScreen(navController: NavController) {
                         // Кнопка "Новая отгрузка"
                         OutlinedButton(
                             onClick = {
-                                // Очищаем черновик перед началом новой отгрузки
+                                // НЕ сохраняем текущий черновик, а начинаем новую отгрузку
                                 coroutineScope.launch {
-                                    viewModel.saveDraft() // Сохраняем текущий черновик на всякий случай
+                                    viewModel.startNewShipment()
+                                    navController.navigate("new_shipment")
                                 }
-                                navController.navigate("new_shipment")
                             },
                             modifier = Modifier
                                 .width(250.dp)
@@ -153,11 +154,11 @@ fun MainScreen(navController: NavController) {
                             )
                         }
 
-                        // Кнопка "Продолжить отгрузку" (только если есть черновик)
+                        // Кнопка "Продолжить" (только если есть черновики)
                         if (hasDraft) {
                             OutlinedButton(
                                 onClick = {
-                                    // Загружаем черновик и переходим к отгрузке
+                                    // Загружаем последний черновик и переходим к отгрузке
                                     coroutineScope.launch {
                                         viewModel.loadDraft()
                                         navController.navigate("new_shipment")
@@ -208,6 +209,7 @@ fun MainScreen(navController: NavController) {
                                 fontWeight = FontWeight.Medium
                             )
                         }
+
                         // Кнопка "Черновики"
                         OutlinedButton(
                             onClick = { navController.navigate("drafts") },
@@ -224,7 +226,7 @@ fun MainScreen(navController: NavController) {
                             )
                         }
 
-// Кнопка "Шаблоны"
+                        // Кнопка "Шаблоны"
                         OutlinedButton(
                             onClick = { navController.navigate("templates") },
                             modifier = Modifier
@@ -294,7 +296,7 @@ fun MainScreen(navController: NavController) {
                         )
 
                         Text(
-                            text = "Ящик пива",
+                            text = "Ящик пива\n12 бессонных ночей",
                             style = MaterialTheme.typography.bodyMedium,
                             textAlign = TextAlign.Center,
                             modifier = Modifier.padding(bottom = 12.dp)
@@ -395,6 +397,7 @@ fun MainScreen(navController: NavController) {
             )
         }
     }
+
     // Диалоговое окно пасхалки
     if (showEasterEggDialog) {
         LaunchedEffect(showEasterEggDialog) {

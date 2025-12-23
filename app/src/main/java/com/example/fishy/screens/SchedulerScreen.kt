@@ -440,6 +440,22 @@ fun ScheduledShipmentCard(
                     }
                 }
 
+                // Для моно и мультитранспорта: общий порт
+                if ((shipment.shipmentType == "mono" || shipment.shipmentType == "multi_vehicle") &&
+                    shipment.port.isNotEmpty()) {
+                    Row {
+                        Text(
+                            text = "Порт: ",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                        )
+                        Text(
+                            text = shipment.port,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                }
+
                 // Для мультиавто: количество транспорта
                 if (shipment.shipmentType == "multi_vehicle") {
                     Row {
