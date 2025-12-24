@@ -999,6 +999,7 @@ class ShipmentViewModel(private val database: AppDatabase, private val context: 
         _multiPorts.value = emptyList()
         _multiVehicles.value = emptyList()
         _scheduledShipmentId.value = null
+        _changesTrigger.value++
     }
 
     fun setSelectedShipmentId(id: Long?) {
@@ -1520,6 +1521,9 @@ class ShipmentViewModel(private val database: AppDatabase, private val context: 
                 _multiPorts.value = draftData.multiPorts
                 _multiVehicles.value = draftData.multiVehicles
                 _scheduledShipmentId.value = null
+
+                // Обновляем триггер изменений для перерисовки UI
+                _changesTrigger.value++
             }
         }
     }
@@ -1537,6 +1541,7 @@ class ShipmentViewModel(private val database: AppDatabase, private val context: 
                 _multiPorts.value = draftData.multiPorts
                 _multiVehicles.value = draftData.multiVehicles
                 _scheduledShipmentId.value = null
+                _changesTrigger.value++
             }
         }
     }
@@ -1547,7 +1552,13 @@ class ShipmentViewModel(private val database: AppDatabase, private val context: 
 
     // Получение всех черновиков
     fun getAllDrafts(): List<DraftData> {
-        return draftManager.getDrafts()
+        // Сортируем по дате изменения (последние сверху)
+        return draftManager.getDrafts().sortedByDescending { it.lastModified }
+    }
+
+    // Получение последнего черновика
+    fun getLastDraft(): DraftData? {
+        return draftManager.getLastDraft()
     }
 
     // Удаление черновика
@@ -1570,6 +1581,7 @@ class ShipmentViewModel(private val database: AppDatabase, private val context: 
         _multiPorts.value = emptyList()
         _multiVehicles.value = emptyList()
         _scheduledShipmentId.value = null
+        _changesTrigger.value++
     }
 
     private fun scheduleAutoSave() {

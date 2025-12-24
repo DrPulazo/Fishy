@@ -1,3 +1,4 @@
+// DraftsScreen.kt
 package com.example.fishy.screens
 
 import androidx.compose.foundation.layout.Arrangement
@@ -47,7 +48,7 @@ import com.example.fishy.database.AppDatabase
 import com.example.fishy.database.entities.MultiPort
 import com.example.fishy.database.entities.MultiVehicle
 import com.example.fishy.database.entities.Shipment
-import com.example.fishy.utils.DraftManager
+import com.example.fishy.navigation.Screen
 import com.example.fishy.viewmodels.ShipmentViewModel
 import com.example.fishy.viewmodels.ShipmentViewModelFactory
 import kotlinx.coroutines.launch
@@ -66,15 +67,31 @@ fun DraftsScreen(
             database = AppDatabase.getDatabase(context)
         )
     )
-    val draftManager = DraftManager(context)
     val coroutineScope = rememberCoroutineScope()
 
+    // Используем обычное состояние для черновиков
     var drafts by remember { mutableStateOf<List<com.example.fishy.utils.DraftData>>(emptyList()) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
     var draftToDelete by remember { mutableStateOf<com.example.fishy.utils.DraftData?>(null) }
+    var isLoading by remember { mutableStateOf(true) }
 
+    // Загружаем черновики при открытии экрана
     LaunchedEffect(Unit) {
-        drafts = draftManager.getDrafts()
+        drafts = viewModel.getAllDrafts().sortedByDescending { it.lastModified }
+        isLoading = false
+    }
+
+    // Обновляем при возвращении на экран
+    LaunchedEffect(navController) {
+        val backStackEntry = navController.currentBackStackEntry
+        backStackEntry?.lifecycle?.addObserver(object : androidx.lifecycle.LifecycleEventObserver {
+            override fun onStateChanged(source: androidx.lifecycle.LifecycleOwner, event: androidx.lifecycle.Lifecycle.Event) {
+                if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                    // Обновляем список черновиков
+                    drafts = viewModel.getAllDrafts().sortedByDescending { it.lastModified }
+                }
+            }
+        })
     }
 
     Surface(
@@ -93,7 +110,14 @@ fun DraftsScreen(
                 modifier = Modifier.padding(bottom = 16.dp)
             )
 
-            if (drafts.isEmpty()) {
+            if (isLoading) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("Загрузка черновиков...")
+                }
+            } else if (drafts.isEmpty()) {
                 Box(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center
@@ -125,10 +149,8 @@ fun DraftsScreen(
                         DraftItem(
                             draft = draft,
                             onContinue = {
-                                coroutineScope.launch {
-                                    viewModel.loadDraftById(draft.id)
-                                    navController.navigate("new_shipment")
-                                }
+                                // ИСПРАВЛЕНО: Используем правильный маршрут для черновика
+                                navController.navigate(Screen.NewShipmentFromDraft.createRoute(draft.id))
                             },
                             onDelete = {
                                 draftToDelete = draft
@@ -156,10 +178,13 @@ fun DraftsScreen(
                 TextButton(
                     onClick = {
                         draftToDelete?.let { draft ->
-                            draftManager.deleteDraft(draft.id)
-                            drafts = draftManager.getDrafts()
-                            showDeleteConfirm = false
-                            draftToDelete = null
+                            coroutineScope.launch {
+                                viewModel.deleteDraft(draft.id)
+                                // Обновляем локальный список
+                                drafts = viewModel.getAllDrafts().sortedByDescending { it.lastModified }
+                                showDeleteConfirm = false
+                                draftToDelete = null
+                            }
                         }
                     }
                 ) {

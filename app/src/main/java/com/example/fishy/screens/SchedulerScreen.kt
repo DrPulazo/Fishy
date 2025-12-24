@@ -117,7 +117,7 @@ fun SchedulerScreen(navController: NavController) {
                     refreshKey = refreshKey,
                     onEditClick = { editingShipment = it },
                     onStartClick = { shipment ->
-                        // Переход на экран новой отгрузки с передачей ID запланированной отгрузки
+                        // ИСПРАВЛЕНО: Используем правильный маршрут для запланированной отгрузки
                         navController.navigate(Screen.NewShipmentFromScheduled.createRoute(shipment.id))
                     },
                     onChecklistClick = { shipmentId ->

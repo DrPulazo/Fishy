@@ -1,3 +1,4 @@
+// MainScreen.kt
 package com.example.fishy.screens
 
 import android.content.Intent
@@ -34,7 +35,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -47,16 +47,15 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.example.fishy.R
 import com.example.fishy.database.AppDatabase
+import com.example.fishy.navigation.Screen
 import com.example.fishy.theme.FishyTheme
 import com.example.fishy.viewmodels.ShipmentViewModel
 import com.example.fishy.viewmodels.ShipmentViewModelFactory
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 
 @Composable
 fun MainScreen(navController: NavController) {
     var showInfoDialog by remember { mutableStateOf(false) }
-    // Состояния для пасхалки
     var easterEggClickCount by remember { mutableStateOf(0) }
     var showEasterEggDialog by remember { mutableStateOf(false) }
     var lastClickTime by remember { mutableStateOf(0L) }
@@ -76,12 +75,43 @@ fun MainScreen(navController: NavController) {
             database = AppDatabase.getDatabase(context)
         )
     )
-    val coroutineScope = rememberCoroutineScope()
-    var hasDraft by remember { mutableStateOf(false) }
 
-    // Проверяем наличие черновиков при создании экрана
+    // ВАЖНО: НЕ ИСПОЛЬЗУЕМ StateFlow для drafts, потому что они не обновляются автоматически
+    // Вместо этого используем обычное состояние и обновляем вручную
+    var draftsList by remember { mutableStateOf(emptyList<com.example.fishy.utils.DraftData>()) }
+    var hasDraft by remember { mutableStateOf(false) }
+    var lastDraftId by remember { mutableStateOf<Long?>(null) }
+
+    // Загружаем черновики при каждом появлении экрана
     LaunchedEffect(Unit) {
-        hasDraft = viewModel.hasDraft()
+        draftsList = viewModel.getAllDrafts()
+        hasDraft = draftsList.isNotEmpty()
+        lastDraftId = if (hasDraft) {
+            // Берем последний черновик (самый свежий)
+            draftsList.maxByOrNull { it.lastModified }?.id
+        } else {
+            null
+        }
+    }
+
+    // Также обновляем при возвращении на этот экран
+    LaunchedEffect(navController) {
+        // Когда возвращаемся на MainScreen из других экранов
+        val backStackEntry = navController.currentBackStackEntry
+        backStackEntry?.lifecycle?.addObserver(object : androidx.lifecycle.LifecycleEventObserver {
+            override fun onStateChanged(source: androidx.lifecycle.LifecycleOwner, event: androidx.lifecycle.Lifecycle.Event) {
+                if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                    // Обновляем список черновиков
+                    draftsList = viewModel.getAllDrafts()
+                    hasDraft = draftsList.isNotEmpty()
+                    lastDraftId = if (hasDraft) {
+                        draftsList.maxByOrNull { it.lastModified }?.id
+                    } else {
+                        null
+                    }
+                }
+            }
+        })
     }
 
     FishyTheme {
@@ -97,14 +127,13 @@ fun MainScreen(navController: NavController) {
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center
                 ) {
-                    // Заголовок (сдвинут выше)
+                    // Заголовок
                     Text(
                         text = "FISHY",
                         style = MaterialTheme.typography.displayLarge,
                         color = MaterialTheme.colorScheme.onSurface,
                         fontWeight = FontWeight.Bold,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier
+                        textAlign = TextAlign.Center
                     )
 
                     // Картинка по центру между заголовком и кнопками
@@ -135,11 +164,9 @@ fun MainScreen(navController: NavController) {
                         // Кнопка "Новая отгрузка"
                         OutlinedButton(
                             onClick = {
-                                // НЕ сохраняем текущий черновик, а начинаем новую отгрузку
-                                coroutineScope.launch {
-                                    viewModel.startNewShipment()
-                                    navController.navigate("new_shipment")
-                                }
+                                // УБЕДИТЕЛЬНО сбрасываем все данные перед началом новой отгрузки
+                                viewModel.startNewShipment()
+                                navController.navigate(Screen.NewShipment.route)
                             },
                             modifier = Modifier
                                 .width(250.dp)
@@ -155,20 +182,17 @@ fun MainScreen(navController: NavController) {
                         }
 
                         // Кнопка "Продолжить" (только если есть черновики)
-                        if (hasDraft) {
+                        if (hasDraft && lastDraftId != null) {
                             OutlinedButton(
                                 onClick = {
-                                    // Загружаем последний черновик и переходим к отгрузке
-                                    coroutineScope.launch {
-                                        viewModel.loadDraft()
-                                        navController.navigate("new_shipment")
-                                    }
+                                    // ВАЖНО: Используем специальный маршрут для черновиков
+                                    navController.navigate(Screen.NewShipmentFromDraft.createRoute(lastDraftId!!))
                                 },
                                 modifier = Modifier
                                     .width(250.dp)
                                     .height(50.dp),
                                 shape = RoundedCornerShape(12.dp),
-                                border = ButtonDefaults.outlinedButtonBorder.copy(width = 2.dp),
+                                border = ButtonDefaults.outlinedButtonBorder.copy(width = 2.dp)
                             ) {
                                 Text(
                                     text = "ПРОДОЛЖИТЬ",
@@ -180,7 +204,7 @@ fun MainScreen(navController: NavController) {
 
                         // Кнопка "Расписание"
                         OutlinedButton(
-                            onClick = { navController.navigate("scheduler") },
+                            onClick = { navController.navigate(Screen.Scheduler.route) },
                             modifier = Modifier
                                 .width(250.dp)
                                 .height(50.dp),
@@ -196,7 +220,7 @@ fun MainScreen(navController: NavController) {
 
                         // Кнопка "Архив"
                         OutlinedButton(
-                            onClick = { navController.navigate("archive") },
+                            onClick = { navController.navigate(Screen.Archive.route) },
                             modifier = Modifier
                                 .width(250.dp)
                                 .height(50.dp),
@@ -212,7 +236,7 @@ fun MainScreen(navController: NavController) {
 
                         // Кнопка "Черновики"
                         OutlinedButton(
-                            onClick = { navController.navigate("drafts") },
+                            onClick = { navController.navigate(Screen.Drafts.route) },
                             modifier = Modifier
                                 .width(250.dp)
                                 .height(50.dp),
@@ -228,7 +252,7 @@ fun MainScreen(navController: NavController) {
 
                         // Кнопка "Шаблоны"
                         OutlinedButton(
-                            onClick = { navController.navigate("templates") },
+                            onClick = { navController.navigate(Screen.Templates.route) },
                             modifier = Modifier
                                 .width(250.dp)
                                 .height(50.dp),
@@ -263,8 +287,6 @@ fun MainScreen(navController: NavController) {
 
         // Диалоговое окно с информацией
         if (showInfoDialog) {
-            val context = LocalContext.current
-
             AlertDialog(
                 onDismissRequest = { showInfoDialog = false },
                 title = {

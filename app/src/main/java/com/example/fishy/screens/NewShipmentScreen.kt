@@ -1,3 +1,4 @@
+// NewShipmentScreen.kt
 package com.example.fishy.screens
 
 import android.widget.Toast
@@ -58,12 +59,14 @@ import com.example.fishy.ui.components.ShipmentTypeDropdown
 import com.example.fishy.utils.ValidationState
 import com.example.fishy.viewmodels.ShipmentViewModel
 import com.example.fishy.viewmodels.ShipmentViewModelFactory
+import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun NewShipmentScreen(
     navController: NavController,
-    scheduledShipmentId: Long? = null
+    scheduledShipmentId: Long? = null,
+    draftId: Long? = null  // ДОБАВЛЯЕМ новый параметр
 ) {
     val context = LocalContext.current
     val viewModel: ShipmentViewModel = viewModel(
@@ -78,9 +81,6 @@ fun NewShipmentScreen(
 
     // Состояние для отображения диалогового окна
     var showSaveConfirmationDialog by remember { mutableStateOf(false) }
-
-    // Состояние для отслеживания, была ли уже инициализация
-    var isInitialized by remember { mutableStateOf(false) }
 
     val currentShipment by viewModel.currentShipment.collectAsState()
     val shipmentType by viewModel.shipmentType.collectAsState()
@@ -109,15 +109,24 @@ fun NewShipmentScreen(
     var multiPortTotalsExpanded by remember { mutableStateOf(true) }
     var multiVehicleTotalsExpanded by remember { mutableStateOf(true) }
 
-    // Загрузка данных при открытии экрана
-    LaunchedEffect(scheduledShipmentId) {
-        if (!isInitialized) {
-            if (scheduledShipmentId != null) {
-                // Загружаем данные из запланированной отгрузки
+    // ЗАГРУЗКА ДАННЫХ ПРИ ОТКРЫТИИ ЭКРАНА
+    LaunchedEffect(scheduledShipmentId, draftId) {
+        // Задержка для гарантии, что ViewModel инициализирована
+        delay(100)
+
+        when {
+            scheduledShipmentId != null -> {
+                // Загружаем из запланированной отгрузки
                 viewModel.loadFromScheduledShipment(scheduledShipmentId)
             }
-            // НЕ загружаем черновик автоматически - только при явном вызове из MainScreen или DraftsScreen
-            isInitialized = true
+            draftId != null -> {
+                // Загружаем черновик
+                viewModel.loadDraftById(draftId)
+            }
+            else -> {
+                // Новая отгрузка - убедимся, что данные сброшены
+                // (startNewShipment() вызывается в MainScreen при нажатии "Новая отгрузка")
+            }
         }
     }
 
@@ -295,7 +304,11 @@ fun NewShipmentScreen(
             TopAppBar(
                 title = {
                     Text(
-                        text = if (scheduledShipmentId != null) "Начать отгрузку" else "Новая погрузка"
+                        text = when {
+                            scheduledShipmentId != null -> "Начать отгрузку"
+                            draftId != null -> "Продолжить черновик"
+                            else -> "Новая погрузка"
+                        }
                     )
                 },
                 navigationIcon = {
