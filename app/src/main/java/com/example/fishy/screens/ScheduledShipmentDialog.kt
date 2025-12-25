@@ -331,6 +331,12 @@ fun AddEditScheduledShipmentDialog(
     // Функция для проверки всех дат перед сохранением
     fun validateAllDates(): Boolean {
         val isShipmentValid = validateShipmentDate()
+
+        // Если уведомление отключено, не проверяем дату уведомления
+        if (!notificationEnabled) {
+            return isShipmentValid
+        }
+
         val isNotificationValid = validateNotificationDate()
         return isShipmentValid && isNotificationValid
     }
@@ -833,7 +839,7 @@ fun AddEditScheduledShipmentDialog(
                                         }
                                         validateNotificationDate()
                                     },
-                                    label = "Время уведомления",
+                                    label = "Время",
                                     modifier = Modifier.fillMaxWidth()
                                 )
 
@@ -1034,11 +1040,28 @@ fun AddEditScheduledShipmentDialog(
                                 else -> "[]"
                             }
 
+                            // Рассчитываем общую массу
+                            val totalWeight = when (shipmentType) {
+                                "mono" -> monoProducts.sumOf { it.totalWeight }
+                                "multi_port" -> ports.flatMap { it.products }.sumOf { it.totalWeight }
+                                "multi_vehicle" -> vehicles.flatMap { it.products }.sumOf { it.totalWeight }
+                                else -> 0.0
+                            }
+
+                            // Подготавливаем поля уведомлений в зависимости от их состояния
+                            val finalNotificationEnabled = notificationEnabled
+                            val finalNotificationDate = if (notificationEnabled && notificationDaysBefore == 0 && notificationHoursBefore == 0) notificationDate else null
+                            val finalNotificationTime = if (notificationEnabled) notificationTime else ""
+                            val finalNotificationDaysBefore = if (notificationEnabled) notificationDaysBefore else 0
+                            val finalNotificationHoursBefore = if (notificationEnabled) notificationHoursBefore else 0
+
+                            val formattedScheduledTime = if (scheduledTime.length == 4) "0$scheduledTime" else scheduledTime
+
+                            // Создаем объект запланированной отгрузки
                             val newShipment = ScheduledShipment(
                                 id = shipment?.id ?: 0,
                                 title = autoTitle,
                                 scheduledDate = selectedDate,
-                                scheduledTime = scheduledTime,
                                 shipmentType = shipmentType,
                                 ports = ports.map { it.name },
                                 portTimes = ports.map { it.time },
@@ -1052,21 +1075,19 @@ fun AddEditScheduledShipmentDialog(
                                 wagonNumber = wagonNumber,
                                 sealNumber = sealNumber,
                                 productsJson = productsJson,
-                                totalWeight = when (shipmentType) {
-                                    "mono" -> monoProducts.sumOf { it.totalWeight }
-                                    "multi_port" -> ports.flatMap { it.products }.sumOf { it.totalWeight }
-                                    "multi_vehicle" -> vehicles.flatMap { it.products }.sumOf { it.totalWeight }
-                                    else -> 0.0
-                                },
-                                notificationEnabled = notificationEnabled,
-                                notificationDate = if (notificationEnabled && notificationDaysBefore == 0 && notificationHoursBefore == 0) notificationDate else null,
-                                notificationTime = notificationTime,
-                                notificationDaysBefore = if (notificationEnabled) notificationDaysBefore else 0,
-                                notificationHoursBefore = if (notificationEnabled) notificationHoursBefore else 0,
+                                totalWeight = totalWeight,
+                                notificationEnabled = finalNotificationEnabled,
+                                notificationDate = finalNotificationDate,
+                                notificationDaysBefore = finalNotificationDaysBefore,
+                                notificationHoursBefore = finalNotificationHoursBefore,
                                 notificationSent = shipment?.notificationSent ?: false,
                                 isCompleted = shipment?.isCompleted ?: false,
                                 createdAt = shipment?.createdAt ?: Date(),
-                                updatedAt = Date()
+                                updatedAt = Date(),
+                                scheduledTime = formattedScheduledTime,
+                                notificationTime = if (notificationEnabled) {
+                                    if (notificationTime.length == 4) "0$notificationTime" else notificationTime
+                                } else "",
                             )
 
                             // Только передаем данные, сохранение будет в onSave в SchedulerScreen
@@ -1076,7 +1097,7 @@ fun AddEditScheduledShipmentDialog(
                     }
                 },
                 enabled = customer.isNotBlank() && scheduledTime.isNotBlank() &&
-                        isShipmentDateValid && isNotificationDateValid
+                        isShipmentDateValid && (!notificationEnabled || isNotificationDateValid)
             ) {
                 Text("СОХРАНИТЬ")
             }

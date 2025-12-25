@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.firstOrNull
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import java.util.Calendar
 import java.util.Date
@@ -44,7 +45,21 @@ class SchedulerViewModel(application: Application) : AndroidViewModel(applicatio
 
     // Все запланированные отгрузки, отсортированные по дате и времени
     val allScheduledShipments: Flow<List<ScheduledShipment>> =
-        scheduledShipmentDao.getAllScheduledShipments()
+        scheduledShipmentDao.getAllScheduledShipments().map { shipments ->
+            shipments.sortedBy { shipment ->
+                // Создаем полную дату+время для сортировки
+                val calendar = Calendar.getInstance().apply {
+                    time = shipment.scheduledDate
+                    val timeParts = shipment.scheduledTime.split(":")
+                    if (timeParts.size == 2) {
+                        set(Calendar.HOUR_OF_DAY, timeParts[0].toIntOrNull() ?: 0)
+                        set(Calendar.MINUTE, timeParts[1].toIntOrNull() ?: 0)
+                        set(Calendar.SECOND, 0)
+                    }
+                }
+                calendar.timeInMillis
+            }
+        }
 
     // Справочники
     fun getDictionaryItems(type: String): Flow<List<DictionaryItem>> {
@@ -83,6 +98,29 @@ class SchedulerViewModel(application: Application) : AndroidViewModel(applicatio
             notificationHelper.scheduleNotificationForShipment(shipment.copy(id = id))
         }
         return id
+    }
+
+    suspend fun saveScheduledShipment(shipment: ScheduledShipment): Long {
+        try {
+            // Используем insertOrReplace из DAO
+            val id = scheduledShipmentDao.insertOrReplaceScheduledShipment(shipment)
+            println("DEBUG: DAO вернул ID: $id для отгрузки с начальным ID: ${shipment.id}")
+
+            // Обновляем уведомления
+            if (shipment.notificationEnabled && !shipment.isCompleted) {
+                // Отменяем старое уведомление (по старому ID)
+                notificationHelper.cancelNotificationForShipment(shipment.id)
+                // Планируем новое с актуальным ID
+                notificationHelper.scheduleNotificationForShipment(shipment.copy(id = id))
+            } else {
+                notificationHelper.cancelNotificationForShipment(shipment.id)
+            }
+
+            return id
+        } catch (e: Exception) {
+            e.printStackTrace()
+            throw e
+        }
     }
 
     fun updateScheduledShipment(shipment: ScheduledShipment) {

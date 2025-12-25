@@ -1,7 +1,14 @@
 package com.example.fishy.screens
 
+import android.Manifest
 import android.app.Application
+import android.content.pm.PackageManager
+import android.os.Build
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,6 +23,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Checklist
@@ -49,10 +57,12 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.example.fishy.database.entities.ScheduledShipment
@@ -63,6 +73,11 @@ import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Locale
 
+// Обновляем ChecklistStatus чтобы он был виден во всем файле
+enum class ChecklistStatus {
+    COMPLETED, PARTIAL, NONE, EMPTY
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SchedulerScreen(navController: NavController) {
@@ -70,7 +85,8 @@ fun SchedulerScreen(navController: NavController) {
     val viewModel: SchedulerViewModel = viewModel(
         factory = SchedulerViewModelFactory(context.applicationContext as Application)
     )
-
+    var shouldRequestPermission by remember { mutableStateOf(false) }
+    var permissionAlreadyRequested by remember { mutableStateOf(false) }
     val allScheduledShipments by viewModel.allScheduledShipments.collectAsState(emptyList())
     var showAddDialog by remember { mutableStateOf(false) }
     var editingShipment by remember { mutableStateOf<ScheduledShipment?>(null) }
@@ -80,6 +96,38 @@ fun SchedulerScreen(navController: NavController) {
     var refreshKey by remember { mutableStateOf(0) }
 
     val coroutineScope = rememberCoroutineScope()
+
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        val notificationLauncher = rememberLauncherForActivityResult(
+            contract = ActivityResultContracts.RequestPermission()
+        ) { isGranted: Boolean ->
+            permissionAlreadyRequested = true
+            if (isGranted) {
+                // Разрешение получено
+            }
+        }
+
+        LaunchedEffect(shouldRequestPermission) {
+            if (shouldRequestPermission && !permissionAlreadyRequested) {
+                val permissionStatus = ContextCompat.checkSelfPermission(
+                    context,
+                    Manifest.permission.POST_NOTIFICATIONS
+                )
+
+                if (permissionStatus != PackageManager.PERMISSION_GRANTED) {
+                    kotlinx.coroutines.delay(500)
+                    notificationLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                } else {
+                    permissionAlreadyRequested = true
+                }
+            }
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        kotlinx.coroutines.delay(1000)
+        shouldRequestPermission = true
+    }
 
     Scaffold(
         topBar = {
@@ -144,16 +192,14 @@ fun SchedulerScreen(navController: NavController) {
             },
             onSave = { newShipment ->
                 coroutineScope.launch {
-                    if (editingShipment != null) {
-                        // ВАЖНО: Сохраняем отгрузку с сохранением существующего ID
-                        viewModel.updateScheduledShipment(newShipment)
-                        // НЕ удаляем и не сбрасываем чеклист - он остается привязанным к этому ID
-                    } else {
-                        val id = viewModel.insertScheduledShipment(newShipment)
-                        // НЕ создаем чеклист по умолчанию
+                    try {
+                        val id = viewModel.saveScheduledShipment(newShipment)
+                        println("DEBUG: Отгрузка сохранена с ID: $id")
+                        refreshKey++
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                        Toast.makeText(context, "Ошибка: ${e.message}", Toast.LENGTH_LONG).show()
                     }
-                    // Увеличиваем ключ обновления
-                    refreshKey++
                 }
                 showAddDialog = false
                 editingShipment = null
@@ -243,6 +289,7 @@ fun ShipmentsListView(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ScheduledShipmentCard(
     shipment: ScheduledShipment,
@@ -532,37 +579,46 @@ fun ScheduledShipmentCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Статус чеклиста
+                // Статус чеклиста - делаем кликабельным
                 val status = checklistStatus ?: ChecklistStatus.EMPTY
 
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                // Кликабельная область для статуса чеклиста
+                Box(
+                    modifier = Modifier
+                        .clickable(
+                            onClick = onChecklistClick
+                        )
+                        .padding(horizontal = 8.dp, vertical = 8.dp) // Увеличиваем кликабельную область
                 ) {
-                    // Цветная точка
-                    Box(
-                        modifier = Modifier
-                            .size(12.dp)
-                            .background(
-                                color = when (status) {
-                                    ChecklistStatus.COMPLETED -> Color(0xFF4CAF50) // Зеленый
-                                    ChecklistStatus.PARTIAL -> Color(0xFFFFC107)   // Желтый
-                                    ChecklistStatus.NONE -> Color(0xFFF44336)      // Красный
-                                    ChecklistStatus.EMPTY -> Color(0xFF9E9E9E)     // Серый
-                                },
-                                shape = androidx.compose.foundation.shape.CircleShape
-                            )
-                    )
-                    Text(
-                        text = when (status) {
-                            ChecklistStatus.COMPLETED -> "Чек-лист выполнен"
-                            ChecklistStatus.PARTIAL -> "Чек-лист выполнен частично"
-                            ChecklistStatus.NONE -> "Чек-лист не выполнен"
-                            ChecklistStatus.EMPTY -> "Нет чек-листа"
-                        },
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        // Цветная точка
+                        Box(
+                            modifier = Modifier
+                                .size(12.dp)
+                                .clip(CircleShape)
+                                .background(
+                                    color = when (status) {
+                                        ChecklistStatus.COMPLETED -> Color(0xFF4CAF50) // Зеленый
+                                        ChecklistStatus.PARTIAL -> Color(0xFFFFC107)   // Желтый
+                                        ChecklistStatus.NONE -> Color(0xFFF44336)      // Красный
+                                        ChecklistStatus.EMPTY -> Color(0xFF9E9E9E)     // Серый
+                                    }
+                                )
+                        )
+                        Text(
+                            text = when (status) {
+                                ChecklistStatus.COMPLETED -> "Чек-лист выполнен"
+                                ChecklistStatus.PARTIAL -> "Чек-лист выполнен частично"
+                                ChecklistStatus.NONE -> "Чек-лист не выполнен"
+                                ChecklistStatus.EMPTY -> "Нет чек-листа"
+                            },
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                        )
+                    }
                 }
 
                 // Кнопка начала
@@ -581,8 +637,4 @@ fun ScheduledShipmentCard(
             }
         }
     }
-}
-
-enum class ChecklistStatus {
-    COMPLETED, PARTIAL, NONE, EMPTY
 }

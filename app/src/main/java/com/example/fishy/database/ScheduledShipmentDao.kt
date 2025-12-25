@@ -5,6 +5,7 @@ import androidx.room.Delete
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Transaction
 import androidx.room.Update
 import com.example.fishy.database.entities.ChecklistItem
 import com.example.fishy.database.entities.ScheduledShipment
@@ -16,7 +17,15 @@ interface ScheduledShipmentDao {
 
     // ScheduledShipment операции
 
-    @Query("SELECT * FROM scheduled_shipments ORDER BY scheduledDate ASC, scheduledTime ASC")
+    @Query("""
+    SELECT * FROM scheduled_shipments 
+    ORDER BY 
+        scheduledDate ASC,
+        CASE 
+            WHEN length(scheduledTime) = 4 THEN '0' || scheduledTime 
+            ELSE scheduledTime 
+        END ASC
+""")
     fun getAllScheduledShipments(): Flow<List<ScheduledShipment>>
 
     @Query("SELECT * FROM scheduled_shipments WHERE id = :id")
@@ -36,12 +45,22 @@ interface ScheduledShipmentDao {
     suspend fun insertScheduledShipment(scheduledShipment: ScheduledShipment): Long
 
     // ДОБАВЛЕНО: Метод для вставки с REPLACE только для новых отгрузок
+    @Transaction
     suspend fun insertOrReplaceScheduledShipment(scheduledShipment: ScheduledShipment): Long {
         if (scheduledShipment.id == 0L) {
+            // Новая отгрузка - вставляем
             return insertScheduledShipment(scheduledShipment)
         } else {
+            // Существующая отгрузка - обновляем
             updateScheduledShipment(scheduledShipment)
-            return scheduledShipment.id
+            // Проверяем, существует ли отгрузка с таким ID
+            val existing = getScheduledShipmentById(scheduledShipment.id)
+            return if (existing != null) {
+                scheduledShipment.id
+            } else {
+                // Если почему-то не обновилась, вставляем заново
+                insertScheduledShipment(scheduledShipment)
+            }
         }
     }
 

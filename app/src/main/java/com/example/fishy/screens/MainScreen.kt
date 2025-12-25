@@ -38,6 +38,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -212,7 +213,7 @@ fun MainScreen(navController: NavController) {
                             border = ButtonDefaults.outlinedButtonBorder.copy(width = 2.dp)
                         ) {
                             Text(
-                                text = "РАСПИСАНИЕ",
+                                text = "ПЛАНИРОВЩИК",
                                 style = MaterialTheme.typography.bodyLarge,
                                 fontWeight = FontWeight.Medium
                             )
@@ -318,7 +319,7 @@ fun MainScreen(navController: NavController) {
                         )
 
                         Text(
-                            text = "Ящик пива\n12 бессонных ночей",
+                            text = "2 ящика пива\n14 бессонных ночей",
                             style = MaterialTheme.typography.bodyMedium,
                             textAlign = TextAlign.Center,
                             modifier = Modifier.padding(bottom = 12.dp)
@@ -337,7 +338,7 @@ fun MainScreen(navController: NavController) {
                             text = "Написать в Telegram",
                             style = MaterialTheme.typography.bodyMedium,
                             textAlign = TextAlign.Center,
-                            color = MaterialTheme.colorScheme.primary,
+                            color = Color(0xff2f89de),
                             modifier = Modifier
                                 .padding(bottom = 8.dp)
                                 .clickable {
@@ -368,7 +369,7 @@ fun MainScreen(navController: NavController) {
                             text = "Открытый код на GitHub",
                             style = MaterialTheme.typography.bodyMedium,
                             textAlign = TextAlign.Center,
-                            color = MaterialTheme.colorScheme.primary,
+                            color = Color(0xff2f89de),
                             modifier = Modifier
                                 .padding(bottom = 12.dp)
                                 .clickable {
