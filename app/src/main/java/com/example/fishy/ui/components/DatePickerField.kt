@@ -1,86 +1,101 @@
 package com.example.fishy.ui.components
 
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CalendarToday
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.DisplayMode
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberDatePickerState
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
+import com.example.fishy.R
 import java.text.SimpleDateFormat
-import java.util.*
+import java.util.Calendar
+import java.util.Date
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DatePickerField(
-    selectedDate: Date,
-    onDateSelected: (Date) -> Unit,
-    label: String = "Дата",
-    modifier: Modifier = Modifier,
-    dateRange: ClosedRange<Long>? = null
+    selectedDateMillis: Long,
+    onDateSelected: (Long) -> Unit,
+    label: String,
+    modifier: Modifier = Modifier
 ) {
-    var showDatePicker by remember { mutableStateOf(false) }
+    var showPicker by remember { mutableStateOf(false) }
     val dateFormatter = remember { SimpleDateFormat("dd.MM.yyyy", Locale.getDefault()) }
 
-    // Нормализуем дату (убираем время, оставляем только день)
-    val normalizedDate = remember(selectedDate) {
+    val normalizedMillis = remember(selectedDateMillis) {
         Calendar.getInstance().apply {
-            time = selectedDate
-            set(Calendar.HOUR_OF_DAY, 12) // Полдень, чтобы избежать проблем с часовыми поясами
+            timeInMillis = selectedDateMillis
+            set(Calendar.HOUR_OF_DAY, 12)
             set(Calendar.MINUTE, 0)
             set(Calendar.SECOND, 0)
             set(Calendar.MILLISECOND, 0)
-        }.time
+        }.timeInMillis
     }
 
-    // Определяем диапазон годов
-    val yearRange = remember(dateRange) {
-        if (dateRange != null) {
-            val calendar = Calendar.getInstance()
-            calendar.timeInMillis = dateRange.start
-            val startYear = calendar.get(Calendar.YEAR)
-            calendar.timeInMillis = dateRange.endInclusive
-            val endYear = calendar.get(Calendar.YEAR)
-            startYear..endYear
-        } else {
-            // Текущий год ±10 лет
-            val currentYear = Calendar.getInstance().get(Calendar.YEAR)
-            (currentYear - 0)..(currentYear + 14)
-        }
+    val yearRange = remember {
+        val currentYear = Calendar.getInstance().get(Calendar.YEAR)
+        (currentYear - 1)..(currentYear + 14)
     }
 
-    // Создаем состояние DatePicker
-    val datePickerState = rememberDatePickerState(
-        initialSelectedDateMillis = normalizedDate.time,
-        initialDisplayMode = DisplayMode.Picker,
-        yearRange = yearRange
-    )
-
-    // Обновляем выбранную дату при изменении selectedDate
-    LaunchedEffect(normalizedDate) {
-        datePickerState.setSelection(normalizedDate.time)
+    Box(modifier = modifier.fillMaxWidth()) {
+        OutlinedTextField(
+            value = dateFormatter.format(Date(selectedDateMillis)),
+            onValueChange = {},
+            label = { Text(label) },
+            readOnly = true,
+            enabled = false,
+            trailingIcon = {
+                Icon(
+                    Icons.Default.CalendarToday,
+                    contentDescription = stringResource(R.string.cd_pick_date)
+                )
+            },
+            colors = OutlinedTextFieldDefaults.colors(
+                disabledTextColor = MaterialTheme.colorScheme.onSurface,
+                disabledBorderColor = MaterialTheme.colorScheme.outline,
+                disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                disabledTrailingIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                disabledContainerColor = MaterialTheme.colorScheme.surface
+            ),
+            modifier = Modifier.fillMaxWidth()
+        )
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .clickable { showPicker = true }
+        )
     }
 
-    OutlinedTextField(
-        value = dateFormatter.format(selectedDate),
-        onValueChange = { },
-        label = { Text(label) },
-        modifier = modifier.fillMaxWidth(),
-        readOnly = true,
-        trailingIcon = {
-            IconButton(onClick = { showDatePicker = true }) {
-                Icon(Icons.Default.CalendarToday, contentDescription = "Выбрать дату")
-            }
-        }
-    )
-
-    if (showDatePicker) {
+    if (showPicker) {
+        val datePickerState = rememberDatePickerState(
+            initialSelectedDateMillis = normalizedMillis,
+            initialDisplayMode = DisplayMode.Picker,
+            yearRange = yearRange
+        )
         DatePickerDialog(
-            onDismissRequest = { showDatePicker = false },
+            onDismissRequest = { showPicker = false },
             confirmButton = {
                 TextButton(
                     onClick = {
                         datePickerState.selectedDateMillis?.let { millis ->
-                            // Создаем Date из миллисекунд и нормализуем (ставим полдень)
                             val calendar = Calendar.getInstance().apply {
                                 timeInMillis = millis
                                 set(Calendar.HOUR_OF_DAY, 12)
@@ -88,17 +103,17 @@ fun DatePickerField(
                                 set(Calendar.SECOND, 0)
                                 set(Calendar.MILLISECOND, 0)
                             }
-                            onDateSelected(calendar.time)
+                            onDateSelected(calendar.timeInMillis)
                         }
-                        showDatePicker = false
+                        showPicker = false
                     }
                 ) {
-                    Text("Выбрать")
+                    Text(stringResource(R.string.action_select))
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showDatePicker = false }) {
-                    Text("Отмена")
+                TextButton(onClick = { showPicker = false }) {
+                    Text(stringResource(R.string.cancel))
                 }
             }
         ) {

@@ -1,0 +1,340 @@
+package com.example.fishy.feature.settings
+
+import android.widget.Toast
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MenuAnchorType
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import com.example.fishy.FishyApp
+import com.example.fishy.R
+import com.example.fishy.data.settings.AppLanguage
+import com.example.fishy.data.settings.ThemeMode
+import com.example.fishy.ui.components.ConfirmDeleteDialog
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+
+private enum class WipeDialogStep { None, FirstConfirm, TypeConfirm }
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun SettingsScreen(onBack: () -> Unit) {
+    val context = LocalContext.current
+    val app = FishyApp.instance
+    val settingsRepo = app.settingsRepository
+    val settings by settingsRepo.settings.collectAsState(
+        initial = com.example.fishy.data.settings.FishySettings()
+    )
+    val scope = rememberCoroutineScope()
+    var languageMenuOpen by remember { mutableStateOf(false) }
+    var wipeStep by remember { mutableStateOf(WipeDialogStep.None) }
+    var wipeConfirmText by remember { mutableStateOf("") }
+    val darkThemeOn = settings.themeMode != ThemeMode.LIGHT
+    val languages = remember {
+        AppLanguage.entries.filter { it != AppLanguage.SYSTEM }
+    }
+    val wipeWord = stringResource(R.string.wipe_data_confirm_word)
+    val canConfirmWipe = wipeConfirmText == wipeWord
+
+    Scaffold(
+        topBar = {
+            CenterAlignedTopAppBar(
+                title = { Text(stringResource(R.string.nav_settings)) },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null)
+                    }
+                }
+            )
+        }
+    ) { padding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .padding(16.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                ExposedDropdownMenuBox(
+                    expanded = languageMenuOpen,
+                    onExpandedChange = { languageMenuOpen = it }
+                ) {
+                    OutlinedTextField(
+                        value = languageOptionLabel(settings.language),
+                        onValueChange = {},
+                        readOnly = true,
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = languageMenuOpen) },
+                        modifier = Modifier
+                            .menuAnchor(type = MenuAnchorType.PrimaryNotEditable)
+                            .fillMaxWidth()
+                    )
+                    ExposedDropdownMenu(
+                        expanded = languageMenuOpen,
+                        onDismissRequest = { languageMenuOpen = false }
+                    ) {
+                        languages.forEach { lang ->
+                            DropdownMenuItem(
+                                text = { Text(languageOptionLabel(lang)) },
+                                onClick = {
+                                    languageMenuOpen = false
+                                    scope.launch {
+                                        settingsRepo.update { it.copy(language = lang) }
+                                        FishyApp.applyAppLanguage(lang)
+                                    }
+                                }
+                            )
+                        }
+                    }
+                }
+
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                    Text(stringResource(R.string.theme_dark), modifier = Modifier.weight(1f))
+                    Switch(
+                        checked = darkThemeOn,
+                        onCheckedChange = { enabled ->
+                            scope.launch {
+                                settingsRepo.update {
+                                    it.copy(themeMode = if (enabled) ThemeMode.DARK else ThemeMode.LIGHT)
+                                }
+                            }
+                        }
+                    )
+                }
+
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                    Text(stringResource(R.string.input_guard), modifier = Modifier.weight(1f))
+                    Switch(
+                        checked = settings.inputGuardEnabled,
+                        onCheckedChange = { v ->
+                            scope.launch { settingsRepo.update { it.copy(inputGuardEnabled = v) } }
+                        }
+                    )
+                }
+                if (settings.inputGuardEnabled) {
+                    OutlinedTextField(
+                        value = settings.maxPlaceWeightKg.let { if (it == 0.0) "" else it.toString() },
+                        onValueChange = { v ->
+                            scope.launch {
+                                settingsRepo.update {
+                                    it.copy(maxPlaceWeightKg = v.replace(',', '.').toDoubleOrNull() ?: 0.0)
+                                }
+                            }
+                        },
+                        label = { Text(stringResource(R.string.settings_max_place_weight)) },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = if (settings.maxPlacesPerPallet == 0) "" else settings.maxPlacesPerPallet.toString(),
+                        onValueChange = { v ->
+                            scope.launch {
+                                settingsRepo.update { it.copy(maxPlacesPerPallet = v.toIntOrNull() ?: 0) }
+                            }
+                        },
+                        label = { Text(stringResource(R.string.settings_max_places_pallet)) },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                    Text(stringResource(R.string.auto_spaces), modifier = Modifier.weight(1f))
+                    Switch(
+                        checked = settings.autoSpacesEnabled,
+                        onCheckedChange = { v ->
+                            scope.launch { settingsRepo.update { it.copy(autoSpacesEnabled = v) } }
+                        }
+                    )
+                }
+                if (settings.autoSpacesEnabled) {
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                        Checkbox(
+                            checked = settings.autoSpaceContainers,
+                            onCheckedChange = { v ->
+                                scope.launch { settingsRepo.update { it.copy(autoSpaceContainers = v) } }
+                            }
+                        )
+                        Text(
+                            stringResource(R.string.auto_spaces_containers),
+                            modifier = Modifier.padding(start = 4.dp)
+                        )
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                        Checkbox(
+                            checked = settings.autoSpaceVehicles,
+                            onCheckedChange = { v ->
+                                scope.launch { settingsRepo.update { it.copy(autoSpaceVehicles = v) } }
+                            }
+                        )
+                        Text(
+                            stringResource(R.string.auto_spaces_vehicles),
+                            modifier = Modifier.padding(start = 4.dp)
+                        )
+                    }
+                }
+
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                    Text(stringResource(R.string.floating_fab), modifier = Modifier.weight(1f))
+                    Switch(
+                        checked = settings.floatingFabEnabled,
+                        onCheckedChange = { v ->
+                            scope.launch { settingsRepo.update { it.copy(floatingFabEnabled = v) } }
+                        }
+                    )
+                }
+            }
+
+            TextButton(
+                onClick = {
+                    wipeConfirmText = ""
+                    wipeStep = WipeDialogStep.FirstConfirm
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp)
+            ) {
+                Text(
+                    text = stringResource(R.string.wipe_data),
+                    color = MaterialTheme.colorScheme.error
+                )
+            }
+        }
+    }
+
+    when (wipeStep) {
+        WipeDialogStep.None -> Unit
+        WipeDialogStep.FirstConfirm -> {
+            ConfirmDeleteDialog(
+                title = stringResource(R.string.wipe_data_title),
+                message = stringResource(R.string.wipe_data_message),
+                onConfirm = {
+                    wipeConfirmText = ""
+                    wipeStep = WipeDialogStep.TypeConfirm
+                },
+                onDismiss = { wipeStep = WipeDialogStep.None }
+            )
+        }
+        WipeDialogStep.TypeConfirm -> {
+            AlertDialog(
+                onDismissRequest = { wipeStep = WipeDialogStep.None },
+                title = {
+                    Text(
+                        text = stringResource(R.string.wipe_data_confirm_title),
+                        modifier = Modifier.fillMaxWidth(),
+                        textAlign = TextAlign.Center
+                    )
+                },
+                text = {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = stringResource(R.string.wipe_data_confirm_message),
+                            modifier = Modifier.fillMaxWidth(),
+                            textAlign = TextAlign.Center
+                        )
+                        OutlinedTextField(
+                            value = wipeConfirmText,
+                            onValueChange = { wipeConfirmText = it },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                },
+                confirmButton = {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        TextButton(onClick = { wipeStep = WipeDialogStep.None }) {
+                            Text(
+                                text = stringResource(R.string.cancel),
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                        TextButton(
+                            onClick = {
+                                if (!canConfirmWipe) return@TextButton
+                                wipeStep = WipeDialogStep.None
+                                scope.launch {
+                                    withContext(Dispatchers.IO) {
+                                        app.notificationScheduler.cancelAll()
+                                        app.repository.wipeAll()
+                                        app.settingsRepository.clear()
+                                    }
+                                    FishyApp.applyAppLanguage(AppLanguage.RU)
+                                    Toast.makeText(
+                                        context,
+                                        context.getString(R.string.wipe_data_done),
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                }
+                            },
+                            enabled = canConfirmWipe
+                        ) {
+                            Text(
+                                text = stringResource(R.string.delete),
+                                color = if (canConfirmWipe) {
+                                    MaterialTheme.colorScheme.error
+                                } else {
+                                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                                }
+                            )
+                        }
+                    }
+                }
+            )
+        }
+    }
+}
+
+/** Native-script labels — never taken from locale resources (avoids mojibake). */
+private fun languageOptionLabel(lang: AppLanguage): String = when (lang) {
+    AppLanguage.SYSTEM, AppLanguage.RU -> "🇷🇺 Русский"
+    AppLanguage.EN -> "🇬🇧 English"
+    AppLanguage.ZH -> "🇨🇳 中文"
+    AppLanguage.KO -> "🇰🇷 한국어"
+    AppLanguage.JA -> "🇯🇵 日本語"
+    AppLanguage.ES -> "🇪🇸 Español"
+}
