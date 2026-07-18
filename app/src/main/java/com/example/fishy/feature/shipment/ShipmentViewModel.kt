@@ -1,9 +1,6 @@
 package com.example.fishy.feature.shipment
 
 import android.app.Application
-import android.os.VibrationEffect
-import android.os.Vibrator
-import android.os.VibratorManager
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.fishy.FishyApp
@@ -12,7 +9,6 @@ import com.example.fishy.data.serialization.FishyJson
 import com.example.fishy.data.settings.FishySettings
 import com.example.fishy.domain.calc.ShipmentCalculator
 import com.example.fishy.domain.format.NumberFormatters
-import com.example.fishy.domain.format.TextFormatters
 import com.example.fishy.domain.model.BatchLimit
 import com.example.fishy.domain.model.ChecklistTask
 import com.example.fishy.domain.model.DictionaryType
@@ -28,6 +24,7 @@ import com.example.fishy.domain.model.UnloadReception
 import com.example.fishy.domain.model.VehicleGroup
 import com.example.fishy.feature.scheduler.decodeScheduledPayload
 import com.example.fishy.feature.scheduler.ensurePayloadStructure
+import com.example.fishy.ui.ErrorFeedback
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -41,14 +38,14 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 sealed interface ShipmentUiEvent {
-    data class Toast(val message: String) : ShipmentUiEvent
+    data class Toast(val message: String, val isError: Boolean = false) : ShipmentUiEvent
     class GuardConfirm(
         val field: String,
         val value: String,
         val onConfirm: () -> Unit
     ) : ShipmentUiEvent
     data object Saved : ShipmentUiEvent
-    data class NavigateReport(val id: Long) : ShipmentUiEvent
+    data class NavigateArchiveDetail(val id: Long) : ShipmentUiEvent
     data class ForecastRunning(val running: Boolean) : ShipmentUiEvent
     data class ForecastExpectation(val message: String) : ShipmentUiEvent
     /** After smart FAB adds a pallet — UI should expand and focus places field. */
@@ -326,14 +323,14 @@ class ShipmentViewModel(application: Application) : AndroidViewModel(application
                 ShipmentEventType.COMPLETED,
                 app.getString(R.string.history_msg_completed)
             )
-            _events.emit(ShipmentUiEvent.NavigateReport(id))
+            _events.emit(ShipmentUiEvent.NavigateArchiveDetail(id))
         }
     }
 
     fun setCustomer(v: String) = update { it.copy(customer = v) }
     fun setPort(v: String) = update { it.copy(port = v) }
     fun setVessel(v: String) = update { it.copy(vessel = v) }
-    fun setNotes(v: String) = update { it.copy(notes = TextFormatters.capitalizeLines(v)) }
+    fun setNotes(v: String) = update { it.copy(notes = v) }
 
     fun setDoubleControl(v: Boolean) = update { it.copy(doubleControlEnabled = v) }
     fun setPalletForecast(v: Boolean) {
@@ -492,7 +489,8 @@ class ShipmentViewModel(application: Application) : AndroidViewModel(application
                                     R.string.batch_limit_exceeded,
                                     product.batch.ifBlank { product.name }.ifBlank { "—" },
                                     avail.coerceAtLeast(0)
-                                )
+                                ),
+                                isError = true
                             )
                         )
                     }
@@ -683,7 +681,8 @@ class ShipmentViewModel(application: Application) : AndroidViewModel(application
             viewModelScope.launch {
                 _events.emit(
                     ShipmentUiEvent.Toast(
-                        getApplication<Application>().getString(R.string.forecast_error)
+                        getApplication<Application>().getString(R.string.forecast_error),
+                        isError = true
                     )
                 )
             }
@@ -784,7 +783,7 @@ class ShipmentViewModel(application: Application) : AndroidViewModel(application
                 }
                 if (ShipmentCalculator.remainder(product, p.doubleControlEnabled, false) <= 0 && product.quantity > 0) {
                     viewModelScope.launch {
-                        _events.emit(ShipmentUiEvent.Toast(getApplication<Application>().getString(R.string.all_transports_full)))
+                        _events.emit(ShipmentUiEvent.Toast(getApplication<Application>().getString(R.string.all_transports_full), isError = true))
                     }
                     return
                 }
@@ -812,7 +811,7 @@ class ShipmentViewModel(application: Application) : AndroidViewModel(application
                     }
                 }
                 viewModelScope.launch {
-                    _events.emit(ShipmentUiEvent.Toast(getApplication<Application>().getString(com.example.fishy.R.string.all_transports_full)))
+                    _events.emit(ShipmentUiEvent.Toast(getApplication<Application>().getString(com.example.fishy.R.string.all_transports_full), isError = true))
                 }
             }
             ShipmentMode.MULTI_PORT -> {
@@ -1141,15 +1140,7 @@ class ShipmentViewModel(application: Application) : AndroidViewModel(application
     }
 
     private fun vibrateShort() {
-        val ctx = app
-        val vibrator = if (android.os.Build.VERSION.SDK_INT >= 31) {
-            val vm = ctx.getSystemService(VibratorManager::class.java)
-            vm.defaultVibrator
-        } else {
-            @Suppress("DEPRECATION")
-            ctx.getSystemService(Vibrator::class.java)
-        }
-        vibrator.vibrate(VibrationEffect.createOneShot(40, VibrationEffect.DEFAULT_AMPLITUDE))
+        ErrorFeedback.vibrate(app)
         viewModelScope.launch {
             repo.log(
                 _sessionKey.value,

@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.AlertDialog
@@ -28,6 +29,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -36,20 +38,32 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.example.fishy.FishyApp
 import com.example.fishy.R
 import com.example.fishy.data.settings.AppLanguage
 import com.example.fishy.data.settings.ThemeMode
+import com.example.fishy.ui.components.CenteredDialogMessage
+import com.example.fishy.ui.components.CenteredDialogTitle
 import com.example.fishy.ui.components.ConfirmDeleteDialog
+import com.example.fishy.ui.components.DialogCancelConfirmActions
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 private enum class WipeDialogStep { None, FirstConfirm, TypeConfirm }
+
+private fun formatMaxWeightKg(value: Double): String =
+    if (value == 0.0) ""
+    else if (value == value.toLong().toDouble()) value.toLong().toString()
+    else value.toString()
+
+private fun formatMaxPlaces(value: Int): String =
+    if (value == 0) "" else value.toString()
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -64,6 +78,10 @@ fun SettingsScreen(onBack: () -> Unit) {
     var languageMenuOpen by remember { mutableStateOf(false) }
     var wipeStep by remember { mutableStateOf(WipeDialogStep.None) }
     var wipeConfirmText by remember { mutableStateOf("") }
+    var maxWeightText by remember { mutableStateOf("") }
+    var maxPlacesText by remember { mutableStateOf("") }
+    var maxWeightFocused by remember { mutableStateOf(false) }
+    var maxPlacesFocused by remember { mutableStateOf(false) }
     val darkThemeOn = settings.themeMode != ThemeMode.LIGHT
     val languages = remember {
         AppLanguage.entries.filter { it != AppLanguage.SYSTEM }
@@ -71,6 +89,16 @@ fun SettingsScreen(onBack: () -> Unit) {
     val wipeWord = stringResource(R.string.wipe_data_confirm_word)
     val canConfirmWipe = wipeConfirmText == wipeWord
 
+    LaunchedEffect(settings.maxPlaceWeightKg) {
+        if (!maxWeightFocused) {
+            maxWeightText = formatMaxWeightKg(settings.maxPlaceWeightKg)
+        }
+    }
+    LaunchedEffect(settings.maxPlacesPerPallet) {
+        if (!maxPlacesFocused) {
+            maxPlacesText = formatMaxPlaces(settings.maxPlacesPerPallet)
+        }
+    }
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
@@ -153,26 +181,43 @@ fun SettingsScreen(onBack: () -> Unit) {
                 }
                 if (settings.inputGuardEnabled) {
                     OutlinedTextField(
-                        value = settings.maxPlaceWeightKg.let { if (it == 0.0) "" else it.toString() },
+                        value = maxWeightText,
                         onValueChange = { v ->
+                            val filtered = v.filter { it.isDigit() || it == '.' || it == ',' }
+                            maxWeightText = filtered
                             scope.launch {
                                 settingsRepo.update {
-                                    it.copy(maxPlaceWeightKg = v.replace(',', '.').toDoubleOrNull() ?: 0.0)
+                                    it.copy(
+                                        maxPlaceWeightKg = filtered.replace(',', '.')
+                                            .toDoubleOrNull() ?: 0.0
+                                    )
                                 }
                             }
                         },
                         label = { Text(stringResource(R.string.settings_max_place_weight)) },
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .onFocusChanged { maxWeightFocused = it.isFocused },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
                     )
                     OutlinedTextField(
-                        value = if (settings.maxPlacesPerPallet == 0) "" else settings.maxPlacesPerPallet.toString(),
+                        value = maxPlacesText,
                         onValueChange = { v ->
+                            val filtered = v.filter { it.isDigit() }
+                            maxPlacesText = filtered
                             scope.launch {
-                                settingsRepo.update { it.copy(maxPlacesPerPallet = v.toIntOrNull() ?: 0) }
+                                settingsRepo.update {
+                                    it.copy(maxPlacesPerPallet = filtered.toIntOrNull() ?: 0)
+                                }
                             }
                         },
                         label = { Text(stringResource(R.string.settings_max_places_pallet)) },
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .onFocusChanged { maxPlacesFocused = it.isFocused },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
                     )
                 }
 
@@ -256,12 +301,9 @@ fun SettingsScreen(onBack: () -> Unit) {
         WipeDialogStep.TypeConfirm -> {
             AlertDialog(
                 onDismissRequest = { wipeStep = WipeDialogStep.None },
+                containerColor = MaterialTheme.colorScheme.background,
                 title = {
-                    Text(
-                        text = stringResource(R.string.wipe_data_confirm_title),
-                        modifier = Modifier.fillMaxWidth(),
-                        textAlign = TextAlign.Center
-                    )
+                    CenteredDialogTitle(stringResource(R.string.wipe_data_confirm_title))
                 },
                 text = {
                     Column(
@@ -269,11 +311,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Text(
-                            text = stringResource(R.string.wipe_data_confirm_message),
-                            modifier = Modifier.fillMaxWidth(),
-                            textAlign = TextAlign.Center
-                        )
+                        CenteredDialogMessage(stringResource(R.string.wipe_data_confirm_message))
                         OutlinedTextField(
                             value = wipeConfirmText,
                             onValueChange = { wipeConfirmText = it },
@@ -283,46 +321,28 @@ fun SettingsScreen(onBack: () -> Unit) {
                     }
                 },
                 confirmButton = {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        TextButton(onClick = { wipeStep = WipeDialogStep.None }) {
-                            Text(
-                                text = stringResource(R.string.cancel),
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                        }
-                        TextButton(
-                            onClick = {
-                                if (!canConfirmWipe) return@TextButton
-                                wipeStep = WipeDialogStep.None
-                                scope.launch {
-                                    withContext(Dispatchers.IO) {
-                                        app.notificationScheduler.cancelAll()
-                                        app.repository.wipeAll()
-                                        app.settingsRepository.clear()
-                                    }
-                                    FishyApp.applyAppLanguage(AppLanguage.RU)
-                                    Toast.makeText(
-                                        context,
-                                        context.getString(R.string.wipe_data_done),
-                                        Toast.LENGTH_SHORT
-                                    ).show()
+                    DialogCancelConfirmActions(
+                        onCancel = { wipeStep = WipeDialogStep.None },
+                        onConfirm = {
+                            wipeStep = WipeDialogStep.None
+                            scope.launch {
+                                withContext(Dispatchers.IO) {
+                                    app.notificationScheduler.cancelAll()
+                                    app.repository.wipeAll()
+                                    app.settingsRepository.clear()
                                 }
-                            },
-                            enabled = canConfirmWipe
-                        ) {
-                            Text(
-                                text = stringResource(R.string.delete),
-                                color = if (canConfirmWipe) {
-                                    MaterialTheme.colorScheme.error
-                                } else {
-                                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
-                                }
-                            )
-                        }
-                    }
+                                FishyApp.applyAppLanguage(AppLanguage.RU)
+                                Toast.makeText(
+                                    context,
+                                    context.getString(R.string.wipe_data_done),
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            }
+                        },
+                        confirmText = stringResource(R.string.delete),
+                        confirmEnabled = canConfirmWipe,
+                        confirmColor = MaterialTheme.colorScheme.error
+                    )
                 }
             )
         }

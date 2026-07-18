@@ -12,7 +12,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Share
-import com.example.fishy.ui.components.FishyButton
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -41,6 +40,8 @@ import com.example.fishy.data.serialization.FishyJson
 import com.example.fishy.domain.model.ShipmentEventType
 import com.example.fishy.domain.report.ReportGenerator
 import com.example.fishy.domain.report.ReportTemplate
+import com.example.fishy.ui.components.FishyButton
+import com.example.fishy.ui.components.FishySentenceKeyboardOptions
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -117,7 +118,8 @@ fun ReportScreen(
                     onValueChange = { editText = it },
                     modifier = Modifier
                         .weight(1f)
-                        .fillMaxWidth()
+                        .fillMaxWidth(),
+                    keyboardOptions = FishySentenceKeyboardOptions
                 )
                 TextButton(onClick = {
                     scope.launch {

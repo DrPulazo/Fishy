@@ -1,5 +1,6 @@
 package com.example.fishy.feature.drafts
 
+import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,18 +16,18 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
-import com.example.fishy.ui.components.FishyButton
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
+import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -36,18 +37,21 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.fishy.FishyApp
 import com.example.fishy.R
 import com.example.fishy.data.local.entity.ShipmentEntity
-import com.example.fishy.domain.model.ShipmentMode
+import com.example.fishy.data.serialization.FishyJson
+import com.example.fishy.domain.model.ShipmentSummaries
+import com.example.fishy.ui.ErrorFeedback
 import com.example.fishy.ui.components.ConfirmDeleteDialog
 import com.example.fishy.ui.components.EmptyListPlaceholder
+import com.example.fishy.ui.components.FishyButton
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -60,11 +64,31 @@ fun DraftsScreen(
     onOpen: (Long) -> Unit
 ) {
     val repo = FishyApp.instance.repository
+    val context = LocalContext.current
     val items by repo.observeDrafts().collectAsState(initial = emptyList())
+    val duplicatedKeys by repo.observeDuplicatedDraftKeys().collectAsState(initial = emptySet())
     val scope = rememberCoroutineScope()
     val fmt = remember { SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.getDefault()) }
     val deleteFmt = remember { SimpleDateFormat("dd.MM.yyyy HH.mm", Locale.getDefault()) }
     var pendingDelete by remember { mutableStateOf<ShipmentEntity?>(null) }
+
+    fun duplicateDraft(item: ShipmentEntity) {
+        scope.launch {
+            runCatching {
+                val name = if (item.customer.isBlank()) {
+                    context.getString(R.string.copy_default)
+                } else {
+                    context.getString(R.string.copy_suffix, item.customer)
+                }
+                repo.duplicateShipmentAsDraft(item.id, name)
+            }.onSuccess {
+                Toast.makeText(context, context.getString(R.string.duplicate_created), Toast.LENGTH_SHORT).show()
+            }.onFailure {
+                ErrorFeedback.vibrate(context)
+                Toast.makeText(context, it.message ?: "Error", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -102,8 +126,10 @@ fun DraftsScreen(
                 items(items, key = { it.id }) { item ->
                     DraftCard(
                         item = item,
+                        isDuplicated = "draft_${item.id}" in duplicatedKeys,
                         modifiedLabel = fmt.format(Date(item.completedAtMillis)),
                         onContinue = { onOpen(item.id) },
+                        onDuplicate = { duplicateDraft(item) },
                         onDelete = { pendingDelete = item }
                     )
                 }
@@ -132,17 +158,21 @@ fun DraftsScreen(
 @Composable
 private fun DraftCard(
     item: ShipmentEntity,
+    isDuplicated: Boolean,
     modifiedLabel: String,
     onContinue: () -> Unit,
+    onDuplicate: () -> Unit,
     onDelete: () -> Unit
 ) {
-    val modeLabel = when (item.mode) {
-        ShipmentMode.MONO.name -> stringResource(R.string.mode_mono)
-        ShipmentMode.MULTI_VEHICLE.name -> stringResource(R.string.mode_multi_vehicle)
-        ShipmentMode.MULTI_PORT.name -> stringResource(R.string.mode_multi_port)
-        ShipmentMode.UNLOAD.name -> stringResource(R.string.mode_unload)
-        else -> item.mode
+    val payload = remember(item.payloadJson) {
+        runCatching { FishyJson.decodePayload(item.payloadJson) }.getOrNull()
     }
+    val title = item.customer.ifBlank { stringResource(R.string.no_customer) }
+    val ports = payload?.let { ShipmentSummaries.ports(it) }.orEmpty()
+        .ifEmpty { listOfNotNull(item.port.takeIf { it.isNotBlank() }) }
+    val transports = payload?.let { ShipmentSummaries.transportLabels(it) }.orEmpty()
+        .ifEmpty { listOfNotNull(item.transportSummary.takeIf { it.isNotBlank() }) }
+    val receptions = payload?.let { ShipmentSummaries.receptionPoints(it) }.orEmpty()
 
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(
@@ -150,21 +180,43 @@ private fun DraftCard(
                 .fillMaxWidth()
                 .padding(16.dp)
         ) {
-            Text(
-                modeLabel,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(bottom = 8.dp)
-            )
-            if (item.customer.isNotBlank()) {
-                Text(stringResource(R.string.customer_binding, item.customer), style = MaterialTheme.typography.bodyMedium)
-            }
-            if (item.port.isNotBlank()) {
-                Text(stringResource(R.string.port_prefix, item.port), style = MaterialTheme.typography.bodyMedium)
-            }
-            if (item.transportSummary.isNotBlank()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 Text(
-                    stringResource(R.string.transport_prefix, item.transportSummary),
+                    title,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.weight(1f),
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+                if (isDuplicated) {
+                    Text(
+                        stringResource(R.string.draft_duplicated_badge),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f)
+                    )
+                }
+            }
+            if (ports.isNotEmpty()) {
+                Text(
+                    stringResource(R.string.port_prefix, ports.joinToString(", ")),
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            }
+            if (transports.isNotEmpty()) {
+                Text(
+                    stringResource(R.string.transport_prefix, transports.joinToString(", ")),
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            }
+            if (receptions.isNotEmpty()) {
+                Text(
+                    stringResource(R.string.reception_prefix, receptions.joinToString(", ")),
                     style = MaterialTheme.typography.bodyMedium
                 )
             }
@@ -198,25 +250,34 @@ private fun DraftCard(
                         overflow = TextOverflow.Ellipsis
                     )
                 }
+                IconButton(onClick = onDuplicate) {
+                    Icon(
+                        Icons.Default.ContentCopy,
+                        contentDescription = stringResource(R.string.duplicate),
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
                 FishyButton(
                     onClick = onDelete,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.errorContainer,
-                        contentColor = MaterialTheme.colorScheme.onErrorContainer
-                    ),
-                    modifier = Modifier.weight(1f),
-                    contentPadding = ButtonDefaults.ButtonWithIconContentPadding
-                ) {
-                    Icon(
-                        Icons.Default.Delete,
-                        contentDescription = null,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(
-                        stringResource(R.string.delete),
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Medium,
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.error,
+                contentColor = MaterialTheme.colorScheme.onError
+            ),
+            modifier = Modifier.weight(1f),
+            contentPadding = ButtonDefaults.ButtonWithIconContentPadding
+        ) {
+            Icon(
+                Icons.Default.Delete,
+                contentDescription = null,
+                modifier = Modifier.size(16.dp),
+                tint = MaterialTheme.colorScheme.onError
+            )
+            Spacer(modifier = Modifier.width(4.dp))
+            Text(
+                stringResource(R.string.delete),
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.onError,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )

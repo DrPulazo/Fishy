@@ -21,7 +21,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import com.example.fishy.ui.theme.FishyAccent
 import com.example.fishy.ui.theme.FishyCornerRadius
-import com.example.fishy.ui.theme.LightBackground
+import com.example.fishy.ui.theme.isLightTheme
 
 val FishyButtonShape: Shape
     get() = RoundedCornerShape(FishyCornerRadius)
@@ -29,8 +29,7 @@ val FishyButtonShape: Shape
 /** Filled buttons: teal accent in light theme; theme primary in dark. */
 @Composable
 fun fishyFilledButtonColors(): ButtonColors {
-    val isLight = MaterialTheme.colorScheme.background == LightBackground
-    return if (isLight) {
+    return if (isLightTheme()) {
         ButtonDefaults.buttonColors(
             containerColor = FishyAccent,
             contentColor = Color.White
@@ -97,8 +96,7 @@ fun FishyFloatingActionButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     containerColor: Color = run {
-        val isLight = MaterialTheme.colorScheme.background == LightBackground
-        if (isLight) FishyAccent else FloatingActionButtonDefaults.containerColor
+        if (isLightTheme()) FishyAccent else FloatingActionButtonDefaults.containerColor
     },
     contentColor: Color = contentColorFor(containerColor),
     elevation: FloatingActionButtonElevation = FloatingActionButtonDefaults.elevation(),

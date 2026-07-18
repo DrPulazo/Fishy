@@ -33,6 +33,7 @@ import com.example.fishy.R
 import com.example.fishy.data.serialization.FishyJson
 import com.example.fishy.domain.calc.ShipmentCalculator
 import com.example.fishy.domain.model.ShipmentPayload
+import com.example.fishy.ui.ErrorFeedback
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -113,6 +114,7 @@ fun ShipmentDetailScreen(
                             ).show()
                             onOpenDraft(newId)
                         }.onFailure {
+                            ErrorFeedback.vibrate(context)
                             Toast.makeText(context, it.message ?: "Error", Toast.LENGTH_SHORT).show()
                         }
                     }

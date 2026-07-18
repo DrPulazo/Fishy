@@ -8,7 +8,7 @@ import org.junit.Test
 class ShipmentDuplicatorTest {
 
     @Test
-    fun clearsCountsTransportAndNotes() {
+    fun clearsTransportPalletsAndNotesButKeepsPlannedQuantity() {
         val source = ShipmentPayload(
             mode = ShipmentMode.MONO,
             customer = "Acme",
@@ -19,6 +19,7 @@ class ShipmentDuplicatorTest {
                 Product(
                     name = "Salmon",
                     batch = "B1",
+                    packageWeight = 12.5,
                     quantity = 100,
                     pallets = listOf(Pallet(places = 40))
                 )
@@ -37,6 +38,7 @@ class ShipmentDuplicatorTest {
         assertEquals("", copy.transport.wagonNumber)
         assertEquals("", copy.notes)
         assertEquals(100, copy.products.single().quantity)
+        assertEquals(12.5, copy.products.single().packageWeight, 0.0)
         assertTrue(copy.products.single().pallets.isEmpty())
         assertEquals("Salmon", copy.products.single().name)
         assertEquals("Check seal", copy.checklist.single().title)
@@ -46,7 +48,7 @@ class ShipmentDuplicatorTest {
     }
 
     @Test
-    fun clearsMultiVehicleTransport() {
+    fun clearsMultiVehicleTransportKeepsQuantity() {
         val source = ShipmentPayload(
             mode = ShipmentMode.MULTI_VEHICLE,
             multiVehicles = listOf(

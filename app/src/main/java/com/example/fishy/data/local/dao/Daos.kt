@@ -57,7 +57,13 @@ interface ScheduledShipmentDao {
     @Query("SELECT * FROM scheduled_shipments WHERE id = :id LIMIT 1")
     suspend fun getById(id: Long): ScheduledShipmentEntity?
 
-    @Query("SELECT * FROM scheduled_shipments WHERE notificationEnabled = 1 AND isCompleted = 0 AND notificationSent = 0")
+    @Query(
+        """
+        SELECT * FROM scheduled_shipments
+        WHERE notificationEnabled = 1 AND isCompleted = 0
+          AND (notificationSent = 0 OR startNotificationSent = 0)
+        """
+    )
     suspend fun getPendingNotifications(): List<ScheduledShipmentEntity>
 
     @Query("SELECT id FROM scheduled_shipments")
@@ -110,6 +116,9 @@ interface DictionaryDao {
 interface EventDao {
     @Query("SELECT * FROM shipment_events WHERE shipmentKey = :key ORDER BY timestampMillis ASC")
     fun observeForKey(key: String): Flow<List<ShipmentEventEntity>>
+
+    @Query("SELECT DISTINCT shipmentKey FROM shipment_events WHERE type = :type")
+    fun observeKeysByType(type: String): Flow<List<String>>
 
     @Query("UPDATE shipment_events SET shipmentKey = :newKey WHERE shipmentKey = :oldKey")
     suspend fun rekey(oldKey: String, newKey: String)

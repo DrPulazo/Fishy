@@ -26,11 +26,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 
 /** Nesting depth of [AccordionCard]: 0 = top-level on screen background. */
 private val LocalAccordionNesting = compositionLocalOf { 0 }
+
+/** Optional title style override (e.g. compact scheduler forms). */
+val LocalAccordionTitleStyle = compositionLocalOf<TextStyle?> { null }
 
 @Composable
 fun AccordionCard(
@@ -42,6 +46,7 @@ fun AccordionCard(
     initiallyExpanded: Boolean = true,
     /** When this value changes to a non-null token, the card expands (e.g. smart FAB focus). */
     forceExpandToken: Any? = null,
+    titleStyle: TextStyle? = null,
     trailing: (@Composable () -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit
 ) {
@@ -58,6 +63,9 @@ fun AccordionCard(
         2 -> scheme.surfaceContainerHigh
         else -> scheme.surfaceContainerHighest
     }
+    val resolvedTitleStyle = titleStyle
+        ?: LocalAccordionTitleStyle.current
+        ?: MaterialTheme.typography.titleMedium
 
     Card(
         modifier = modifier.fillMaxWidth(),
@@ -75,7 +83,7 @@ fun AccordionCard(
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = title,
-                        style = MaterialTheme.typography.titleMedium,
+                        style = resolvedTitleStyle,
                         fontWeight = FontWeight.Bold,
                         color = titleColor
                     )

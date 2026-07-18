@@ -14,8 +14,8 @@
     <string name="back">Back</string>
     <string name="coming_soon">Coming soon</string>
     <string name="about_title">About</string>
-    <string name="about_version">Version 2.0.0</string>
-    <string name="about_body">Shipment tracking for fish cargo receivers.\nFishy 2.0.0</string>
+    <string name="about_version">Version 2.0.1</string>
+    <string name="about_body">Shipment tracking for fish cargo receivers.\nFishy 2.0.1</string>
     <string name="about_deepseek">Built with help from\nthe DeepSeek AI chatbot.</string>
     <string name="about_budget_title">Development budget:</string>
     <string name="about_budget_beer">A case of beer</string>
@@ -25,6 +25,8 @@
     <string name="about_link_max">Max</string>
     <string name="about_source">Source code:</string>
     <string name="about_link_github">GitHub</string>
+    <string name="about_support_developer">Support the developer:</string>
+    <string name="about_link_boosty">Boosty</string>
     <string name="about_eula">License agreement</string>
     <string name="about_github">Open source on GitHub</string>
     <string name="about_paper">Remember: the most reliable data media are paper and pencil in your hands. The app is just a tool.</string>
@@ -55,7 +57,7 @@
     <string name="start">Start</string>
     <string name="duplicate">Duplicate</string>
     <string name="actions">Actions</string>
-    <string name="continue_action">CONTINUE</string>
+    <string name="continue_action">Continue</string>
     <string name="export_txt">Export TXT</string>
     <string name="history">History</string>
     <string name="edit_report">Edit</string>
@@ -130,8 +132,10 @@
     <string name="draft_saved">Draft saved</string>
     <string name="save_draft">Save draft</string>
     <string name="save_shipment">SAVE SHIPMENT</string>
-    <string name="complete_confirm_title">Finish shipment</string>
+    <string name="complete_confirm_title">Saving</string>
     <string name="complete_confirm_msg">Complete shipment and save to archive?</string>
+    <string name="complete_confirm_places_over">Actual place count is greater than planned. Are you sure you want to complete the shipment?</string>
+    <string name="complete_confirm_places_under">Actual place count is less than planned. Are you sure you want to complete the shipment?</string>
     <string name="shipment_settings">Shipment settings</string>
     <string name="shipment_settings_hide">Hide shipment settings</string>
     <string name="info_loading">LOADING INFO</string>
@@ -170,6 +174,11 @@
     <string name="imported_header">Imported</string>
     <string name="add_pallet">Add pallet</string>
     <string name="add_product">Add product</string>
+    <string name="add_customer">Add customer</string>
+    <string name="add_port_dict">Add port</string>
+    <string name="add_vessel_dict">Add vessel</string>
+    <string name="add_product_dict">Add product name</string>
+    <string name="add_manufacturer">Add manufacturer</string>
     <string name="add_vehicle">Add vehicle</string>
     <string name="add_port">Add port</string>
     <string name="add_source">Add source</string>
@@ -213,6 +222,7 @@
     <string name="loaded_pallets">Pallets loaded</string>
     <string name="loaded_places">Places loaded</string>
     <string name="target_qty">Target quantity</string>
+    <string name="target_mass_label">Target mass</string>
     <string name="total_mass">Total mass: %1$.2f kg</string>
     <string name="pallets_dc">Pallets: %1$d/%2$d</string>
     <string name="places_dc">Places: %1$d/%2$d</string>
@@ -226,6 +236,7 @@
     <string name="unload_source">Unload source</string>
     <string name="warehouse">Warehouse</string>
     <string name="reception_point">Reception point</string>
+    <string name="reception_prefix">Reception: %1$s</string>
     <string name="add_reception_point">Add reception point</string>
     <string name="delete_reception_title">Delete reception point?</string>
     <string name="delete_reception_msg">This reception point</string>
@@ -256,6 +267,10 @@
     <string name="shipment_default">Shipment</string>
     <string name="notif_title">Shipment reminder</string>
     <string name="notif_title_emoji">⏰ Shipment reminder</string>
+    <string name="notif_start_title">Time to start the shipment</string>
+    <string name="notif_start_title_emoji">🚚 Time to start the shipment</string>
+    <string name="notif_start_content">%1$s · %2$s · %3$s</string>
+    <string name="notif_start_action">Start</string>
     <string name="notif_port_unknown">Port not set</string>
     <string name="notif_customer_unknown">Not set</string>
     <string name="notif_content_line">%1$s: %2$s</string>
@@ -284,6 +299,7 @@
     <string name="draft_empty_hint">Saved drafts will appear here</string>
     <string name="draft_default">Draft</string>
     <string name="draft_modified">Modified: %1$s</string>
+    <string name="draft_duplicated_badge">Duplicated</string>
     <string name="dict_customers">Customers</string>
     <string name="dict_ports">Ports</string>
     <string name="dict_vessels">Vessels</string>
@@ -326,8 +342,10 @@
     <string name="statistics_export_period">Period: %1$s — %2$s</string>
     <string name="statistics_total_places">Total places: %1$d</string>
     <string name="statistics_total_tonnes">Total t: %1$.3f</string>
-    <string name="duplicate_created">Draft created from archive</string>
+    <string name="duplicate_created">Draft duplicated</string>
     <string name="stats_chart_monthly">Tonnage by month</string>
+    <string name="stats_period_from">From</string>
+    <string name="stats_period_to">To</string>
     <string name="stats_month_kg">%1$s: %2$s kg</string>
     <string name="stats_chart_customers">Tonnage by customer</string>
     <string name="stats_period_comparison">Period comparison</string>

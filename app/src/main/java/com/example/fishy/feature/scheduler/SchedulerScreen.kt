@@ -5,7 +5,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -21,7 +21,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -34,7 +33,6 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.AlertDialog
-import com.example.fishy.ui.components.FishyButton
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
@@ -43,7 +41,6 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
-import com.example.fishy.ui.components.FishyFloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -55,6 +52,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -65,7 +63,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -79,9 +76,24 @@ import com.example.fishy.data.serialization.FishyJson
 import com.example.fishy.data.settings.FishySettings
 import com.example.fishy.domain.model.DictionaryType
 import com.example.fishy.domain.model.ShipmentMode
+import com.example.fishy.notifications.NotificationScheduler
 import com.example.fishy.ui.components.ConfirmDeleteDialog
+import com.example.fishy.ui.components.CenteredDialogTitle
 import com.example.fishy.ui.components.DatePickerField
+import com.example.fishy.ui.components.DialogCancelConfirmActions
+import com.example.fishy.ui.components.DialogCenteredFishyButton
+import com.example.fishy.ui.components.FishyButton
+import com.example.fishy.ui.components.FishyFloatingActionButton
+import com.example.fishy.ui.components.FishySentenceKeyboardOptions
+import com.example.fishy.ui.components.LocalAccordionTitleStyle
+import com.example.fishy.ui.components.LocalFormTextStyle
 import com.example.fishy.ui.components.TimePickerField
+import com.example.fishy.ui.components.formLabelStyleOrDefault
+import com.example.fishy.ui.components.formTextStyleOrDefault
+import com.example.fishy.ui.theme.Error
+import com.example.fishy.ui.theme.PlaceholderGrey
+import com.example.fishy.ui.theme.Success
+import com.example.fishy.ui.theme.Warning
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -143,7 +155,26 @@ fun SchedulerScreen(
     }
 
     fun openNewEditor() {
-        editing = ScheduledShipmentEntity()
+        val tomorrowStart = Calendar.getInstance().apply {
+            add(Calendar.DAY_OF_YEAR, 1)
+            set(Calendar.HOUR_OF_DAY, 12)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }
+        val notifyDefault = Calendar.getInstance().apply {
+            timeInMillis = tomorrowStart.timeInMillis
+            set(Calendar.HOUR_OF_DAY, 8)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }
+        editing = ScheduledShipmentEntity(
+            scheduledDateMillis = tomorrowStart.timeInMillis,
+            scheduledTime = "13:00",
+            notificationEnabled = true,
+            notificationAtMillis = notifyDefault.timeInMillis
+        )
         showEditor = true
     }
 
@@ -158,6 +189,7 @@ fun SchedulerScreen(
                     context.getString(R.string.copy_suffix, item.title)
                 },
                 notificationSent = false,
+                startNotificationSent = false,
                 isCompleted = false,
                 createdAtMillis = now,
                 updatedAtMillis = now
@@ -418,21 +450,21 @@ private fun ScheduledShipmentCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Row(
+                    modifier = Modifier
+                        .weight(1f, fill = false)
+                        .clickable(onClick = onOpenChecklist)
+                        .padding(vertical = 4.dp, horizontal = 2.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .size(12.dp)
-                            .background(
-                                color = when (status) {
-                                    ChecklistStatus.COMPLETED -> Color(0xFF4CAF50)
-                                    ChecklistStatus.PARTIAL -> Color(0xFFFFC107)
-                                    ChecklistStatus.NONE -> Color(0xFFF44336)
-                                    ChecklistStatus.EMPTY -> Color(0xFF9E9E9E)
-                                },
-                                shape = CircleShape
-                            )
+                    Text(
+                        text = when (status) {
+                            ChecklistStatus.COMPLETED -> "🟢"
+                            ChecklistStatus.PARTIAL -> "🟡"
+                            ChecklistStatus.NONE -> "🔴"
+                            ChecklistStatus.EMPTY -> "⚪"
+                        },
+                        style = MaterialTheme.typography.labelSmall
                     )
                     Text(
                         text = when (status) {
@@ -492,7 +524,15 @@ private fun ScheduledEditorDialog(
     var dateMillis by remember { mutableLongStateOf(initial.scheduledDateMillis) }
     var notify by remember { mutableStateOf(initial.notificationEnabled) }
     var notifyAt by remember {
-        mutableLongStateOf(initial.notificationAtMillis ?: (dateMillis - 3_600_000))
+        mutableLongStateOf(
+            initial.notificationAtMillis ?: Calendar.getInstance().apply {
+                timeInMillis = dateMillis
+                set(Calendar.HOUR_OF_DAY, 8)
+                set(Calendar.MINUTE, 0)
+                set(Calendar.SECOND, 0)
+                set(Calendar.MILLISECOND, 0)
+            }.timeInMillis
+        )
     }
     val dateFmt = remember { SimpleDateFormat("dd.MM.yyyy", Locale.getDefault()) }
     val notifyFmt = remember { SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.getDefault()) }
@@ -506,8 +546,17 @@ private fun ScheduledEditorDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(stringResource(if (initial.id == 0L) R.string.schedule_new else R.string.schedule_edit)) },
+        containerColor = MaterialTheme.colorScheme.background,
+        title = {
+            CenteredDialogTitle(
+                stringResource(if (initial.id == 0L) R.string.schedule_new else R.string.schedule_edit)
+            )
+        },
         text = {
+            CompositionLocalProvider(
+                LocalAccordionTitleStyle provides MaterialTheme.typography.bodySmall,
+                LocalFormTextStyle provides MaterialTheme.typography.bodySmall
+            ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -523,7 +572,13 @@ private fun ScheduledEditorDialog(
                         value = modeOptions.first { it.first == payload.mode }.second,
                         onValueChange = {},
                         readOnly = true,
-                        label = { Text(stringResource(R.string.mode_field)) },
+                        label = {
+                            Text(
+                                stringResource(R.string.mode_field),
+                                style = formLabelStyleOrDefault()
+                            )
+                        },
+                        textStyle = formTextStyleOrDefault(),
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = modeExpanded) },
                         modifier = Modifier
                             .menuAnchor()
@@ -631,43 +686,45 @@ private fun ScheduledEditorDialog(
                     )
                 }
             }
+            }
         },
         confirmButton = {
-            TextButton(onClick = {
-                val finalPayload = ensurePayloadStructure(payload)
-                val autoTitle = listOf(
-                    finalPayload.customer,
-                    finalPayload.vessel.ifBlank {
-                        finalPayload.multiPorts.firstOrNull()?.vessel.orEmpty()
-                    },
-                    dateFmt.format(Date(dateMillis))
-                )
-                    .filter { it.isNotBlank() }
-                    .joinToString(" · ")
-                    .ifBlank { context.getString(R.string.shipment_default) }
-                onSave(
-                    initial.copy(
-                        title = autoTitle,
-                        customer = finalPayload.customer,
-                        port = finalPayload.port.ifBlank {
-                            finalPayload.multiPorts.firstOrNull()?.port.orEmpty()
-                        },
-                        vessel = finalPayload.vessel.ifBlank {
+            DialogCancelConfirmActions(
+                onCancel = onDismiss,
+                onConfirm = {
+                    val finalPayload = ensurePayloadStructure(payload)
+                    val autoTitle = listOf(
+                        finalPayload.customer,
+                        finalPayload.vessel.ifBlank {
                             finalPayload.multiPorts.firstOrNull()?.vessel.orEmpty()
                         },
-                        payloadJson = FishyJson.encodePayload(finalPayload),
-                        scheduledTime = time,
-                        scheduledDateMillis = dateMillis,
-                        notificationEnabled = notify,
-                        notificationAtMillis = if (notify) notifyAt else null,
-                        mode = finalPayload.mode.name,
-                        updatedAtMillis = System.currentTimeMillis()
+                        dateFmt.format(Date(dateMillis))
                     )
-                )
-            }) { Text(stringResource(R.string.save)) }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
+                        .filter { it.isNotBlank() }
+                        .joinToString(" · ")
+                        .ifBlank { context.getString(R.string.shipment_default) }
+                    onSave(
+                        initial.copy(
+                            title = autoTitle,
+                            customer = finalPayload.customer,
+                            port = finalPayload.port.ifBlank {
+                                finalPayload.multiPorts.firstOrNull()?.port.orEmpty()
+                            },
+                            vessel = finalPayload.vessel.ifBlank {
+                                finalPayload.multiPorts.firstOrNull()?.vessel.orEmpty()
+                            },
+                            payloadJson = FishyJson.encodePayload(finalPayload),
+                            scheduledTime = time,
+                            scheduledDateMillis = dateMillis,
+                            notificationEnabled = notify,
+                            notificationAtMillis = if (notify) notifyAt else null,
+                            mode = finalPayload.mode.name,
+                            updatedAtMillis = System.currentTimeMillis()
+                        )
+                    )
+                },
+                confirmText = stringResource(R.string.save)
+            )
         }
     )
 }
@@ -683,14 +740,15 @@ private fun ScheduledChecklistDialog(scheduledId: Long, onDismiss: () -> Unit) {
     val total = items.size
     val percent = if (total > 0) completed * 100 / total else 0
     val percentColor = when {
-        total > 0 && completed == total -> Color(0xFF4CAF50)
-        completed > 0 -> Color(0xFFFFC107)
-        total > 0 -> Color(0xFFF44336)
-        else -> Color(0xFF9E9E9E)
+        total > 0 && completed == total -> Success
+        completed > 0 -> Warning
+        total > 0 -> Error
+        else -> PlaceholderGrey
     }
 
     AlertDialog(
         onDismissRequest = onDismiss,
+        containerColor = MaterialTheme.colorScheme.background,
         title = { Text(stringResource(R.string.checklist_shipment)) },
         text = {
             Column(
@@ -700,7 +758,7 @@ private fun ScheduledChecklistDialog(scheduledId: Long, onDismiss: () -> Unit) {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant
+                        containerColor = MaterialTheme.colorScheme.surface
                     )
                 ) {
                     Row(
@@ -771,44 +829,47 @@ private fun ScheduledChecklistDialog(scheduledId: Long, onDismiss: () -> Unit) {
             }
         },
         confirmButton = {
-            FishyButton(onClick = onDismiss) { Text(stringResource(R.string.ok_done)) }
+            DialogCenteredFishyButton(onClick = onDismiss) {
+                Text(stringResource(R.string.ok_done))
+            }
         }
     )
 
     if (showAdd) {
         AlertDialog(
             onDismissRequest = { showAdd = false },
-            title = { Text(stringResource(R.string.checklist_add_item)) },
+            containerColor = MaterialTheme.colorScheme.background,
+            title = { CenteredDialogTitle(stringResource(R.string.checklist_add_item)) },
             text = {
                 OutlinedTextField(
                     value = newTitle,
                     onValueChange = { newTitle = it },
                     label = { Text(stringResource(R.string.checklist_item)) },
                     modifier = Modifier.fillMaxWidth(),
-                    singleLine = true
+                    singleLine = true,
+                    keyboardOptions = FishySentenceKeyboardOptions
                 )
             },
             confirmButton = {
-                TextButton(onClick = {
-                    if (newTitle.isNotBlank()) {
-                        scope.launch {
-                            repo.upsertChecklistItem(
-                                ChecklistItemEntity(
-                                    scheduledShipmentId = scheduledId,
-                                    title = newTitle.trim(),
-                                    sortOrder = items.size
+                DialogCancelConfirmActions(
+                    onCancel = { showAdd = false },
+                    onConfirm = {
+                        if (newTitle.isNotBlank()) {
+                            scope.launch {
+                                repo.upsertChecklistItem(
+                                    ChecklistItemEntity(
+                                        scheduledShipmentId = scheduledId,
+                                        title = newTitle.trim(),
+                                        sortOrder = items.size
+                                    )
                                 )
-                            )
-                            newTitle = ""
-                            showAdd = false
+                                newTitle = ""
+                                showAdd = false
+                            }
                         }
-                    }
-                }) { Text(stringResource(R.string.save)) }
-            },
-            dismissButton = {
-                TextButton(onClick = { showAdd = false }) {
-                    Text(stringResource(R.string.cancel))
-                }
+                    },
+                    confirmText = stringResource(R.string.save)
+                )
             }
         )
     }

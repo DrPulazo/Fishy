@@ -1,7 +1,10 @@
 package com.example.fishy.feature.statistics
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -19,6 +22,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -51,12 +55,25 @@ fun StatisticsScreen(
     val ports by repo.observeDictionary(DictionaryType.PORT).collectAsState(initial = emptyList())
     val products by repo.observeDictionary(DictionaryType.PRODUCT).collectAsState(initial = emptyList())
 
+    val monthChoices = remember { StatisticsAggregator.monthChoices(count = 36) }
+    val monthLabels = remember(monthChoices) { monthChoices.map { it.label } }
+    val labelToStart = remember(monthChoices) {
+        monthChoices.associate { it.label to it.startMillis }
+    }
+    val defaultBounds = remember { StatisticsAggregator.lastMonthsBounds() }
+
     var customer by remember { mutableStateOf("") }
     var port by remember { mutableStateOf("") }
     var productFilter by remember { mutableStateOf("") }
-    var rows by remember { mutableStateOf<List<ShipmentEntity>>(emptyList()) }
+    var fromMonthStart by remember { mutableLongStateOf(defaultBounds.first) }
+    var toMonthStart by remember { mutableLongStateOf(defaultBounds.second) }
     var monthlyChart by remember { mutableStateOf<List<StatBarEntry>>(emptyList()) }
     var selectedBarIndex by remember { mutableIntStateOf(-1) }
+
+    val fromLabel = monthChoices.firstOrNull { it.startMillis == fromMonthStart }?.label
+        ?: monthChoices.lastOrNull()?.label.orEmpty()
+    val toLabel = monthChoices.firstOrNull { it.startMillis == toMonthStart }?.label
+        ?: monthChoices.firstOrNull()?.label.orEmpty()
 
     fun applyClientFilters(entities: List<ShipmentEntity>): List<ShipmentEntity> =
         entities.filter { entity ->
@@ -67,15 +84,14 @@ fun StatisticsScreen(
 
     fun reload() {
         scope.launch {
-            val (fromMillis, toMillis) = StatisticsAggregator.last12MonthsRange()
+            val (fromMillis, toMillis) = StatisticsAggregator.monthRangeMillis(fromMonthStart, toMonthStart)
             val current = applyClientFilters(repo.filterStats(fromMillis, toMillis, customer, port))
-            rows = current
-            monthlyChart = StatisticsAggregator.tonnageLast12Months(current)
+            monthlyChart = StatisticsAggregator.tonnageByMonthRange(current, fromMonthStart, toMonthStart)
             selectedBarIndex = -1
         }
     }
 
-    LaunchedEffect(customer, port, productFilter) { reload() }
+    LaunchedEffect(customer, port, productFilter, fromMonthStart, toMonthStart) { reload() }
 
     val selectedEntry = monthlyChart.getOrNull(selectedBarIndex)
 
@@ -116,6 +132,36 @@ fun StatisticsScreen(
                 options = listOf("") + products.map { it.value },
                 onSelect = { productFilter = it }
             )
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                FilterDropdown(
+                    label = stringResource(R.string.stats_period_from),
+                    value = fromLabel,
+                    options = monthLabels,
+                    modifier = Modifier.weight(1f),
+                    onSelect = { label ->
+                        val start = labelToStart[label] ?: return@FilterDropdown
+                        fromMonthStart = start
+                        if (start > toMonthStart) toMonthStart = start
+                    }
+                )
+                FilterDropdown(
+                    label = stringResource(R.string.stats_period_to),
+                    value = toLabel,
+                    options = monthLabels,
+                    modifier = Modifier.weight(1f),
+                    onSelect = { label ->
+                        val start = labelToStart[label] ?: return@FilterDropdown
+                        toMonthStart = start
+                        if (start < fromMonthStart) fromMonthStart = start
+                    }
+                )
+            }
 
             VerticalBarChart(
                 title = stringResource(R.string.stats_chart_monthly),

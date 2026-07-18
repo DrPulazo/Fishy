@@ -24,7 +24,7 @@ data class ScheduledShipmentEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val title: String = "",
     val scheduledDateMillis: Long = System.currentTimeMillis(),
-    val scheduledTime: String = "09:00",
+    val scheduledTime: String = "13:00",
     val mode: String = "MONO",
     val customer: String = "",
     val port: String = "",
@@ -33,6 +33,8 @@ data class ScheduledShipmentEntity(
     val notificationEnabled: Boolean = true,
     val notificationAtMillis: Long? = null,
     val notificationSent: Boolean = false,
+    /** True after the start-time reminder has been delivered. */
+    val startNotificationSent: Boolean = false,
     val isCompleted: Boolean = false,
     val createdAtMillis: Long = System.currentTimeMillis(),
     val updatedAtMillis: Long = System.currentTimeMillis()

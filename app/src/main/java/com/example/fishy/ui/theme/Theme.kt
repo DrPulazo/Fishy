@@ -7,10 +7,16 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 import com.example.fishy.data.settings.ThemeMode
+
+/** True when the active Fishy color scheme is the light palette. */
+@Composable
+fun isLightTheme(): Boolean =
+    MaterialTheme.colorScheme.background.luminance() >= 0.5f
 
 /**
  * Fully specified neutral schemes. Leaving roles unset lets Material3 seed

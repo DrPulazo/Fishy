@@ -10,6 +10,7 @@ import androidx.compose.material.icons.filled.HelpOutline
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -22,9 +23,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.example.fishy.R
 import com.example.fishy.domain.model.ShipmentMode
+import com.example.fishy.ui.components.DialogCancelConfirmActions
+import com.example.fishy.ui.components.DialogCenteredAction
 
 @Composable
 fun ModePickerDialog(
@@ -43,7 +47,14 @@ fun ModePickerDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.mode_picker_title)) },
+        containerColor = MaterialTheme.colorScheme.background,
+        title = {
+            Text(
+                text = stringResource(R.string.mode_picker_title),
+                modifier = Modifier.fillMaxWidth(),
+                textAlign = TextAlign.Center
+            )
+        },
         text = {
             Column {
                 options.forEach { (mode, texts) ->
@@ -74,14 +85,11 @@ fun ModePickerDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = { onConfirm(selected) }) {
-                Text(stringResource(R.string.create))
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(stringResource(R.string.cancel))
-            }
+            DialogCancelConfirmActions(
+                onCancel = onDismiss,
+                onConfirm = { onConfirm(selected) },
+                confirmText = stringResource(R.string.create)
+            )
         }
     )
 
@@ -89,12 +97,25 @@ fun ModePickerDialog(
         val hintRes = options.first { it.first == mode }.second.second
         AlertDialog(
             onDismissRequest = { hintMode = null },
+            containerColor = MaterialTheme.colorScheme.background,
             title = {
-                Text(stringResource(options.first { it.first == mode }.second.first))
+                Text(
+                    text = stringResource(options.first { it.first == mode }.second.first),
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = TextAlign.Center
+                )
             },
-            text = { Text(stringResource(hintRes)) },
+            text = {
+                Text(
+                    text = stringResource(hintRes),
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = TextAlign.Center
+                )
+            },
             confirmButton = {
-                TextButton(onClick = { hintMode = null }) { Text("OK") }
+                DialogCenteredAction {
+                    TextButton(onClick = { hintMode = null }) { Text("OK") }
+                }
             }
         )
     }

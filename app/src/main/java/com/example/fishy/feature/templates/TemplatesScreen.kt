@@ -67,6 +67,9 @@ import com.example.fishy.R
 import com.example.fishy.data.local.entity.DictionaryEntity
 import com.example.fishy.domain.model.DictionaryType
 import com.example.fishy.ui.components.ConfirmDeleteDialog
+import com.example.fishy.ui.components.CenteredDialogTitle
+import com.example.fishy.ui.components.DialogCancelConfirmActions
+import com.example.fishy.ui.components.FishySentenceKeyboardOptions
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
@@ -163,33 +166,45 @@ fun TemplatesScreen(onBack: () -> Unit) {
     }
 
     if (showEditor) {
+        val addTitle = when (types[tab].first) {
+            DictionaryType.CUSTOMER -> stringResource(R.string.add_customer)
+            DictionaryType.PORT -> stringResource(R.string.add_port_dict)
+            DictionaryType.VESSEL -> stringResource(R.string.add_vessel_dict)
+            DictionaryType.PRODUCT -> stringResource(R.string.add_product_dict)
+            DictionaryType.MANUFACTURER -> stringResource(R.string.add_manufacturer)
+        }
         AlertDialog(
             onDismissRequest = { showEditor = false },
-            title = { Text(if (editing == null) stringResource(R.string.add) else stringResource(R.string.edit)) },
+            containerColor = MaterialTheme.colorScheme.background,
+            title = {
+                CenteredDialogTitle(
+                    if (editing == null) addTitle else stringResource(R.string.edit)
+                )
+            },
             text = {
                 OutlinedTextField(
                     value = dialogValue,
                     onValueChange = { dialogValue = it },
                     modifier = Modifier.fillMaxWidth(),
-                    singleLine = true
+                    singleLine = true,
+                    keyboardOptions = FishySentenceKeyboardOptions
                 )
             },
             confirmButton = {
-                TextButton(onClick = {
-                    scope.launch {
-                        val entity = editing?.copy(value = dialogValue)
-                            ?: DictionaryEntity(type = types[tab].first.key, value = dialogValue)
-                        repo.upsertDictionary(entity)
-                        dialogValue = ""
-                        editing = null
-                        showEditor = false
-                    }
-                }) { Text(stringResource(R.string.save)) }
-            },
-            dismissButton = {
-                TextButton(onClick = { showEditor = false }) {
-                    Text(stringResource(R.string.cancel))
-                }
+                DialogCancelConfirmActions(
+                    onCancel = { showEditor = false },
+                    onConfirm = {
+                        scope.launch {
+                            val entity = editing?.copy(value = dialogValue)
+                                ?: DictionaryEntity(type = types[tab].first.key, value = dialogValue)
+                            repo.upsertDictionary(entity)
+                            dialogValue = ""
+                            editing = null
+                            showEditor = false
+                        }
+                    },
+                    confirmText = stringResource(R.string.save)
+                )
             }
         )
     }

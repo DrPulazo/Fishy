@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDefaults
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.DisplayMode
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -22,6 +23,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import com.example.fishy.R
 import java.text.SimpleDateFormat
@@ -59,7 +61,8 @@ fun DatePickerField(
         OutlinedTextField(
             value = dateFormatter.format(Date(selectedDateMillis)),
             onValueChange = {},
-            label = { Text(label) },
+            label = { Text(label, style = formLabelStyleOrDefault()) },
+            textStyle = formTextStyleOrDefault(),
             readOnly = true,
             enabled = false,
             trailingIcon = {
@@ -73,7 +76,8 @@ fun DatePickerField(
                 disabledBorderColor = MaterialTheme.colorScheme.outline,
                 disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
                 disabledTrailingIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                disabledContainerColor = MaterialTheme.colorScheme.surface
+                // Transparent so the field matches dialog / accordion surface (not a solid patch).
+                disabledContainerColor = Color.Transparent
             ),
             modifier = Modifier.fillMaxWidth()
         )
@@ -92,6 +96,9 @@ fun DatePickerField(
         )
         DatePickerDialog(
             onDismissRequest = { showPicker = false },
+            colors = DatePickerDefaults.colors(
+                containerColor = MaterialTheme.colorScheme.background
+            ),
             confirmButton = {
                 TextButton(
                     onClick = {

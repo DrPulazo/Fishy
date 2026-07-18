@@ -14,8 +14,8 @@
     <string name="back">返回</string>
     <string name="coming_soon">即将推出</string>
     <string name="about_title">关于应用</string>
-    <string name="about_version">版本 2.0.0</string>
-    <string name="about_body">鱼类货物收货发货管理。\nFishy 2.0.0</string>
+    <string name="about_version">版本 2.0.1</string>
+    <string name="about_body">鱼类货物收货发货管理。\nFishy 2.0.1</string>
     <string name="about_deepseek">在 DeepSeek AI\n助手协助下开发。</string>
     <string name="about_budget_title">开发预算：</string>
     <string name="about_budget_beer">一箱啤酒</string>
@@ -25,6 +25,8 @@
     <string name="about_link_max">Max</string>
     <string name="about_source">源代码：</string>
     <string name="about_link_github">GitHub</string>
+    <string name="about_support_developer">支持开发者：</string>
+    <string name="about_link_boosty">Boosty</string>
     <string name="about_eula">许可协议</string>
     <string name="about_github">GitHub 开源</string>
     <string name="about_paper">请记住：最可靠的数据载体是手中的纸和笔。应用只是工具。</string>
@@ -130,8 +132,10 @@
     <string name="draft_saved">草稿已保存</string>
     <string name="save_draft">保存草稿</string>
     <string name="save_shipment">保存发货</string>
-    <string name="complete_confirm_title">完成发货</string>
+    <string name="complete_confirm_title">保存</string>
     <string name="complete_confirm_msg">完成发货并保存到归档？</string>
+    <string name="complete_confirm_places_over">实际件数大于计划。确定要完成发货吗？</string>
+    <string name="complete_confirm_places_under">实际件数小于计划。确定要完成发货吗？</string>
     <string name="shipment_settings">发货设置</string>
     <string name="shipment_settings_hide">隐藏发货设置</string>
     <string name="info_loading">装货信息</string>
@@ -170,6 +174,11 @@
     <string name="imported_header">已运入</string>
     <string name="add_pallet">添加托盘</string>
     <string name="add_product">添加产品</string>
+    <string name="add_customer">添加客户</string>
+    <string name="add_port_dict">添加港口</string>
+    <string name="add_vessel_dict">添加船舶</string>
+    <string name="add_product_dict">添加名称</string>
+    <string name="add_manufacturer">添加厂家</string>
     <string name="add_vehicle">添加运输工具</string>
     <string name="add_port">添加港口</string>
     <string name="add_source">添加来源</string>
@@ -213,6 +222,7 @@
     <string name="loaded_pallets">已装托盘</string>
     <string name="loaded_places">已装件数</string>
     <string name="target_qty">目标数量</string>
+    <string name="target_mass_label">目标质量</string>
     <string name="total_mass">总质量：%1$.2f kg</string>
     <string name="pallets_dc">托盘：%1$d/%2$d</string>
     <string name="places_dc">件数：%1$d/%2$d</string>
@@ -226,6 +236,7 @@
     <string name="unload_source">卸货来源</string>
     <string name="warehouse">仓库</string>
     <string name="reception_point">收货点</string>
+    <string name="reception_prefix">收货点：%1$s</string>
     <string name="add_reception_point">添加收货点</string>
     <string name="delete_reception_title">删除收货点</string>
     <string name="delete_reception_msg">删除此收货点？</string>
@@ -256,6 +267,10 @@
     <string name="shipment_default">发货</string>
     <string name="notif_title">发货提醒</string>
     <string name="notif_title_emoji">⏰ 发货提醒</string>
+    <string name="notif_start_title">该开始发货了</string>
+    <string name="notif_start_title_emoji">🚚 该开始发货了</string>
+    <string name="notif_start_content">%1$s · %2$s · %3$s</string>
+    <string name="notif_start_action">开始</string>
     <string name="notif_port_unknown">未指定港口</string>
     <string name="notif_customer_unknown">未指定</string>
     <string name="notif_content_line">%1$s：%2$s</string>
@@ -284,6 +299,7 @@
     <string name="draft_empty_hint">已保存草稿将显示在这里</string>
     <string name="draft_default">草稿</string>
     <string name="draft_modified">修改于：%1$s</string>
+    <string name="draft_duplicated_badge">已复制</string>
     <string name="dict_customers">客户</string>
     <string name="dict_ports">港口</string>
     <string name="dict_vessels">船舶</string>
@@ -326,8 +342,10 @@
     <string name="statistics_export_period">期间：%1$s — %2$s</string>
     <string name="statistics_total_places">总件数：%1$d</string>
     <string name="statistics_total_tonnes">总吨数：%1$.3f</string>
-    <string name="duplicate_created">已从归档创建草稿</string>
+    <string name="duplicate_created">草稿已复制</string>
     <string name="stats_chart_monthly">按月吨位</string>
+    <string name="stats_period_from">从</string>
+    <string name="stats_period_to">至</string>
     <string name="stats_month_kg">%1$s：%2$s kg</string>
     <string name="stats_chart_customers">按客户吨位</string>
     <string name="stats_period_comparison">期间比较</string>

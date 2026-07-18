@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material3.Icon
@@ -13,9 +14,15 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import com.example.fishy.R
@@ -26,6 +33,21 @@ import com.example.fishy.domain.format.VehicleSpaceVisualTransformation
 import com.example.fishy.domain.model.Transport
 import com.example.fishy.domain.validation.ContainerWagonValidator
 import com.example.fishy.domain.validation.ValidationState
+import com.example.fishy.ui.ErrorFeedback
+
+private val CapsKeyboard = KeyboardOptions(capitalization = KeyboardCapitalization.Characters)
+
+@Composable
+private fun VibrateOnTransportError(hasError: Boolean) {
+    val context = LocalContext.current
+    var wasError by remember { mutableStateOf(false) }
+    LaunchedEffect(hasError) {
+        if (hasError && !wasError) {
+            ErrorFeedback.vibrate(context)
+        }
+        wasError = hasError
+    }
+}
 
 /**
  * Transport fields matching v1 UX:
@@ -46,6 +68,8 @@ fun TransportFields(
         transport.trailerNumber.isNotEmpty()
     val showWagon = !hasVehicle || hasWagon
     val showVehicle = !hasWagon || hasVehicle
+    val textStyle = formTextStyleOrDefault()
+    val labelStyle = formLabelStyleOrDefault()
 
     val containerValidation = remember(transport.containerNumber) {
         ContainerWagonValidator.validateContainerNumberLive(transport.containerNumber)
@@ -58,6 +82,7 @@ fun TransportFields(
     val hasWagonError = wagonValidation is ValidationState.Invalid ||
         wagonValidation is ValidationState.InvalidWithSuggestion
     val invalidMsg = stringResource(R.string.invalid_number)
+    VibrateOnTransportError(hasContainerError || hasWagonError)
 
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
         if (showWagon) {
@@ -78,9 +103,11 @@ fun TransportFields(
                         }
                     )
                 },
-                label = { Text(stringResource(R.string.wagon_label)) },
+                label = { Text(stringResource(R.string.wagon_label), style = labelStyle) },
+                textStyle = textStyle,
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
+                keyboardOptions = CapsKeyboard,
                 isError = hasWagonError,
                 trailingIcon = {
                     if (hasWagonError) {
@@ -110,9 +137,11 @@ fun TransportFields(
                         }
                     )
                 },
-                label = { Text(stringResource(R.string.container_label)) },
+                label = { Text(stringResource(R.string.container_label), style = labelStyle) },
+                textStyle = textStyle,
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
+                keyboardOptions = CapsKeyboard,
                 isError = hasContainerError,
                 visualTransformation = if (autoSpaceContainers) {
                     ContainerSpaceVisualTransformation()
@@ -146,9 +175,11 @@ fun TransportFields(
                             }
                         )
                     },
-                    label = { Text(stringResource(R.string.truck_label)) },
+                    label = { Text(stringResource(R.string.truck_label), style = labelStyle) },
+                textStyle = textStyle,
                     modifier = Modifier.weight(1f),
                     singleLine = true,
+                    keyboardOptions = CapsKeyboard,
                     visualTransformation = if (autoSpaceVehicles) {
                         VehicleSpaceVisualTransformation()
                     } else {
@@ -167,9 +198,11 @@ fun TransportFields(
                             }
                         )
                     },
-                    label = { Text(stringResource(R.string.trailer_label)) },
+                    label = { Text(stringResource(R.string.trailer_label), style = labelStyle) },
+                textStyle = textStyle,
                     modifier = Modifier.weight(1f),
                     singleLine = true,
+                    keyboardOptions = CapsKeyboard,
                     visualTransformation = if (autoSpaceVehicles) {
                         TrailerSpaceVisualTransformation()
                     } else {
@@ -183,9 +216,11 @@ fun TransportFields(
         OutlinedTextField(
             value = transport.sealNumber,
             onValueChange = { onChange(transport.copy(sealNumber = it.uppercase())) },
-            label = { Text(stringResource(R.string.seal_label)) },
+            label = { Text(stringResource(R.string.seal_label), style = labelStyle) },
+                textStyle = textStyle,
             modifier = Modifier.fillMaxWidth(),
-            singleLine = true
+            singleLine = true,
+            keyboardOptions = CapsKeyboard
         )
     }
 }
@@ -222,22 +257,27 @@ fun UnloadReceptionFields(
     val hasWagonError = wagonValidation is ValidationState.Invalid ||
         wagonValidation is ValidationState.InvalidWithSuggestion
     val invalidMsg = stringResource(R.string.invalid_number)
+    val textStyle = formTextStyleOrDefault()
+    val labelStyle = formLabelStyleOrDefault()
+    VibrateOnTransportError(hasContainerError || hasWagonError)
 
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
         if (!hasWagon && !hasRoad && !hasSealOnly) {
             OutlinedTextField(
                 value = warehouse,
-                onValueChange = { v ->
-                    if (v.isNotBlank()) {
-                        onWarehouseChange(v)
+                onValueChange = { raw ->
+                    if (raw.isNotBlank()) {
+                        onWarehouseChange(raw)
                         onTransportChange(Transport())
                     } else {
                         onWarehouseChange("")
                     }
                 },
-                label = { Text(stringResource(R.string.warehouse_destination)) },
+                label = { Text(stringResource(R.string.warehouse_destination), style = labelStyle) },
+                textStyle = textStyle,
                 modifier = Modifier.fillMaxWidth(),
-                singleLine = true
+                singleLine = true,
+                keyboardOptions = FishySentenceKeyboardOptions
             )
         }
 
@@ -255,9 +295,11 @@ fun UnloadReceptionFields(
                     )
                     if (clean.isNotEmpty()) onWarehouseChange("")
                 },
-                label = { Text(stringResource(R.string.wagon_label)) },
+                label = { Text(stringResource(R.string.wagon_label), style = labelStyle) },
+                textStyle = textStyle,
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
+                keyboardOptions = CapsKeyboard,
                 isError = hasWagonError,
                 trailingIcon = {
                     if (hasWagonError) {
@@ -283,9 +325,11 @@ fun UnloadReceptionFields(
                     onTransportChange(base.copy(wagonNumber = ""))
                     if (clean.isNotEmpty()) onWarehouseChange("")
                 },
-                label = { Text(stringResource(R.string.container_label)) },
+                label = { Text(stringResource(R.string.container_label), style = labelStyle) },
+                textStyle = textStyle,
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
+                keyboardOptions = CapsKeyboard,
                 isError = hasContainerError,
                 visualTransformation = if (autoSpaceContainers) {
                     ContainerSpaceVisualTransformation()
@@ -319,9 +363,11 @@ fun UnloadReceptionFields(
                         onTransportChange(next)
                         if (clean.isNotEmpty()) onWarehouseChange("")
                     },
-                    label = { Text(stringResource(R.string.truck_label)) },
+                    label = { Text(stringResource(R.string.truck_label), style = labelStyle) },
+                textStyle = textStyle,
                     modifier = Modifier.weight(1f),
                     singleLine = true,
+                    keyboardOptions = CapsKeyboard,
                     visualTransformation = if (autoSpaceVehicles) {
                         VehicleSpaceVisualTransformation()
                     } else {
@@ -340,9 +386,11 @@ fun UnloadReceptionFields(
                         onTransportChange(next)
                         if (clean.isNotEmpty()) onWarehouseChange("")
                     },
-                    label = { Text(stringResource(R.string.trailer_label)) },
+                    label = { Text(stringResource(R.string.trailer_label), style = labelStyle) },
+                textStyle = textStyle,
                     modifier = Modifier.weight(1f),
                     singleLine = true,
+                    keyboardOptions = CapsKeyboard,
                     visualTransformation = if (autoSpaceVehicles) {
                         TrailerSpaceVisualTransformation()
                     } else {
@@ -361,9 +409,11 @@ fun UnloadReceptionFields(
                     )
                     if (v.isNotBlank()) onWarehouseChange("")
                 },
-                label = { Text(stringResource(R.string.seal_label)) },
+                label = { Text(stringResource(R.string.seal_label), style = labelStyle) },
+                textStyle = textStyle,
                 modifier = Modifier.fillMaxWidth(),
-                singleLine = true
+                singleLine = true,
+                keyboardOptions = CapsKeyboard
             )
         } else if (!hasWarehouse && !hasWagon) {
             OutlinedTextField(
@@ -371,9 +421,11 @@ fun UnloadReceptionFields(
                 onValueChange = { v ->
                     onTransportChange(transport.copy(sealNumber = v.uppercase()))
                 },
-                label = { Text(stringResource(R.string.seal_label)) },
+                label = { Text(stringResource(R.string.seal_label), style = labelStyle) },
+                textStyle = textStyle,
                 modifier = Modifier.fillMaxWidth(),
-                singleLine = true
+                singleLine = true,
+                keyboardOptions = CapsKeyboard
             )
         }
     }

@@ -24,8 +24,8 @@ class StatisticsAggregatorTest {
     }
 
     @Test
-    fun tonnageLast12MonthsAlwaysReturns12BarsFromFullMonths() {
-        // "Now" = 18 July 2026 → window Aug 2025 … Jul 2026 (12 months), Jul 2025 not included.
+    fun tonnageLastMonthsReturns13BarsIncludingSameMonthLastYear() {
+        // "Now" = 18 July 2026 → window Jul 2025 … Jul 2026 (13 months).
         val now = calendarMillis(2026, Calendar.JULY, 18)
         val entities = listOf(
             entity(id = 1, completedAt = calendarMillis(2025, Calendar.JULY, 1), weight = 1000.0),
@@ -33,27 +33,49 @@ class StatisticsAggregatorTest {
             entity(id = 3, completedAt = calendarMillis(2026, Calendar.JULY, 10), weight = 500.0)
         )
 
-        val result = StatisticsAggregator.tonnageLast12Months(entities, now)
+        val result = StatisticsAggregator.tonnageLastMonths(entities, monthCount = 13, nowMillis = now)
 
-        assertEquals(12, result.size)
-        // First bar = Aug 2025
-        assertEquals(2.0, result[0].valueTonnes, 0.001)
-        assertEquals(2000.0, result[0].valueKg, 0.001)
+        assertEquals(13, result.size)
+        // First bar = Jul 2025 (same month last year)
+        assertEquals(1.0, result[0].valueTonnes, 0.001)
+        assertEquals(1000.0, result[0].valueKg, 0.001)
+        // Second bar = Aug 2025
+        assertEquals(2.0, result[1].valueTonnes, 0.001)
         // Last bar = Jul 2026
-        assertEquals(0.5, result[11].valueTonnes, 0.001)
+        assertEquals(0.5, result[12].valueTonnes, 0.001)
         // Empty months are zero
-        assertEquals(0.0, result[1].valueTonnes, 0.001)
+        assertEquals(0.0, result[2].valueTonnes, 0.001)
     }
 
     @Test
-    fun last12MonthsRangeStartsOnFirstOfOldestMonth() {
+    fun lastMonthsBoundsStartsOnSameMonthLastYear() {
         val now = calendarMillis(2026, Calendar.JULY, 18)
-        val (from, to) = StatisticsAggregator.last12MonthsRange(now)
-        assertEquals(now, to)
-        val cal = Calendar.getInstance().apply { timeInMillis = from }
-        assertEquals(1, cal.get(Calendar.DAY_OF_MONTH))
-        assertEquals(Calendar.AUGUST, cal.get(Calendar.MONTH))
-        assertEquals(2025, cal.get(Calendar.YEAR))
+        val (from, to) = StatisticsAggregator.lastMonthsBounds(monthCount = 13, nowMillis = now)
+        val fromCal = Calendar.getInstance().apply { timeInMillis = from }
+        val toCal = Calendar.getInstance().apply { timeInMillis = to }
+        assertEquals(1, fromCal.get(Calendar.DAY_OF_MONTH))
+        assertEquals(Calendar.JULY, fromCal.get(Calendar.MONTH))
+        assertEquals(2025, fromCal.get(Calendar.YEAR))
+        assertEquals(Calendar.JULY, toCal.get(Calendar.MONTH))
+        assertEquals(2026, toCal.get(Calendar.YEAR))
+    }
+
+    @Test
+    fun tonnageByMonthRangeRespectsSelectedBounds() {
+        val from = calendarMillis(2026, Calendar.MAY, 1)
+        val to = calendarMillis(2026, Calendar.JULY, 1)
+        val entities = listOf(
+            entity(id = 1, completedAt = calendarMillis(2026, Calendar.APRIL, 10), weight = 9000.0),
+            entity(id = 2, completedAt = calendarMillis(2026, Calendar.MAY, 10), weight = 1000.0),
+            entity(id = 3, completedAt = calendarMillis(2026, Calendar.JULY, 10), weight = 2000.0)
+        )
+
+        val result = StatisticsAggregator.tonnageByMonthRange(entities, from, to)
+
+        assertEquals(3, result.size)
+        assertEquals(1.0, result[0].valueTonnes, 0.001)
+        assertEquals(0.0, result[1].valueTonnes, 0.001)
+        assertEquals(2.0, result[2].valueTonnes, 0.001)
     }
 
     @Test

@@ -1,9 +1,9 @@
 package com.example.fishy.domain.model
 
 /**
- * Prepares a copy of a completed shipment as a new draft:
- * keeps structure, products metadata (including planned quantity), and checklist titles;
- * clears pallets, transport numbers, notes and checklist completion.
+ * Prepares a copy as a new draft:
+ * keeps structure, product metadata and planned quantity/tare;
+ * clears transport numbers, pallets, notes and checklist completion.
  */
 object ShipmentDuplicator {
 
@@ -11,14 +11,14 @@ object ShipmentDuplicator {
         val now = System.currentTimeMillis()
         return source.copy(
             transport = Transport(),
-            products = source.products.map { it.withoutCounts() },
+            products = source.products.map { it.withoutPallets() },
             multiPorts = source.multiPorts.map { port ->
-                port.copy(products = port.products.map { it.withoutCounts() })
+                port.copy(products = port.products.map { it.withoutPallets() })
             },
             multiVehicles = source.multiVehicles.map { vehicle ->
                 vehicle.copy(
                     transport = Transport(),
-                    products = vehicle.products.map { it.withoutCounts() }
+                    products = vehicle.products.map { it.withoutPallets() }
                 )
             },
             unloadReceptions = source.unloadReceptions.map { reception ->
@@ -27,7 +27,7 @@ object ShipmentDuplicator {
                     inbounds = reception.inbounds.map { inbound ->
                         inbound.copy(
                             transport = Transport(),
-                            products = inbound.products.map { it.withoutCounts() }
+                            products = inbound.products.map { it.withoutPallets() }
                         )
                     }
                 )
@@ -46,7 +46,5 @@ object ShipmentDuplicator {
         )
     }
 
-    private fun Product.withoutCounts(): Product = copy(
-        pallets = emptyList()
-    )
+    private fun Product.withoutPallets(): Product = copy(pallets = emptyList())
 }

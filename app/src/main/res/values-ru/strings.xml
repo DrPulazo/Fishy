@@ -14,8 +14,8 @@
     <string name="back">Назад</string>
     <string name="coming_soon">Раздел в разработке</string>
     <string name="about_title">О приложении</string>
-    <string name="about_version">Версия 2.0.0</string>
-    <string name="about_body">Учёт и планирование отгрузок для приёмщиков рыбных грузов.\nFishy 2.0.0</string>
+    <string name="about_version">Версия 2.0.1</string>
+    <string name="about_body">Учёт и планирование отгрузок для приёмщиков рыбных грузов.\nFishy 2.0.1</string>
     <string name="about_deepseek">Разработано при содействии\nИИ чат-бота DeepSeek.</string>
     <string name="about_budget_title">Бюджет разработки:</string>
     <string name="about_budget_beer">Ящик пива</string>
@@ -25,6 +25,8 @@
     <string name="about_link_max">Max</string>
     <string name="about_source">Исходный код:</string>
     <string name="about_link_github">GitHub</string>
+    <string name="about_support_developer">Поддержать разработчика:</string>
+    <string name="about_link_boosty">Boosty</string>
     <string name="about_eula">Лицензионное соглашение</string>
     <string name="about_github">Открытый код на GitHub</string>
     <string name="about_paper">И помните: самые надежные носители данных — это бумага и карандаш в ваших руках. Приложение — лишь инструмент.</string>
@@ -55,7 +57,7 @@
     <string name="start">Начать</string>
     <string name="duplicate">Дублировать</string>
     <string name="actions">Действия</string>
-    <string name="continue_action">ПРОДОЛЖИТЬ</string>
+    <string name="continue_action">Продолжить</string>
     <string name="export_txt">Экспорт TXT</string>
     <string name="history">История</string>
     <string name="edit_report">Редактировать</string>
@@ -130,8 +132,10 @@
     <string name="draft_saved">Черновик сохранён</string>
     <string name="save_draft">Сохранить черновик</string>
     <string name="save_shipment">СОХРАНИТЬ ОТГРУЗКУ</string>
-    <string name="complete_confirm_title">Завершение отгрузки</string>
+    <string name="complete_confirm_title">Сохранение</string>
     <string name="complete_confirm_msg">Завершить отгрузку и сохранить в архив?</string>
+    <string name="complete_confirm_places_over">Фактическое количество мест больше заданного. Вы уверены, что хотите завершить отгрузку?</string>
+    <string name="complete_confirm_places_under">Фактическое количество мест меньше заданного. Вы уверены, что хотите завершить отгрузку?</string>
     <string name="shipment_settings">Настройки отгрузки</string>
     <string name="shipment_settings_hide">Скрыть настройки отгрузки</string>
     <string name="info_loading">ИНФОРМАЦИЯ О ПОГРУЗКЕ</string>
@@ -170,6 +174,11 @@
     <string name="imported_header">Завезён</string>
     <string name="add_pallet">Добавить поддон</string>
     <string name="add_product">Добавить продукцию</string>
+    <string name="add_customer">Добавить заказчика</string>
+    <string name="add_port_dict">Добавить порт</string>
+    <string name="add_vessel_dict">Добавить судно</string>
+    <string name="add_product_dict">Добавить наименование</string>
+    <string name="add_manufacturer">Добавить изготовителя</string>
     <string name="add_vehicle">Добавить транспорт</string>
     <string name="add_port">Добавить порт</string>
     <string name="add_source">Добавить источник</string>
@@ -213,6 +222,7 @@
     <string name="loaded_pallets">Загружено поддонов</string>
     <string name="loaded_places">Загружено мест</string>
     <string name="target_qty">Целевое количество</string>
+    <string name="target_mass_label">Целевая масса</string>
     <string name="total_mass">Общая масса: %1$.2f кг</string>
     <string name="pallets_dc">Поддоны: %1$d/%2$d</string>
     <string name="places_dc">Места: %1$d/%2$d</string>
@@ -226,6 +236,7 @@
     <string name="unload_source">Источник выгрузки</string>
     <string name="warehouse">Склад</string>
     <string name="reception_point">Точка приёма</string>
+    <string name="reception_prefix">Точка приёма: %1$s</string>
     <string name="add_reception_point">Добавить точку приёма</string>
     <string name="delete_reception_title">Удалить точку приёма?</string>
     <string name="delete_reception_msg">Эта точка приёма</string>
@@ -256,6 +267,10 @@
     <string name="shipment_default">Отгрузка</string>
     <string name="notif_title">Напоминание об отгрузке</string>
     <string name="notif_title_emoji">⏰ Напоминание об отгрузке</string>
+    <string name="notif_start_title">Пора начинать отгрузку</string>
+    <string name="notif_start_title_emoji">🚚 Пора начинать отгрузку</string>
+    <string name="notif_start_content">%1$s · %2$s · %3$s</string>
+    <string name="notif_start_action">Начать</string>
     <string name="notif_port_unknown">Порт не указан</string>
     <string name="notif_customer_unknown">Не указан</string>
     <string name="notif_content_line">%1$s: %2$s</string>
@@ -284,6 +299,7 @@
     <string name="draft_empty_hint">Сохранённые черновики появятся здесь</string>
     <string name="draft_default">Черновик</string>
     <string name="draft_modified">Изменен: %1$s</string>
+    <string name="draft_duplicated_badge">Дублировано</string>
     <string name="dict_customers">Заказчики</string>
     <string name="dict_ports">Порты</string>
     <string name="dict_vessels">Суда</string>
@@ -326,8 +342,10 @@
     <string name="statistics_export_period">Период: %1$s — %2$s</string>
     <string name="statistics_total_places">Всего мест: %1$d</string>
     <string name="statistics_total_tonnes">Всего т: %1$.3f</string>
-    <string name="duplicate_created">Черновик создан из архива</string>
+    <string name="duplicate_created">Черновик дублирован</string>
     <string name="stats_chart_monthly">Тоннаж по месяцам</string>
+    <string name="stats_period_from">С</string>
+    <string name="stats_period_to">По</string>
     <string name="stats_month_kg">%1$s: %2$s кг</string>
     <string name="stats_chart_customers">Тоннаж по заказчикам</string>
     <string name="stats_period_comparison">Сравнение периодов</string>

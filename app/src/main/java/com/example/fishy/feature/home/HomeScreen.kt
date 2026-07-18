@@ -19,7 +19,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -52,9 +51,10 @@ import com.example.fishy.domain.model.ShipmentMode
 import com.example.fishy.feature.shipment.ModePickerDialog
 import com.example.fishy.ui.components.FishyButton
 import com.example.fishy.ui.components.FishyOutlinedButton
+import com.example.fishy.ui.components.DialogCenteredFishyButton
 import com.example.fishy.ui.theme.FishyAccent
 import com.example.fishy.ui.theme.FishyAccentLink
-import com.example.fishy.ui.theme.LightBackground
+import com.example.fishy.ui.theme.isLightTheme
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -205,6 +205,7 @@ fun HomeScreen(
     if (showInfoDialog) {
         AlertDialog(
             onDismissRequest = { showInfoDialog = false },
+            containerColor = MaterialTheme.colorScheme.background,
             title = {
                 Text(
                     text = stringResource(R.string.about_title),
@@ -236,7 +237,7 @@ fun HomeScreen(
                         },
                         textAlign = TextAlign.Center,
                         color = if (aboutBeerVisit >= 12) {
-                            if (MaterialTheme.colorScheme.background == LightBackground) {
+                            if (isLightTheme()) {
                                 FishyAccentLink
                             } else {
                                 FishyAccent
@@ -304,6 +305,23 @@ fun HomeScreen(
                         },
                         modifier = Modifier.padding(bottom = 12.dp)
                     )
+                    Text(
+                        text = stringResource(R.string.about_support_developer),
+                        fontWeight = FontWeight.SemiBold,
+                        textAlign = TextAlign.Center
+                    )
+                    AboutLink(
+                        label = stringResource(R.string.about_link_boosty),
+                        onClick = {
+                            context.startActivity(
+                                Intent(
+                                    Intent.ACTION_VIEW,
+                                    Uri.parse("https://boosty.to/drpulazo/donate")
+                                )
+                            )
+                        },
+                        modifier = Modifier.padding(bottom = 12.dp)
+                    )
                     AboutLink(
                         label = stringResource(R.string.about_eula),
                         onClick = {
@@ -323,20 +341,8 @@ fun HomeScreen(
                 }
             },
             confirmButton = {
-                val isLight = MaterialTheme.colorScheme.background == LightBackground
-                Box(
-                    modifier = Modifier.fillMaxWidth(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    FishyButton(
-                        onClick = { showInfoDialog = false },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = if (isLight) FishyAccent else Color.White,
-                            contentColor = if (isLight) Color.White else Color.Black
-                        )
-                    ) {
-                        Text(stringResource(R.string.about_ok))
-                    }
+                DialogCenteredFishyButton(onClick = { showInfoDialog = false }) {
+                    Text(stringResource(R.string.about_ok))
                 }
             }
         )
@@ -350,10 +356,9 @@ private fun AboutLink(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val isLight = MaterialTheme.colorScheme.background == LightBackground
     Text(
         text = label,
-        color = if (isLight) FishyAccentLink else FishyAccent,
+        color = if (isLightTheme()) FishyAccentLink else FishyAccent,
         textAlign = TextAlign.Center,
         textDecoration = TextDecoration.Underline,
         modifier = modifier

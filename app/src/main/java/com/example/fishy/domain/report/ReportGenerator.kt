@@ -2,7 +2,6 @@ package com.example.fishy.domain.report
 
 import com.example.fishy.domain.calc.ShipmentCalculator
 import com.example.fishy.domain.format.NumberFormatters
-import com.example.fishy.domain.format.TextFormatters
 import com.example.fishy.domain.model.Product
 import com.example.fishy.domain.model.ShipmentMode
 import com.example.fishy.domain.model.ShipmentPayload
@@ -67,7 +66,7 @@ object ReportGenerator {
         val blocks = transportBlocks(payload, formatContainerSpaces, formatVehicleSpaces)
             .filter { it.isNotBlank() }
         val totals = ShipmentCalculator.totals(payload)
-        val notes = TextFormatters.capitalizeLines(payload.notes.trim())
+        val notes = payload.notes.trim()
 
         val body = buildString {
             append(shipmentDate)

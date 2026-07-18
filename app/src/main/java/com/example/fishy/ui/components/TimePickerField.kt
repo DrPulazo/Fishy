@@ -13,6 +13,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import com.example.fishy.R
@@ -38,7 +39,8 @@ fun TimePickerField(
         OutlinedTextField(
             value = time,
             onValueChange = {},
-            label = { Text(label) },
+            label = { Text(label, style = formLabelStyleOrDefault()) },
+            textStyle = formTextStyleOrDefault(),
             readOnly = true,
             enabled = false,
             trailingIcon = {
@@ -52,7 +54,7 @@ fun TimePickerField(
                 disabledBorderColor = MaterialTheme.colorScheme.outline,
                 disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
                 disabledTrailingIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                disabledContainerColor = MaterialTheme.colorScheme.surface
+                disabledContainerColor = Color.Transparent
             ),
             modifier = Modifier.fillMaxWidth()
         )

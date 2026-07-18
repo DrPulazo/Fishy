@@ -13,6 +13,11 @@ data class StatBarEntry(
     val monthStartMillis: Long = 0L
 )
 
+data class MonthChoice(
+    val label: String,
+    val startMillis: Long
+)
+
 data class PeriodComparison(
     val currentTonnes: Double,
     val previousTonnes: Double,
@@ -26,21 +31,24 @@ data class PeriodComparison(
 
 object StatisticsAggregator {
 
+    /** Default chart window: 13 calendar months (current + same month a year ago). */
+    const val DEFAULT_MONTH_COUNT = 13
+
     /**
-     * Last 12 calendar months including the current month.
-     * Window starts on day 1 of (current month − 11), e.g. 18.07.2026 → Aug 2025 … Jul 2026.
-     * Each month is a full calendar month from the 1st (not from "today minus 1 year").
+     * Inclusive calendar months from [fromMonthStart] through [toMonthStart].
+     * Empty months are included as zero bars.
      */
-    fun tonnageLast12Months(
+    fun tonnageByMonthRange(
         entities: List<ShipmentEntity>,
-        nowMillis: Long = System.currentTimeMillis()
+        fromMonthStart: Long,
+        toMonthStart: Long
     ): List<StatBarEntry> {
+        val from = minOf(fromMonthStart, toMonthStart)
+        val to = maxOf(fromMonthStart, toMonthStart)
         val labelFmt = SimpleDateFormat("MM.yyyy", Locale.getDefault())
         val byMonth = entities.groupBy { monthKey(it.completedAtMillis) }
-        return (0 until 12).map { index ->
-            val start = monthStart(nowMillis, monthsAgo = 11 - index)
-            val key = monthKey(start)
-            val list = byMonth[key].orEmpty()
+        return monthsInclusive(from, to).map { start ->
+            val list = byMonth[monthKey(start)].orEmpty()
             val kg = list.sumOf { it.totalWeight }
             StatBarEntry(
                 label = labelFmt.format(start),
@@ -51,10 +59,67 @@ object StatisticsAggregator {
         }
     }
 
-    /** Inclusive range covering the 12 calendar months of [tonnageLast12Months]. */
-    fun last12MonthsRange(nowMillis: Long = System.currentTimeMillis()): Pair<Long, Long> {
-        val from = monthStart(nowMillis, monthsAgo = 11)
-        return from to nowMillis
+    /**
+     * Last [monthCount] calendar months including the current month.
+     * E.g. monthCount=13 on 18.07.2026 → Jul 2025 … Jul 2026.
+     */
+    fun tonnageLastMonths(
+        entities: List<ShipmentEntity>,
+        monthCount: Int = DEFAULT_MONTH_COUNT,
+        nowMillis: Long = System.currentTimeMillis()
+    ): List<StatBarEntry> {
+        val (from, to) = lastMonthsBounds(monthCount, nowMillis)
+        return tonnageByMonthRange(entities, from, to)
+    }
+
+    /** @deprecated Prefer [tonnageLastMonths] with 13 months. */
+    fun tonnageLast12Months(
+        entities: List<ShipmentEntity>,
+        nowMillis: Long = System.currentTimeMillis()
+    ): List<StatBarEntry> = tonnageLastMonths(entities, monthCount = 12, nowMillis = nowMillis)
+
+    /** Inclusive millis range covering [fromMonthStart] … end of [toMonthStart]. */
+    fun monthRangeMillis(fromMonthStart: Long, toMonthStart: Long): Pair<Long, Long> {
+        val from = minOf(fromMonthStart, toMonthStart)
+        val to = maxOf(fromMonthStart, toMonthStart)
+        return from to endOfMonth(to)
+    }
+
+    fun lastMonthsBounds(
+        monthCount: Int = DEFAULT_MONTH_COUNT,
+        nowMillis: Long = System.currentTimeMillis()
+    ): Pair<Long, Long> {
+        val count = monthCount.coerceAtLeast(1)
+        val to = monthStart(nowMillis, monthsAgo = 0)
+        val from = monthStart(nowMillis, monthsAgo = count - 1)
+        return from to to
+    }
+
+    /** Inclusive range covering the last [monthCount] calendar months (through now). */
+    fun lastMonthsRange(
+        monthCount: Int = DEFAULT_MONTH_COUNT,
+        nowMillis: Long = System.currentTimeMillis()
+    ): Pair<Long, Long> {
+        val (from, toMonth) = lastMonthsBounds(monthCount, nowMillis)
+        return from to maxOf(endOfMonth(toMonth), nowMillis)
+    }
+
+    fun last12MonthsRange(nowMillis: Long = System.currentTimeMillis()): Pair<Long, Long> =
+        lastMonthsRange(monthCount = 12, nowMillis = nowMillis)
+
+    /**
+     * Month choices for period pickers, newest first.
+     * [count] months ending at the current month.
+     */
+    fun monthChoices(
+        count: Int = 36,
+        nowMillis: Long = System.currentTimeMillis()
+    ): List<MonthChoice> {
+        val labelFmt = SimpleDateFormat("MM.yyyy", Locale.getDefault())
+        return (0 until count.coerceAtLeast(1)).map { monthsAgo ->
+            val start = monthStart(nowMillis, monthsAgo = monthsAgo)
+            MonthChoice(label = labelFmt.format(start), startMillis = start)
+        }
     }
 
     fun tonnageByMonth(entities: List<ShipmentEntity>): List<StatBarEntry> {
@@ -114,13 +179,23 @@ object StatisticsAggregator {
         return prevFrom to prevTo
     }
 
+    private fun monthsInclusive(fromMonthStart: Long, toMonthStart: Long): List<Long> {
+        val result = mutableListOf<Long>()
+        var cursor = fromMonthStart
+        while (cursor <= toMonthStart) {
+            result += cursor
+            cursor = addMonths(cursor, 1)
+        }
+        return result
+    }
+
     private fun monthKey(millis: Long): String {
         val cal = Calendar.getInstance().apply { timeInMillis = millis }
         return "${cal.get(Calendar.YEAR)}-${cal.get(Calendar.MONTH)}"
     }
 
     /** First moment of the calendar month that is [monthsAgo] months before [nowMillis]'s month. */
-    private fun monthStart(nowMillis: Long, monthsAgo: Int): Long {
+    fun monthStart(nowMillis: Long, monthsAgo: Int): Long {
         val cal = Calendar.getInstance().apply {
             timeInMillis = nowMillis
             set(Calendar.DAY_OF_MONTH, 1)
@@ -129,6 +204,23 @@ object StatisticsAggregator {
             set(Calendar.SECOND, 0)
             set(Calendar.MILLISECOND, 0)
             add(Calendar.MONTH, -monthsAgo)
+        }
+        return cal.timeInMillis
+    }
+
+    private fun addMonths(monthStartMillis: Long, delta: Int): Long {
+        val cal = Calendar.getInstance().apply {
+            timeInMillis = monthStartMillis
+            add(Calendar.MONTH, delta)
+        }
+        return cal.timeInMillis
+    }
+
+    private fun endOfMonth(monthStartMillis: Long): Long {
+        val cal = Calendar.getInstance().apply {
+            timeInMillis = monthStartMillis
+            add(Calendar.MONTH, 1)
+            add(Calendar.MILLISECOND, -1)
         }
         return cal.timeInMillis
     }

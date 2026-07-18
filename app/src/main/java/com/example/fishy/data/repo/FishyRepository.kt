@@ -92,14 +92,10 @@ class FishyRepository(private val db: FishyDatabase) {
 
     suspend fun duplicateShipmentAsDraft(sourceId: Long, draftName: String): Long {
         val entity = getShipment(sourceId) ?: throw IllegalArgumentException("Shipment $sourceId not found")
-        require(!entity.isDraft) { "Cannot duplicate a draft" }
         val copy = ShipmentDuplicator.forNewDraft(FishyJson.decodePayload(entity.payloadJson))
         val newId = saveDraft(null, draftName, copy)
-        log(
-            "draft_$newId",
-            ShipmentEventType.DUPLICATED,
-            "archive#$sourceId"
-        )
+        val logKey = if (entity.isDraft) "draft#$sourceId" else "archive#$sourceId"
+        log("draft_$newId", ShipmentEventType.DUPLICATED, logKey)
         return newId
     }
 
@@ -170,6 +166,9 @@ class FishyRepository(private val db: FishyDatabase) {
     }
 
     fun observeEvents(key: String) = events.observeForKey(key)
+
+    fun observeDuplicatedDraftKeys(): Flow<Set<String>> =
+        events.observeKeysByType(ShipmentEventType.DUPLICATED.name).map { it.toSet() }
 
     suspend fun rekeyEvents(oldKey: String, newKey: String) {
         if (oldKey.isBlank() || newKey.isBlank() || oldKey == newKey) return

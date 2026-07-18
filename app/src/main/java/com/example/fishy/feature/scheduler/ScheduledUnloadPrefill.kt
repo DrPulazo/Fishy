@@ -3,7 +3,6 @@ package com.example.fishy.feature.scheduler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
-import com.example.fishy.ui.components.FishyButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -18,6 +17,7 @@ import com.example.fishy.domain.model.ShipmentPayload
 import com.example.fishy.domain.model.UnloadInbound
 import com.example.fishy.ui.components.AccordionCard
 import com.example.fishy.ui.components.DictionaryAutocomplete
+import com.example.fishy.ui.components.FishyButton
 import com.example.fishy.ui.components.TransportFields
 import com.example.fishy.ui.components.UnloadReceptionFields
 import com.example.fishy.ui.components.transportTitle
@@ -200,7 +200,7 @@ fun ScheduledUnloadPrefill(
                                 }
                             }
                         ) { Text(stringResource(R.string.add_product)) }
-                        TextButton(
+                        SchedulerDeleteButton(
                             onClick = {
                                 update { p ->
                                     p.copy(
@@ -218,7 +218,7 @@ fun ScheduledUnloadPrefill(
                                     )
                                 }
                             }
-                        ) { Text(stringResource(R.string.delete)) }
+                        )
                     }
                 }
                 FishyButton(
@@ -239,14 +239,14 @@ fun ScheduledUnloadPrefill(
                     },
                     modifier = Modifier.fillMaxWidth()
                 ) { Text(stringResource(R.string.add_source)) }
-                TextButton(
+                SchedulerDeleteButton(
                     onClick = {
                         update { p ->
                             val next = p.unloadReceptions.filter { it.id != reception.id }
                             p.copy(unloadReceptions = next.ifEmpty { listOf(emptyUnloadReception()) })
                         }
                     }
-                ) { Text(stringResource(R.string.delete)) }
+                )
             }
         }
         FishyButton(

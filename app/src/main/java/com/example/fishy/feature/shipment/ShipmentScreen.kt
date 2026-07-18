@@ -17,7 +17,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
@@ -78,10 +77,17 @@ import com.example.fishy.domain.model.DictionaryType
 import com.example.fishy.domain.model.Product
 import com.example.fishy.domain.model.ShipmentMode
 import com.example.fishy.domain.model.ShipmentPayload
+import com.example.fishy.ui.ErrorFeedback
 import com.example.fishy.ui.components.AccordionCard
 import com.example.fishy.ui.components.ConfirmDeleteDialog
+import com.example.fishy.ui.components.ConfirmSaveDialog
+import com.example.fishy.ui.components.CenteredDialogMessage
+import com.example.fishy.ui.components.CenteredDialogTitle
+import com.example.fishy.ui.components.DialogCancelConfirmActions
+import com.example.fishy.ui.components.DialogCenteredFishyButton
 import com.example.fishy.ui.components.DictionaryAutocomplete
 import com.example.fishy.ui.components.FillProgressBar
+import com.example.fishy.ui.components.FishySentenceKeyboardOptions
 import com.example.fishy.ui.components.PalletRow
 import com.example.fishy.ui.components.PalletTableHeader
 import com.example.fishy.ui.components.TransportFields
@@ -96,6 +102,10 @@ import com.example.fishy.ui.theme.Success
 import com.example.fishy.ui.theme.Warning
 import kotlinx.coroutines.launch
 
+private enum class CompletePlacesMismatch {
+    None, Over, Under
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ShipmentScreen(
@@ -104,7 +114,7 @@ fun ShipmentScreen(
     scheduledId: Long?,
     onBack: () -> Unit,
     onOpenHistory: (String) -> Unit,
-    onOpenReport: (Long) -> Unit,
+    onShipmentCompleted: (Long) -> Unit,
     vm: ShipmentViewModel = viewModel()
 ) {
     val payload by vm.payload.collectAsState()
@@ -122,6 +132,7 @@ fun ShipmentScreen(
     var batchPanelExpanded by remember { mutableStateOf(true) }
     var batchEditor by remember { mutableStateOf<BatchLimit?>(null) }
     var showCompleteConfirm by remember { mutableStateOf(false) }
+    var completePlacesMismatch by remember { mutableStateOf(CompletePlacesMismatch.None) }
     var guardDialog by remember { mutableStateOf<ShipmentUiEvent.GuardConfirm?>(null) }
     var pendingDelete by remember { mutableStateOf<PendingDelete?>(null) }
     val snackbarHostState = remember { SnackbarHostState() }
@@ -139,9 +150,15 @@ fun ShipmentScreen(
     LaunchedEffect(Unit) {
         vm.events.collect { event ->
             when (event) {
-                is ShipmentUiEvent.Toast -> Toast.makeText(context, event.message, Toast.LENGTH_SHORT).show()
-                is ShipmentUiEvent.GuardConfirm -> guardDialog = event
-                is ShipmentUiEvent.NavigateReport -> onOpenReport(event.id)
+                is ShipmentUiEvent.Toast -> {
+                    if (event.isError) ErrorFeedback.vibrate(context)
+                    Toast.makeText(context, event.message, Toast.LENGTH_SHORT).show()
+                }
+                is ShipmentUiEvent.GuardConfirm -> {
+                    ErrorFeedback.vibrate(context)
+                    guardDialog = event
+                }
+                is ShipmentUiEvent.NavigateArchiveDetail -> onShipmentCompleted(event.id)
                 ShipmentUiEvent.Saved -> Unit
                 is ShipmentUiEvent.FocusPalletPlaces -> focusPalletTarget = event
                 is ShipmentUiEvent.ForecastRunning -> {
@@ -839,9 +856,7 @@ fun ShipmentScreen(
                         modifier = Modifier.fillMaxWidth(),
                         minLines = 3,
                         maxLines = 8,
-                        keyboardOptions = KeyboardOptions(
-                            capitalization = KeyboardCapitalization.Sentences
-                        )
+                        keyboardOptions = FishySentenceKeyboardOptions
                     )
                 }
             }
@@ -855,7 +870,21 @@ fun ShipmentScreen(
                         Text(stringResource(R.string.save_draft))
                     }
                     FishyButton(
-                        onClick = { showCompleteConfirm = true },
+                        onClick = {
+                            val totals = ShipmentCalculator.totals(payload)
+                            completePlacesMismatch = when {
+                                totals.places > totals.quantity -> {
+                                    ErrorFeedback.vibrate(context)
+                                    CompletePlacesMismatch.Over
+                                }
+                                totals.places < totals.quantity -> {
+                                    ErrorFeedback.vibrate(context)
+                                    CompletePlacesMismatch.Under
+                                }
+                                else -> CompletePlacesMismatch.None
+                            }
+                            showCompleteConfirm = true
+                        },
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Text(stringResource(R.string.save_shipment))
@@ -897,38 +926,38 @@ fun ShipmentScreen(
     }
 
     if (showCompleteConfirm) {
-        AlertDialog(
-            onDismissRequest = { showCompleteConfirm = false },
-            title = { Text(stringResource(R.string.complete_confirm_title)) },
-            confirmButton = {
-                TextButton(onClick = {
-                    showCompleteConfirm = false
-                    vm.complete()
-                }) { Text(stringResource(R.string.confirm)) }
+        val messageRes = when (completePlacesMismatch) {
+            CompletePlacesMismatch.Over -> R.string.complete_confirm_places_over
+            CompletePlacesMismatch.Under -> R.string.complete_confirm_places_under
+            CompletePlacesMismatch.None -> R.string.complete_confirm_msg
+        }
+        ConfirmSaveDialog(
+            title = stringResource(R.string.complete_confirm_title),
+            message = stringResource(messageRes),
+            onConfirm = {
+                showCompleteConfirm = false
+                vm.complete()
             },
-            dismissButton = {
-                TextButton(onClick = { showCompleteConfirm = false }) {
-                    Text(stringResource(R.string.no))
-                }
-            }
+            onDismiss = { showCompleteConfirm = false }
         )
     }
 
     guardDialog?.let { g ->
         AlertDialog(
             onDismissRequest = { guardDialog = null },
-            title = { Text(stringResource(R.string.guard_confirm)) },
-            text = { Text("${g.field} = ${g.value}") },
+            containerColor = MaterialTheme.colorScheme.background,
+            title = { CenteredDialogTitle(stringResource(R.string.guard_confirm)) },
+            text = { CenteredDialogMessage("${g.field} = ${g.value}") },
             confirmButton = {
-                TextButton(onClick = {
-                    g.onConfirm()
-                    guardDialog = null
-                }) { Text(stringResource(R.string.confirm)) }
-            },
-            dismissButton = {
-                TextButton(onClick = { guardDialog = null }) {
-                    Text(stringResource(R.string.no))
-                }
+                DialogCancelConfirmActions(
+                    onCancel = { guardDialog = null },
+                    onConfirm = {
+                        g.onConfirm()
+                        guardDialog = null
+                    },
+                    confirmText = stringResource(R.string.confirm),
+                    cancelText = stringResource(R.string.no)
+                )
             }
         )
     }
@@ -962,6 +991,7 @@ private fun TotalsBlock(
     TotalsRow(stringResource(R.string.loaded_pallets), "${totals.pallets}")
     TotalsRow(stringResource(R.string.loaded_places), "${totals.places}")
     TotalsRow(stringResource(R.string.target_qty), "${totals.quantity}")
+    TotalsRow(stringResource(R.string.target_mass_label), stringResource(R.string.total_mass_value, totals.targetWeight))
     TotalsRow(stringResource(R.string.total_mass_label), stringResource(R.string.total_mass_value, totals.actualWeight))
     when {
         totals.remainder > 0 -> Text(
@@ -984,7 +1014,7 @@ private fun TotalsBlock(
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceVariant
+                containerColor = MaterialTheme.colorScheme.surfaceContainer
             )
         ) {
             Column(
@@ -1141,8 +1171,11 @@ private fun BatchEntryDialog(
     val isNew = onDelete == null
     AlertDialog(
         onDismissRequest = onDismiss,
+        containerColor = MaterialTheme.colorScheme.background,
         title = {
-            Text(stringResource(if (isNew) R.string.enter_batches else R.string.edit_batch))
+            CenteredDialogTitle(
+                stringResource(if (isNew) R.string.enter_batches else R.string.edit_batch)
+            )
         },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -1159,7 +1192,8 @@ private fun BatchEntryDialog(
                     onValueChange = { draft = draft.copy(batchName = it) },
                     label = { Text(stringResource(R.string.batch)) },
                     modifier = Modifier.fillMaxWidth(),
-                    singleLine = true
+                    singleLine = true,
+                    keyboardOptions = FishySentenceKeyboardOptions
                 )
                 DictionaryAutocomplete(
                     label = stringResource(R.string.manufacturer),
@@ -1284,10 +1318,14 @@ private fun ProductCard(
         )
         OutlinedTextField(
             value = product.batch,
-            onValueChange = { v: String -> onUpdate { p: Product -> p.copy(batch = v) } },
+            onValueChange = { v: String ->
+                onUpdate { p: Product -> p.copy(batch = v) }
+            },
             label = { Text(stringResource(R.string.batch)) },
+            textStyle = MaterialTheme.typography.bodyLarge,
             modifier = Modifier.fillMaxWidth(),
-            singleLine = true
+            singleLine = true,
+            keyboardOptions = FishySentenceKeyboardOptions
         )
         DictionaryAutocomplete(
             label = stringResource(R.string.manufacturer),
@@ -1297,7 +1335,7 @@ private fun ProductCard(
             dictionaryType = DictionaryType.MANUFACTURER,
             onAddToDictionary = onAddToDictionary
         )
-        // Тара / Кол-во / Масса в одну строку (как в v1)
+        // Тара / Кол-во / Масса в одну строку — компактный ряд
         Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
             OutlinedTextField(
                 value = if (product.packageWeight > 0) product.packageWeight.toString() else "",
@@ -1391,21 +1429,22 @@ private fun ChecklistDialog(vm: ShipmentViewModel, onDismiss: () -> Unit) {
     val total = payload.checklist.size
     val percent = if (total > 0) completed * 100 / total else 0
     val percentColor = when {
-        total > 0 && completed == total -> Color(0xFF4CAF50)
-        completed > 0 -> Color(0xFFFFC107)
-        total > 0 -> Color(0xFFF44336)
-        else -> Color(0xFF9E9E9E)
+        total > 0 && completed == total -> Success
+        completed > 0 -> Warning
+        total > 0 -> Error
+        else -> PlaceholderGrey
     }
 
     AlertDialog(
         onDismissRequest = onDismiss,
+        containerColor = MaterialTheme.colorScheme.background,
         title = { Text(stringResource(R.string.checklist_shipment)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant
+                        containerColor = MaterialTheme.colorScheme.surface
                     )
                 ) {
                     Row(
@@ -1452,7 +1491,8 @@ private fun ChecklistDialog(vm: ShipmentViewModel, onDismiss: () -> Unit) {
                             OutlinedTextField(
                                 value = task.title,
                                 onValueChange = { vm.editChecklistTask(task.id, it) },
-                                modifier = Modifier.weight(1f)
+                                modifier = Modifier.weight(1f),
+                                keyboardOptions = FishySentenceKeyboardOptions
                             )
                             TextButton(onClick = { vm.deleteChecklistTask(task.id) }) {
                                 Text("×")
@@ -1472,36 +1512,39 @@ private fun ChecklistDialog(vm: ShipmentViewModel, onDismiss: () -> Unit) {
             }
         },
         confirmButton = {
-            FishyButton(onClick = onDismiss) { Text(stringResource(R.string.ok_done)) }
+            DialogCenteredFishyButton(onClick = onDismiss) {
+                Text(stringResource(R.string.ok_done))
+            }
         }
     )
 
     if (showAdd) {
         AlertDialog(
             onDismissRequest = { showAdd = false },
-            title = { Text(stringResource(R.string.checklist_add_item)) },
+            containerColor = MaterialTheme.colorScheme.background,
+            title = { CenteredDialogTitle(stringResource(R.string.checklist_add_item)) },
             text = {
                 OutlinedTextField(
                     value = newTitle,
                     onValueChange = { newTitle = it },
                     label = { Text(stringResource(R.string.checklist_item)) },
                     modifier = Modifier.fillMaxWidth(),
-                    singleLine = true
+                    singleLine = true,
+                    keyboardOptions = FishySentenceKeyboardOptions
                 )
             },
             confirmButton = {
-                TextButton(onClick = {
-                    if (newTitle.isNotBlank()) {
-                        vm.addChecklistTask(newTitle.trim())
-                        newTitle = ""
-                        showAdd = false
-                    }
-                }) { Text(stringResource(R.string.save)) }
-            },
-            dismissButton = {
-                TextButton(onClick = { showAdd = false }) {
-                    Text(stringResource(R.string.cancel))
-                }
+                DialogCancelConfirmActions(
+                    onCancel = { showAdd = false },
+                    onConfirm = {
+                        if (newTitle.isNotBlank()) {
+                            vm.addChecklistTask(newTitle.trim())
+                            newTitle = ""
+                            showAdd = false
+                        }
+                    },
+                    confirmText = stringResource(R.string.save)
+                )
             }
         )
     }

@@ -5,7 +5,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
@@ -18,15 +17,19 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -43,53 +46,70 @@ private val EdgeMargin = 16.dp
 /**
  * Circular accent FAB with a larger 50%-opacity halo behind it.
  * Long-press then drag to reposition; short tap adds a pallet (smart target).
- * Same look in light and dark themes, all shipment modes.
+ * Default: right edge, vertically centered.
  */
 @Composable
 fun DraggableAddPalletFab(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    BoxWithConstraints(modifier = modifier.fillMaxSize()) {
-        val density = LocalDensity.current
-        val maxX = with(density) { (maxWidth - HaloSize).toPx() }.coerceAtLeast(0f)
-        val maxY = with(density) { (maxHeight - HaloSize).toPx() }.coerceAtLeast(0f)
-        val defaultX = with(density) { (maxWidth - HaloSize - EdgeMargin).toPx() }.coerceIn(0f, maxX)
-        val defaultY = with(density) { (maxHeight - HaloSize - EdgeMargin).toPx() }.coerceIn(0f, maxY)
+    val density = LocalDensity.current
+    val haloPx = with(density) { HaloSize.toPx() }
+    val marginPx = with(density) { EdgeMargin.toPx() }
 
-        var x by rememberSaveable { mutableFloatStateOf(Float.NaN) }
-        var y by rememberSaveable { mutableFloatStateOf(Float.NaN) }
+    var parentWidthPx by remember { mutableIntStateOf(0) }
+    var parentHeightPx by remember { mutableIntStateOf(0) }
 
-        LaunchedEffect(defaultX, defaultY, maxX, maxY) {
-            if (x.isNaN() || y.isNaN()) {
-                x = defaultX
-                y = defaultY
-            } else {
-                x = x.coerceIn(0f, maxX)
-                y = y.coerceIn(0f, maxY)
+    val sized = parentWidthPx > 0 && parentHeightPx > 0
+    val maxX = (parentWidthPx - haloPx).coerceAtLeast(0f)
+    val maxY = (parentHeightPx - haloPx).coerceAtLeast(0f)
+    val defaultX = (parentWidthPx - haloPx - marginPx).coerceIn(0f, maxX)
+    val defaultY = ((parentHeightPx - haloPx) / 2f).coerceIn(0f, maxY)
+
+    // Do not use NaN with rememberSaveable — it restores as 0 and pins FAB to top-left.
+    var userDragged by rememberSaveable { mutableStateOf(false) }
+    var savedX by rememberSaveable { mutableFloatStateOf(0f) }
+    var savedY by rememberSaveable { mutableFloatStateOf(0f) }
+
+    LaunchedEffect(maxX, maxY, sized) {
+        if (!sized || !userDragged) return@LaunchedEffect
+        savedX = savedX.coerceIn(0f, maxX)
+        savedY = savedY.coerceIn(0f, maxY)
+    }
+
+    val posX = if (userDragged) savedX.coerceIn(0f, maxX) else defaultX
+    val posY = if (userDragged) savedY.coerceIn(0f, maxY) else defaultY
+    val interactionSource = remember { MutableInteractionSource() }
+
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .onSizeChanged { size ->
+                parentWidthPx = size.width
+                parentHeightPx = size.height
             }
-        }
-
-        val posX = if (x.isNaN()) defaultX else x.coerceIn(0f, maxX)
-        val posY = if (y.isNaN()) defaultY else y.coerceIn(0f, maxY)
-        val interactionSource = remember { MutableInteractionSource() }
-
+    ) {
         Box(
             modifier = Modifier
                 .offset { IntOffset(posX.roundToInt(), posY.roundToInt()) }
                 .size(HaloSize)
-                .pointerInput(maxX, maxY, defaultX, defaultY) {
+                .alpha(if (sized) 1f else 0f)
+                .pointerInput(maxX, maxY, defaultX, defaultY, userDragged) {
                     detectDragGesturesAfterLongPress(
                         onDrag = { change, dragAmount ->
                             change.consume()
-                            val curX = if (x.isNaN()) defaultX else x
-                            val curY = if (y.isNaN()) defaultY else y
-                            x = (curX + dragAmount.x).coerceIn(0f, maxX)
-                            y = (curY + dragAmount.y).coerceIn(0f, maxY)
+                            if (!userDragged) {
+                                savedX = defaultX
+                                savedY = defaultY
+                                userDragged = true
+                            }
+                            savedX = (savedX + dragAmount.x).coerceIn(0f, maxX)
+                            savedY = (savedY + dragAmount.y).coerceIn(0f, maxY)
                         }
                     )
                 }
                 .clickable(
+                    enabled = sized,
                     interactionSource = interactionSource,
                     indication = ripple(bounded = false, radius = FabSize / 2),
                     role = Role.Button,

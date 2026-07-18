@@ -65,7 +65,7 @@ def load_order(path: Path) -> list[str]:
 
 EN_OVERLAY = {
     "home_title_ru": "ФИШКА",
-    "about_version": "Version 2.0.0",
+    "about_version": "Version 2.0.1",
     "about_link_telegram": "Telegram",
     "about_link_max": "Max",
     "about_link_github": "GitHub",
@@ -123,8 +123,8 @@ ES_FULL_FIXES = {
     "back": "Atrás",
     "coming_soon": "Próximamente",
     "about_title": "Acerca de",
-    "about_version": "Versión 2.0.0",
-    "about_body": "Registro y planificación de envíos para receptores de carga de pescado.\\nFishy 2.0.0",
+    "about_version": "Versión 2.0.1",
+    "about_body": "Registro y planificación de envíos para receptores de carga de pescado.\\nFishy 2.0.1",
     "about_deepseek": "Desarrollado con la ayuda del\\nchatbot de IA DeepSeek.",
     "about_budget_title": "Presupuesto de desarrollo:",
     "about_budget_beer": "Una caja de cerveza",
@@ -443,7 +443,7 @@ ES_FULL_FIXES = {
 # Missing-key overlays for zh/ja/ko (plus critical fixes)
 ZH_OVERLAY = {
     "home_title_ru": "ФИШКА",
-    "about_version": "版本 2.0.0",
+    "about_version": "版本 2.0.1",
     "about_link_telegram": "Telegram",
     "about_link_max": "Max",
     "about_link_github": "GitHub",
@@ -497,7 +497,7 @@ ZH_OVERLAY = {
 
 JA_OVERLAY = {
     "home_title_ru": "ФИШКА",
-    "about_version": "バージョン 2.0.0",
+    "about_version": "バージョン 2.0.1",
     "about_link_telegram": "Telegram",
     "about_link_max": "Max",
     "about_link_github": "GitHub",
@@ -556,7 +556,7 @@ JA_OVERLAY = {
 
 KO_OVERLAY = {
     "home_title_ru": "ФИШКА",
-    "about_version": "버전 2.0.0",
+    "about_version": "버전 2.0.1",
     "about_link_telegram": "Telegram",
     "about_link_max": "Max",
     "about_link_github": "GitHub",

@@ -38,10 +38,11 @@ fun VerticalBarChart(
 ) {
     if (entries.isEmpty()) return
 
-    val maxValue = remember(entries) { entries.maxOf { it.valueTonnes }.coerceAtLeast(0.001) }
+    val maxValue = remember(entries) {
+        entries.maxOfOrNull { it.valueTonnes }?.takeIf { it > 0.0 } ?: 1.0
+    }
     val barColor = MaterialTheme.colorScheme.primary
     val selectedBarColor = MaterialTheme.colorScheme.tertiary
-    val trackColor = MaterialTheme.colorScheme.surfaceVariant
 
     Column(modifier = modifier.fillMaxWidth()) {
         if (title.isNotBlank()) {
@@ -81,23 +82,21 @@ fun VerticalBarChart(
                         modifier = Modifier
                             .width(barWidthDp.dp)
                             .height(chartHeightDp.dp)
-                            .padding(vertical = 4.dp)
+                            .padding(vertical = 4.dp),
+                        contentAlignment = Alignment.BottomCenter
                     ) {
                         Canvas(modifier = Modifier.matchParentSize()) {
                             val barHeightRatio = (entry.valueTonnes / maxValue).toFloat().coerceIn(0f, 1f)
                             val barHeight = size.height * barHeightRatio
-                            drawRoundRect(
-                                color = trackColor,
-                                topLeft = Offset(0f, 0f),
-                                size = Size(size.width, size.height),
-                                cornerRadius = CornerRadius(8f, 8f)
-                            )
-                            drawRoundRect(
-                                color = if (selected) selectedBarColor else barColor,
-                                topLeft = Offset(0f, size.height - barHeight),
-                                size = Size(size.width, barHeight.coerceAtLeast(0f)),
-                                cornerRadius = CornerRadius(8f, 8f)
-                            )
+                            // Zero tonnage sits on the baseline (y = 0); no filled track column.
+                            if (barHeight > 0.5f) {
+                                drawRoundRect(
+                                    color = if (selected) selectedBarColor else barColor,
+                                    topLeft = Offset(0f, size.height - barHeight),
+                                    size = Size(size.width, barHeight),
+                                    cornerRadius = CornerRadius(8f, 8f)
+                                )
+                            }
                         }
                     }
                     Text(

@@ -45,6 +45,8 @@ fun DictionaryAutocomplete(
             dictionaryType != null &&
             value.isNotBlank() &&
             !hasExactMatch
+    val textStyle = formTextStyleOrDefault()
+    val labelStyle = formLabelStyleOrDefault()
 
     ExposedDropdownMenuBox(
         expanded = expanded && filtered.isNotEmpty(),
@@ -57,10 +59,12 @@ fun DictionaryAutocomplete(
                 onValueChange(it)
                 expanded = true
             },
-            label = { Text(label) },
+            label = { Text(label, style = labelStyle) },
+            textStyle = textStyle,
             modifier = Modifier
                 .menuAnchor()
                 .fillMaxWidth(),
+            keyboardOptions = FishySentenceKeyboardOptions,
             trailingIcon = {
                 Row {
                     if (showAddButton) {

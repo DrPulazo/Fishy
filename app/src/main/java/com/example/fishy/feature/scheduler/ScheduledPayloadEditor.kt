@@ -1,19 +1,20 @@
 package com.example.fishy.feature.scheduler
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.text.KeyboardOptions
-import com.example.fishy.ui.components.FishyButton
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.example.fishy.R
@@ -29,11 +30,16 @@ import com.example.fishy.domain.model.UnloadReception
 import com.example.fishy.domain.model.VehicleGroup
 import com.example.fishy.ui.components.AccordionCard
 import com.example.fishy.ui.components.DictionaryAutocomplete
+import com.example.fishy.ui.components.FishyButton
+import com.example.fishy.ui.components.FishySentenceKeyboardOptions
+import com.example.fishy.ui.components.LocalAccordionTitleStyle
+import com.example.fishy.ui.components.LocalFormTextStyle
 import com.example.fishy.ui.components.TransportFields
+import com.example.fishy.ui.components.formLabelStyleOrDefault
+import com.example.fishy.ui.components.formTextStyleOrDefault
 import com.example.fishy.ui.components.transportTitle
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
-
 fun emptyUnloadReception() = UnloadReception(
     inbounds = listOf(UnloadInbound(products = listOf(Product())))
 )
@@ -232,10 +238,14 @@ fun ProductPrefillFields(
         )
         OutlinedTextField(
             value = product.batch,
-            onValueChange = { v -> onUpdate { it.copy(batch = v) } },
-            label = { Text(stringResource(R.string.batch)) },
+            onValueChange = { v ->
+                onUpdate { it.copy(batch = v) }
+            },
+            label = { Text(stringResource(R.string.batch), style = formLabelStyleOrDefault()) },
+            textStyle = formTextStyleOrDefault(),
             modifier = Modifier.fillMaxWidth(),
-            singleLine = true
+            singleLine = true,
+            keyboardOptions = FishySentenceKeyboardOptions
         )
         DictionaryAutocomplete(
             label = stringResource(R.string.manufacturer),
@@ -245,16 +255,19 @@ fun ProductPrefillFields(
             dictionaryType = DictionaryType.MANUFACTURER,
             onAddToDictionary = onAddToDictionary
         )
-        Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
             OutlinedTextField(
                 value = if (product.packageWeight > 0) product.packageWeight.toString() else "",
                 onValueChange = { value ->
                     val weight = value.replace(',', '.').toDoubleOrNull() ?: 0.0
                     onUpdate { it.copy(packageWeight = weight) }
                 },
-                label = { Text(stringResource(R.string.tare), style = MaterialTheme.typography.bodySmall) },
-                modifier = Modifier.weight(0.25f),
-                textStyle = MaterialTheme.typography.bodySmall,
+                label = { Text(stringResource(R.string.tare), style = formLabelStyleOrDefault()) },
+                modifier = Modifier.weight(1f),
+                textStyle = formTextStyleOrDefault(),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 singleLine = true
             )
@@ -264,25 +277,43 @@ fun ProductPrefillFields(
                     onUpdate { it.copy(quantity = value.toIntOrNull() ?: 0) }
                 },
                 label = {
-                    Text(stringResource(R.string.quantity_short), style = MaterialTheme.typography.bodySmall)
+                    Text(stringResource(R.string.quantity_short), style = formLabelStyleOrDefault())
                 },
-                modifier = Modifier.weight(0.35f),
-                textStyle = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.weight(1f),
+                textStyle = formTextStyleOrDefault(),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 singleLine = true
             )
-            OutlinedTextField(
-                value = String.format("%.1f", product.totalWeight),
-                onValueChange = {},
-                label = { Text(stringResource(R.string.mass), style = MaterialTheme.typography.bodySmall) },
-                modifier = Modifier.weight(0.4f),
-                textStyle = MaterialTheme.typography.bodySmall,
-                readOnly = true,
-                singleLine = true
-            )
         }
+        OutlinedTextField(
+            value = String.format("%.1f", product.totalWeight),
+            onValueChange = {},
+            label = { Text(stringResource(R.string.mass), style = formLabelStyleOrDefault()) },
+            modifier = Modifier.fillMaxWidth(),
+            textStyle = formTextStyleOrDefault(),
+            readOnly = true,
+            singleLine = true
+        )
         if (onDelete != null) {
-            TextButton(onClick = onDelete) { Text(stringResource(R.string.delete)) }
+            SchedulerDeleteButton(onClick = onDelete)
+        }
+    }
+}
+
+@Composable
+internal fun SchedulerDeleteButton(onClick: () -> Unit) {
+    Box(
+        modifier = Modifier.fillMaxWidth(),
+        contentAlignment = Alignment.Center
+    ) {
+        FishyButton(
+            onClick = onClick,
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.error,
+                contentColor = MaterialTheme.colorScheme.onError
+            )
+        ) {
+            Text(stringResource(R.string.delete))
         }
     }
 }
@@ -302,19 +333,22 @@ fun ScheduledPayloadFields(
 ) {
     fun update(block: (ShipmentPayload) -> ShipmentPayload) = onChange(block(payload))
 
+    CompositionLocalProvider(
+        LocalAccordionTitleStyle provides MaterialTheme.typography.bodySmall,
+        LocalFormTextStyle provides MaterialTheme.typography.bodySmall
+    ) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        DictionaryAutocomplete(
-            label = stringResource(R.string.customer),
-            value = payload.customer,
-            suggestions = customers,
-            onValueChange = { v -> update { it.copy(customer = v) } },
-            dictionaryType = DictionaryType.CUSTOMER,
-            onAddToDictionary = onAddToDictionary
-        )
-
         when (payload.mode) {
             ShipmentMode.MONO -> {
                 AccordionCard(title = stringResource(R.string.info_loading)) {
+                    DictionaryAutocomplete(
+                        label = stringResource(R.string.customer),
+                        value = payload.customer,
+                        suggestions = customers,
+                        onValueChange = { v -> update { it.copy(customer = v) } },
+                        dictionaryType = DictionaryType.CUSTOMER,
+                        onAddToDictionary = onAddToDictionary
+                    )
                     DictionaryAutocomplete(
                         label = stringResource(R.string.port),
                         value = payload.port,
@@ -340,57 +374,67 @@ fun ScheduledPayloadFields(
                         autoSpaceVehicles = autoSpaceVehicles
                     )
                 }
-                Text(
-                    stringResource(R.string.products_section),
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold
-                )
-                payload.products.forEach { product ->
-                    ProductPrefillFields(
-                        product = product,
-                        productsDict = productsDict,
-                        manufacturers = manufacturers,
-                        onUpdate = { transform ->
-                            update { p ->
-                                p.copy(products = p.products.map {
-                                    if (it.id == product.id) transform(it) else it
-                                })
-                            }
-                        },
-                        onDelete = {
-                            update { p ->
-                                val next = p.products.filter { it.id != product.id }
-                                p.copy(products = next.ifEmpty { listOf(Product()) })
-                            }
-                        },
-                        onAddToDictionary = onAddToDictionary
-                    )
-                }
-                FishyButton(
-                    onClick = { update { it.copy(products = it.products + Product()) } },
-                    modifier = Modifier.fillMaxWidth()
+                AccordionCard(
+                    title = stringResource(R.string.products_section),
+                    initiallyExpanded = true
                 ) {
-                    Text(stringResource(R.string.add_product))
+                    payload.products.forEach { product ->
+                        ProductPrefillFields(
+                            product = product,
+                            productsDict = productsDict,
+                            manufacturers = manufacturers,
+                            onUpdate = { transform ->
+                                update { p ->
+                                    p.copy(products = p.products.map {
+                                        if (it.id == product.id) transform(it) else it
+                                    })
+                                }
+                            },
+                            onDelete = {
+                                update { p ->
+                                    val next = p.products.filter { it.id != product.id }
+                                    p.copy(products = next.ifEmpty { listOf(Product()) })
+                                }
+                            },
+                            onAddToDictionary = onAddToDictionary
+                        )
+                    }
+                    FishyButton(
+                        onClick = { update { it.copy(products = it.products + Product()) } },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(stringResource(R.string.add_product))
+                    }
                 }
             }
 
             ShipmentMode.MULTI_VEHICLE -> {
-                DictionaryAutocomplete(
-                    label = stringResource(R.string.port),
-                    value = payload.port,
-                    suggestions = ports,
-                    onValueChange = { v -> update { it.copy(port = v) } },
-                    dictionaryType = DictionaryType.PORT,
-                    onAddToDictionary = onAddToDictionary
-                )
-                DictionaryAutocomplete(
-                    label = stringResource(R.string.vessel),
-                    value = payload.vessel,
-                    suggestions = vessels,
-                    onValueChange = { v -> update { it.copy(vessel = v) } },
-                    dictionaryType = DictionaryType.VESSEL,
-                    onAddToDictionary = onAddToDictionary
-                )
+                AccordionCard(title = stringResource(R.string.info_loading)) {
+                    DictionaryAutocomplete(
+                        label = stringResource(R.string.customer),
+                        value = payload.customer,
+                        suggestions = customers,
+                        onValueChange = { v -> update { it.copy(customer = v) } },
+                        dictionaryType = DictionaryType.CUSTOMER,
+                        onAddToDictionary = onAddToDictionary
+                    )
+                    DictionaryAutocomplete(
+                        label = stringResource(R.string.port),
+                        value = payload.port,
+                        suggestions = ports,
+                        onValueChange = { v -> update { it.copy(port = v) } },
+                        dictionaryType = DictionaryType.PORT,
+                        onAddToDictionary = onAddToDictionary
+                    )
+                    DictionaryAutocomplete(
+                        label = stringResource(R.string.vessel),
+                        value = payload.vessel,
+                        suggestions = vessels,
+                        onValueChange = { v -> update { it.copy(vessel = v) } },
+                        dictionaryType = DictionaryType.VESSEL,
+                        onAddToDictionary = onAddToDictionary
+                    )
+                }
                 payload.multiVehicles.forEach { vehicle ->
                     AccordionCard(title = transportTitle(vehicle.transport)) {
                         AccordionCard(
@@ -451,7 +495,7 @@ fun ScheduledPayloadFields(
                                     onAddToDictionary = onAddToDictionary
                                 )
                             }
-                            TextButton(
+                            FishyButton(
                                 onClick = {
                                     update { p ->
                                         p.copy(
@@ -462,10 +506,11 @@ fun ScheduledPayloadFields(
                                             }
                                         )
                                     }
-                                }
+                                },
+                                modifier = Modifier.fillMaxWidth()
                             ) { Text(stringResource(R.string.add_product)) }
                         }
-                        TextButton(
+                        SchedulerDeleteButton(
                             onClick = {
                                 update { p ->
                                     val next = p.multiVehicles.filter { it.id != vehicle.id }
@@ -476,7 +521,7 @@ fun ScheduledPayloadFields(
                                     )
                                 }
                             }
-                        ) { Text(stringResource(R.string.delete)) }
+                        )
                     }
                 }
                 FishyButton(
@@ -492,6 +537,16 @@ fun ScheduledPayloadFields(
             }
 
             ShipmentMode.MULTI_PORT -> {
+                AccordionCard(title = stringResource(R.string.info_loading)) {
+                    DictionaryAutocomplete(
+                        label = stringResource(R.string.customer),
+                        value = payload.customer,
+                        suggestions = customers,
+                        onValueChange = { v -> update { it.copy(customer = v) } },
+                        dictionaryType = DictionaryType.CUSTOMER,
+                        onAddToDictionary = onAddToDictionary
+                    )
+                }
                 AccordionCard(title = stringResource(R.string.transport_section)) {
                     TransportFields(
                         transport = payload.transport,
@@ -578,7 +633,7 @@ fun ScheduledPayloadFields(
                                     onAddToDictionary = onAddToDictionary
                                 )
                             }
-                            TextButton(
+                            FishyButton(
                                 onClick = {
                                     update { p ->
                                         p.copy(
@@ -589,10 +644,11 @@ fun ScheduledPayloadFields(
                                             }
                                         )
                                     }
-                                }
+                                },
+                                modifier = Modifier.fillMaxWidth()
                             ) { Text(stringResource(R.string.add_product)) }
                         }
-                        TextButton(
+                        SchedulerDeleteButton(
                             onClick = {
                                 update { p ->
                                     val next = p.multiPorts.filter { it.id != group.id }
@@ -603,7 +659,7 @@ fun ScheduledPayloadFields(
                                     )
                                 }
                             }
-                        ) { Text(stringResource(R.string.delete)) }
+                        )
                     }
                 }
                 FishyButton(
@@ -617,6 +673,16 @@ fun ScheduledPayloadFields(
             }
 
             ShipmentMode.UNLOAD -> {
+                AccordionCard(title = stringResource(R.string.info_loading)) {
+                    DictionaryAutocomplete(
+                        label = stringResource(R.string.customer),
+                        value = payload.customer,
+                        suggestions = customers,
+                        onValueChange = { v -> update { it.copy(customer = v) } },
+                        dictionaryType = DictionaryType.CUSTOMER,
+                        onAddToDictionary = onAddToDictionary
+                    )
+                }
                 ScheduledUnloadPrefill(
                     payload = payload,
                     onChange = onChange,
@@ -630,5 +696,6 @@ fun ScheduledPayloadFields(
                 )
             }
         }
+    }
     }
 }

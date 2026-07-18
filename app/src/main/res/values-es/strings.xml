@@ -14,8 +14,8 @@
     <string name="back">Atrás</string>
     <string name="coming_soon">Sección en desarrollo</string>
     <string name="about_title">Acerca de la aplicación</string>
-    <string name="about_version">Versión 2.0.0</string>
-    <string name="about_body">Registro y planificación de envíos para receptores de cargas de pescado.\nFishy 2.0.0</string>
+    <string name="about_version">Versión 2.0.1</string>
+    <string name="about_body">Registro y planificación de envíos para receptores de cargas de pescado.\nFishy 2.0.1</string>
     <string name="about_deepseek">Desarrollado con la colaboración\ndel chatbot de IA DeepSeek.</string>
     <string name="about_budget_title">Presupuesto de desarrollo:</string>
     <string name="about_budget_beer">Una caja de cerveza</string>
@@ -25,6 +25,8 @@
     <string name="about_link_max">Max</string>
     <string name="about_source">Código fuente:</string>
     <string name="about_link_github">GitHub</string>
+    <string name="about_support_developer">Apoyar al desarrollador:</string>
+    <string name="about_link_boosty">Boosty</string>
     <string name="about_eula">Acuerdo de licencia</string>
     <string name="about_github">Código abierto en GitHub</string>
     <string name="about_paper">Y recuerde: los soportes de datos más fiables son el papel y el lápiz en sus manos. La aplicación es solo una herramienta.</string>
@@ -55,7 +57,7 @@
     <string name="start">Iniciar</string>
     <string name="duplicate">Duplicar</string>
     <string name="actions">Acciones</string>
-    <string name="continue_action">CONTINUAR</string>
+    <string name="continue_action">Continuar</string>
     <string name="export_txt">Exportar TXT</string>
     <string name="history">Historial</string>
     <string name="edit_report">Editar</string>
@@ -130,8 +132,10 @@
     <string name="draft_saved">Borrador guardado</string>
     <string name="save_draft">Guardar borrador</string>
     <string name="save_shipment">GUARDAR ENVÍO</string>
-    <string name="complete_confirm_title">Finalización del envío</string>
+    <string name="complete_confirm_title">Guardar</string>
     <string name="complete_confirm_msg">¿Finalizar el envío y guardarlo en el archivo?</string>
+    <string name="complete_confirm_places_over">La cantidad real de plazas es mayor que la prevista. ¿Seguro que quieres finalizar el envío?</string>
+    <string name="complete_confirm_places_under">La cantidad real de plazas es menor que la prevista. ¿Seguro que quieres finalizar el envío?</string>
     <string name="shipment_settings">Ajustes del envío</string>
     <string name="shipment_settings_hide">Ocultar ajustes del envío</string>
     <string name="info_loading">INFORMACIÓN DE CARGA</string>
@@ -170,6 +174,11 @@
     <string name="imported_header">Recibido</string>
     <string name="add_pallet">Añadir palé</string>
     <string name="add_product">Añadir producto</string>
+    <string name="add_customer">Añadir cliente</string>
+    <string name="add_port_dict">Añadir puerto</string>
+    <string name="add_vessel_dict">Añadir buque</string>
+    <string name="add_product_dict">Añadir nombre</string>
+    <string name="add_manufacturer">Añadir fabricante</string>
     <string name="add_vehicle">Añadir transporte</string>
     <string name="add_port">Añadir puerto</string>
     <string name="add_source">Añadir origen</string>
@@ -213,6 +222,7 @@
     <string name="loaded_pallets">Palés cargados</string>
     <string name="loaded_places">Plazas cargadas</string>
     <string name="target_qty">Cantidad objetivo</string>
+    <string name="target_mass_label">Masa objetivo</string>
     <string name="total_mass">Masa total: %1$.2f kg</string>
     <string name="pallets_dc">Palés: %1$d/%2$d</string>
     <string name="places_dc">Plazas: %1$d/%2$d</string>
@@ -226,6 +236,7 @@
     <string name="unload_source">Origen de descarga</string>
     <string name="warehouse">Almacén</string>
     <string name="reception_point">Punto de recepción</string>
+    <string name="reception_prefix">Recepción: %1$s</string>
     <string name="add_reception_point">Añadir punto de recepción</string>
     <string name="delete_reception_title">¿Eliminar punto de recepción?</string>
     <string name="delete_reception_msg">Este punto de recepción</string>
@@ -256,6 +267,10 @@
     <string name="shipment_default">Envío</string>
     <string name="notif_title">Recordatorio de envío</string>
     <string name="notif_title_emoji">⏰ Recordatorio de envío</string>
+    <string name="notif_start_title">Hora de iniciar el envío</string>
+    <string name="notif_start_title_emoji">🚚 Hora de iniciar el envío</string>
+    <string name="notif_start_content">%1$s · %2$s · %3$s</string>
+    <string name="notif_start_action">Iniciar</string>
     <string name="notif_port_unknown">Puerto no indicado</string>
     <string name="notif_customer_unknown">No indicado</string>
     <string name="notif_content_line">%1$s: %2$s</string>
@@ -284,6 +299,7 @@
     <string name="draft_empty_hint">Los borradores guardados aparecerán aquí</string>
     <string name="draft_default">Borrador</string>
     <string name="draft_modified">Modificado: %1$s</string>
+    <string name="draft_duplicated_badge">Duplicado</string>
     <string name="dict_customers">Clientes</string>
     <string name="dict_ports">Puertos</string>
     <string name="dict_vessels">Buques</string>
@@ -326,8 +342,10 @@
     <string name="statistics_export_period">Período: %1$s — %2$s</string>
     <string name="statistics_total_places">Total de plazas: %1$d</string>
     <string name="statistics_total_tonnes">Total t: %1$.3f</string>
-    <string name="duplicate_created">Borrador creado desde el archivo</string>
+    <string name="duplicate_created">Borrador duplicado</string>
     <string name="stats_chart_monthly">Tonelaje por mes</string>
+    <string name="stats_period_from">Desde</string>
+    <string name="stats_period_to">Hasta</string>
     <string name="stats_month_kg">%1$s: %2$s kg</string>
     <string name="stats_chart_customers">Tonelaje por clientes</string>
     <string name="stats_period_comparison">Comparación de períodos</string>

@@ -23,13 +23,26 @@ import com.example.fishy.feature.statistics.StatisticsScreen
 import com.example.fishy.feature.templates.TemplatesScreen
 
 @Composable
-fun FishyNavHost(openScheduler: Boolean = false) {
+fun FishyNavHost(
+    openScheduler: Boolean = false,
+    startScheduledId: Long? = null,
+    onNotificationNavConsumed: () -> Unit = {}
+) {
     val navController = rememberNavController()
 
-    LaunchedEffect(openScheduler) {
-        if (openScheduler) {
-            navController.navigate(FishyRoute.Scheduler.route) {
-                popUpTo(FishyRoute.Home.route)
+    LaunchedEffect(openScheduler, startScheduledId) {
+        when {
+            startScheduledId != null && startScheduledId > 0L -> {
+                navController.navigate("shipment_from_scheduled/$startScheduledId") {
+                    popUpTo(FishyRoute.Home.route)
+                }
+                onNotificationNavConsumed()
+            }
+            openScheduler -> {
+                navController.navigate(FishyRoute.Scheduler.route) {
+                    popUpTo(FishyRoute.Home.route)
+                }
+                onNotificationNavConsumed()
             }
         }
     }
@@ -67,8 +80,8 @@ fun FishyNavHost(openScheduler: Boolean = false) {
                 scheduledId = null,
                 onBack = { navController.popBackStack() },
                 onOpenHistory = { key -> navController.navigate(FishyRoute.History.create(key)) },
-                onOpenReport = { id ->
-                    navController.navigate(FishyRoute.Report.create(id)) {
+                onShipmentCompleted = { id ->
+                    navController.navigate(FishyRoute.ShipmentDetail.create(id)) {
                         popUpTo(FishyRoute.Home.route)
                     }
                 }
@@ -86,8 +99,8 @@ fun FishyNavHost(openScheduler: Boolean = false) {
                 scheduledId = null,
                 onBack = { navController.popBackStack() },
                 onOpenHistory = { key -> navController.navigate(FishyRoute.History.create(key)) },
-                onOpenReport = { reportId ->
-                    navController.navigate(FishyRoute.Report.create(reportId)) {
+                onShipmentCompleted = { reportId ->
+                    navController.navigate(FishyRoute.ShipmentDetail.create(reportId)) {
                         popUpTo(FishyRoute.Home.route)
                     }
                 }
@@ -114,8 +127,8 @@ fun FishyNavHost(openScheduler: Boolean = false) {
                 scheduledId = id,
                 onBack = { navController.popBackStack() },
                 onOpenHistory = { key -> navController.navigate(FishyRoute.History.create(key)) },
-                onOpenReport = { reportId ->
-                    navController.navigate(FishyRoute.Report.create(reportId)) {
+                onShipmentCompleted = { reportId ->
+                    navController.navigate(FishyRoute.ShipmentDetail.create(reportId)) {
                         popUpTo(FishyRoute.Home.route)
                     }
                 }

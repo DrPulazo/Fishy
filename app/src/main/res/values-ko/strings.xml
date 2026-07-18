@@ -14,8 +14,8 @@
     <string name="back">뒤쪽에</string>
     <string name="coming_soon">곧 출시 예정</string>
     <string name="about_title">에 대한</string>
-    <string name="about_version">버전 2.0.0</string>
-    <string name="about_body">생선 화물 수신기에 대한 배송 추적.\nFishy 2.0.0</string>
+    <string name="about_version">버전 2.0.1</string>
+    <string name="about_body">생선 화물 수신기에 대한 배송 추적.\nFishy 2.0.1</string>
     <string name="about_deepseek">\n DeepSeek AI 챗봇의 도움을 받아 구축되었습니다.</string>
     <string name="about_budget_title">개발 예산:</string>
     <string name="about_budget_beer">맥주 한 케이스</string>
@@ -25,6 +25,8 @@
     <string name="about_link_max">Max</string>
     <string name="about_source">소스 코드:</string>
     <string name="about_link_github">GitHub</string>
+    <string name="about_support_developer">개발자 후원:</string>
+    <string name="about_link_boosty">Boosty</string>
     <string name="about_eula">라이선스 계약</string>
     <string name="about_github">GitHub의 오픈 소스</string>
     <string name="about_paper">기억하세요: 가장 신뢰할 수 있는 데이터 매체는 손에 들고 있는 종이와 연필입니다. 앱은 도구일 뿐입니다.</string>
@@ -130,8 +132,10 @@
     <string name="draft_saved">초안이 저장되었습니다.</string>
     <string name="save_draft">초안 저장</string>
     <string name="save_shipment">배송 저장</string>
-    <string name="complete_confirm_title">배송 완료</string>
+    <string name="complete_confirm_title">저장</string>
     <string name="complete_confirm_msg">배송을 완료하고 아카이브에 저장하시겠습니까?</string>
+    <string name="complete_confirm_places_over">실제 수량이 계획보다 많습니다. 출하를 완료하시겠습니까?</string>
+    <string name="complete_confirm_places_under">실제 수량이 계획보다 적습니다. 출하를 완료하시겠습니까?</string>
     <string name="shipment_settings">배송 설정</string>
     <string name="shipment_settings_hide">배송 설정 숨기기</string>
     <string name="info_loading">정보 로드 중</string>
@@ -170,6 +174,11 @@
     <string name="imported_header">수입됨</string>
     <string name="add_pallet">팔레트 추가</string>
     <string name="add_product">제품 추가</string>
+    <string name="add_customer">고객 추가</string>
+    <string name="add_port_dict">포트 추가</string>
+    <string name="add_vessel_dict">선박 추가</string>
+    <string name="add_product_dict">명칭 추가</string>
+    <string name="add_manufacturer">제조업체 추가</string>
     <string name="add_vehicle">차량 추가</string>
     <string name="add_port">포트 추가</string>
     <string name="add_source">소스 추가</string>
@@ -213,6 +222,7 @@
     <string name="loaded_pallets">팔레트가 로드됨</string>
     <string name="loaded_places">로드된 장소</string>
     <string name="target_qty">목표수량</string>
+    <string name="target_mass_label">목표 질량</string>
     <string name="total_mass">총 질량: %1$.2f kg</string>
     <string name="pallets_dc">팔레트: %1$d/%2$d</string>
     <string name="places_dc">장소: %1$d/%2$d</string>
@@ -226,6 +236,7 @@
     <string name="unload_source">소스 언로드</string>
     <string name="warehouse">창고</string>
     <string name="reception_point">입고 지점</string>
+    <string name="reception_prefix">입고 지점: %1$s</string>
     <string name="add_reception_point">입고 지점 추가</string>
     <string name="delete_reception_title">입고 지점 삭제</string>
     <string name="delete_reception_msg">이 입고 지점을 삭제할까요?</string>
@@ -256,6 +267,10 @@
     <string name="shipment_default">선적</string>
     <string name="notif_title">배송 알림</string>
     <string name="notif_title_emoji">⏰ 배송 알림</string>
+    <string name="notif_start_title">출하를 시작할 시간입니다</string>
+    <string name="notif_start_title_emoji">🚚 출하를 시작할 시간입니다</string>
+    <string name="notif_start_content">%1$s · %2$s · %3$s</string>
+    <string name="notif_start_action">시작</string>
     <string name="notif_port_unknown">포트가 설정되지 않았습니다.</string>
     <string name="notif_customer_unknown">미지정</string>
     <string name="notif_content_line">%1$s: %2$s</string>
@@ -284,6 +299,7 @@
     <string name="draft_empty_hint">저장된 초안이 여기에 표시됩니다.</string>
     <string name="draft_default">초안</string>
     <string name="draft_modified">수정됨: %1$s</string>
+    <string name="draft_duplicated_badge">복제됨</string>
     <string name="dict_customers">고객</string>
     <string name="dict_ports">포트</string>
     <string name="dict_vessels">선박</string>
@@ -326,8 +342,10 @@
     <string name="statistics_export_period">기간: %1$s — %2$s</string>
     <string name="statistics_total_places">총 수량: %1$d</string>
     <string name="statistics_total_tonnes">총 t: %1$.3f</string>
-    <string name="duplicate_created">보관소에서 초안을 만들었습니다</string>
+    <string name="duplicate_created">초안이 복제되었습니다</string>
     <string name="stats_chart_monthly">월별 톤수</string>
+    <string name="stats_period_from">부터</string>
+    <string name="stats_period_to">까지</string>
     <string name="stats_month_kg">%1$s: %2$s kg</string>
     <string name="stats_chart_customers">고객별 톤수</string>
     <string name="stats_period_comparison">기간 비교</string>

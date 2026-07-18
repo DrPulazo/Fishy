@@ -203,7 +203,10 @@ private fun eventTypeLabel(type: ShipmentEventType?): String = when (type) {
 @Composable
 private fun formatEventMessage(event: ShipmentEventEntity, type: ShipmentEventType?): String {
     if (type == ShipmentEventType.DUPLICATED) {
-        val id = event.message.removePrefix("archive#").ifBlank { event.message }
+        val id = event.message
+            .removePrefix("archive#")
+            .removePrefix("draft#")
+            .ifBlank { event.message }
         return stringResource(R.string.history_msg_duplicated, id)
     }
     return event.message

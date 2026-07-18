@@ -55,6 +55,8 @@ import com.example.fishy.domain.calc.ShipmentCalculator
 import com.example.fishy.domain.model.DictionaryType
 import com.example.fishy.domain.model.ShipmentMode
 import com.example.fishy.domain.model.ShipmentPayload
+import com.example.fishy.domain.model.ShipmentSummaries
+import com.example.fishy.ui.ErrorFeedback
 import com.example.fishy.ui.components.ConfirmDeleteDialog
 import com.example.fishy.ui.components.EmptyListPlaceholder
 import com.example.fishy.ui.components.FilterDropdown
@@ -75,6 +77,10 @@ fun ArchiveScreen(
     val repo = FishyApp.instance.repository
     val context = LocalContext.current
     val items by repo.observeArchive().collectAsState(initial = emptyList())
+    val archiveNumbers = remember(items) {
+        val pairs = items.map { it.id to it.completedAtMillis }
+        items.associate { it.id to ShipmentSummaries.archiveNumber(it.id, pairs) }
+    }
     val customers by repo.observeDictionary(DictionaryType.CUSTOMER).collectAsState(initial = emptyList())
     val ports by repo.observeDictionary(DictionaryType.PORT).collectAsState(initial = emptyList())
     val vessels by repo.observeDictionary(DictionaryType.VESSEL).collectAsState(initial = emptyList())
@@ -162,6 +168,7 @@ fun ArchiveScreen(
                 Toast.makeText(context, context.getString(R.string.duplicate_created), Toast.LENGTH_SHORT).show()
                 onOpenDraft(newId)
             }.onFailure {
+                ErrorFeedback.vibrate(context)
                 Toast.makeText(context, it.message ?: "Error", Toast.LENGTH_SHORT).show()
             }
         }
@@ -352,6 +359,7 @@ fun ArchiveScreen(
                     items(filtered, key = { it.id }) { item ->
                         ArchiveShipmentCard(
                             item = item,
+                            displayNumber = archiveNumbers[item.id] ?: 0,
                             dateLabel = fmt.format(Date(item.completedAtMillis)),
                             onOpen = { onOpen(item.id) },
                             onOpenReport = { onOpenReport(item.id) },
@@ -367,7 +375,10 @@ fun ArchiveScreen(
     pendingDelete?.let { item ->
         ConfirmDeleteDialog(
             title = stringResource(R.string.delete_shipment_title),
-            message = stringResource(R.string.delete_shipment_msg, item.customer.ifBlank { "#${item.id}" }),
+            message = stringResource(
+                R.string.delete_shipment_msg,
+                item.customer.ifBlank { "#${archiveNumbers[item.id] ?: item.id}" }
+            ),
             onConfirm = {
                 scope.launch {
                     repo.deleteShipment(item.id)
@@ -394,6 +405,7 @@ private fun ArchiveDatePickerRow(label: String, onClick: () -> Unit) {
 @Composable
 private fun ArchiveShipmentCard(
     item: ShipmentEntity,
+    displayNumber: Int,
     dateLabel: String,
     onOpen: () -> Unit,
     onOpenReport: () -> Unit,
@@ -411,7 +423,7 @@ private fun ArchiveShipmentCard(
                 .padding(16.dp)
         ) {
             Text(
-                "#${item.id}",
+                "#$displayNumber",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
             )
@@ -431,10 +443,12 @@ private fun ArchiveShipmentCard(
                         style = MaterialTheme.typography.bodyMedium
                     )
                 }
-                Text(
-                    stringResource(R.string.places_weight, item.totalPlaces, item.totalWeight),
-                    style = MaterialTheme.typography.bodyMedium
-                )
+                if (item.totalWeight > 0.0) {
+                    Text(
+                        stringResource(R.string.weight_label, item.totalWeight),
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(12.dp))
