@@ -22,7 +22,7 @@
     <string name="about_budget_nights">12 잠 못 이루는 밤</string>
     <string name="about_feedback">피드백:</string>
     <string name="about_link_telegram">Telegram</string>
-    <string name="about_link_max">Max</string>
+    <string name="about_link_email">FishyApp@mail.ru</string>
     <string name="about_source">소스 코드:</string>
     <string name="about_link_github">GitHub</string>
     <string name="about_support_developer">개발자 후원:</string>
@@ -49,6 +49,7 @@
     <string name="save">저장</string>
     <string name="confirm">예</string>
     <string name="no">아니요</string>
+    <string name="cancel_planning_title">예약을 취소하시겠습니까?</string>
     <string name="create">만들다</string>
     <string name="edit">편집하다</string>
     <string name="add">추가하다</string>

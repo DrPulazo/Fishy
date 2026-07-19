@@ -1,19 +1,21 @@
 package com.example.fishy.feature.scheduler
 
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -40,6 +42,8 @@ import com.example.fishy.ui.components.formTextStyleOrDefault
 import com.example.fishy.ui.components.transportTitle
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+
+typealias SchedulerDeleteRequest = (title: String, message: String, onConfirm: () -> Unit) -> Unit
 fun emptyUnloadReception() = UnloadReception(
     inbounds = listOf(UnloadInbound(products = listOf(Product())))
 )
@@ -226,6 +230,19 @@ fun ProductPrefillFields(
             product.manufacturer.isBlank() -> product.name
             product.name.isBlank() -> product.manufacturer
             else -> "${product.name} - ${product.manufacturer}"
+        },
+        trailing = if (onDelete != null) {
+            {
+                IconButton(onClick = onDelete) {
+                    Icon(
+                        Icons.Default.Delete,
+                        contentDescription = stringResource(R.string.delete),
+                        tint = MaterialTheme.colorScheme.error
+                    )
+                }
+            }
+        } else {
+            null
         }
     ) {
         DictionaryAutocomplete(
@@ -294,27 +311,6 @@ fun ProductPrefillFields(
             readOnly = true,
             singleLine = true
         )
-        if (onDelete != null) {
-            SchedulerDeleteButton(onClick = onDelete)
-        }
-    }
-}
-
-@Composable
-internal fun SchedulerDeleteButton(onClick: () -> Unit) {
-    Box(
-        modifier = Modifier.fillMaxWidth(),
-        contentAlignment = Alignment.Center
-    ) {
-        FishyButton(
-            onClick = onClick,
-            colors = ButtonDefaults.buttonColors(
-                containerColor = MaterialTheme.colorScheme.error,
-                contentColor = MaterialTheme.colorScheme.onError
-            )
-        ) {
-            Text(stringResource(R.string.delete))
-        }
     }
 }
 
@@ -329,8 +325,10 @@ fun ScheduledPayloadFields(
     manufacturers: List<DictionaryEntity>,
     autoSpaceContainers: Boolean,
     autoSpaceVehicles: Boolean,
-    onAddToDictionary: (DictionaryType, String) -> Unit
+    onAddToDictionary: (DictionaryType, String) -> Unit,
+    onRequestDelete: SchedulerDeleteRequest
 ) {
+    val context = LocalContext.current
     fun update(block: (ShipmentPayload) -> ShipmentPayload) = onChange(block(payload))
 
     CompositionLocalProvider(
@@ -391,9 +389,19 @@ fun ScheduledPayloadFields(
                                 }
                             },
                             onDelete = {
-                                update { p ->
-                                    val next = p.products.filter { it.id != product.id }
-                                    p.copy(products = next.ifEmpty { listOf(Product()) })
+                                onRequestDelete(
+                                    context.getString(R.string.delete_product_title),
+                                    context.getString(
+                                        R.string.delete_product_msg,
+                                        product.name.ifBlank {
+                                            context.getString(R.string.new_product)
+                                        }
+                                    )
+                                ) {
+                                    update { p ->
+                                        val next = p.products.filter { it.id != product.id }
+                                        p.copy(products = next.ifEmpty { listOf(Product()) })
+                                    }
                                 }
                             },
                             onAddToDictionary = onAddToDictionary
@@ -436,7 +444,32 @@ fun ScheduledPayloadFields(
                     )
                 }
                 payload.multiVehicles.forEach { vehicle ->
-                    AccordionCard(title = transportTitle(vehicle.transport)) {
+                    AccordionCard(
+                        title = transportTitle(vehicle.transport),
+                        trailing = {
+                            IconButton(onClick = {
+                                onRequestDelete(
+                                    context.getString(R.string.delete_vehicle_title),
+                                    context.getString(R.string.delete_vehicle_msg)
+                                ) {
+                                    update { p ->
+                                        val next = p.multiVehicles.filter { it.id != vehicle.id }
+                                        p.copy(
+                                            multiVehicles = next.ifEmpty {
+                                                listOf(VehicleGroup(products = listOf(Product())))
+                                            }
+                                        )
+                                    }
+                                }
+                            }) {
+                                Icon(
+                                    Icons.Default.Delete,
+                                    contentDescription = stringResource(R.string.delete),
+                                    tint = MaterialTheme.colorScheme.error
+                                )
+                            }
+                        }
+                    ) {
                         AccordionCard(
                             title = stringResource(R.string.transport_section),
                             initiallyExpanded = true
@@ -480,16 +513,26 @@ fun ScheduledPayloadFields(
                                         }
                                     },
                                     onDelete = {
-                                        update { p ->
-                                            p.copy(
-                                                multiVehicles = p.multiVehicles.map { vg ->
-                                                    if (vg.id != vehicle.id) vg
-                                                    else {
-                                                        val next = vg.products.filter { it.id != product.id }
-                                                        vg.copy(products = next.ifEmpty { listOf(Product()) })
-                                                    }
+                                        onRequestDelete(
+                                            context.getString(R.string.delete_product_title),
+                                            context.getString(
+                                                R.string.delete_product_msg,
+                                                product.name.ifBlank {
+                                                    context.getString(R.string.new_product)
                                                 }
                                             )
+                                        ) {
+                                            update { p ->
+                                                p.copy(
+                                                    multiVehicles = p.multiVehicles.map { vg ->
+                                                        if (vg.id != vehicle.id) vg
+                                                        else {
+                                                            val next = vg.products.filter { it.id != product.id }
+                                                            vg.copy(products = next.ifEmpty { listOf(Product()) })
+                                                        }
+                                                    }
+                                                )
+                                            }
                                         }
                                     },
                                     onAddToDictionary = onAddToDictionary
@@ -510,18 +553,6 @@ fun ScheduledPayloadFields(
                                 modifier = Modifier.fillMaxWidth()
                             ) { Text(stringResource(R.string.add_product)) }
                         }
-                        SchedulerDeleteButton(
-                            onClick = {
-                                update { p ->
-                                    val next = p.multiVehicles.filter { it.id != vehicle.id }
-                                    p.copy(
-                                        multiVehicles = next.ifEmpty {
-                                            listOf(VehicleGroup(products = listOf(Product())))
-                                        }
-                                    )
-                                }
-                            }
-                        )
                     }
                 }
                 FishyButton(
@@ -561,7 +592,32 @@ fun ScheduledPayloadFields(
                     } else {
                         stringResource(R.string.port_title, group.port)
                     }
-                    AccordionCard(title = portTitle) {
+                    AccordionCard(
+                        title = portTitle,
+                        trailing = {
+                            IconButton(onClick = {
+                                onRequestDelete(
+                                    context.getString(R.string.delete_port_title),
+                                    context.getString(R.string.delete_port_msg)
+                                ) {
+                                    update { p ->
+                                        val next = p.multiPorts.filter { it.id != group.id }
+                                        p.copy(
+                                            multiPorts = next.ifEmpty {
+                                                listOf(PortGroup(products = listOf(Product())))
+                                            }
+                                        )
+                                    }
+                                }
+                            }) {
+                                Icon(
+                                    Icons.Default.Delete,
+                                    contentDescription = stringResource(R.string.delete),
+                                    tint = MaterialTheme.colorScheme.error
+                                )
+                            }
+                        }
+                    ) {
                         DictionaryAutocomplete(
                             label = stringResource(R.string.port),
                             value = group.port,
@@ -618,16 +674,26 @@ fun ScheduledPayloadFields(
                                         }
                                     },
                                     onDelete = {
-                                        update { p ->
-                                            p.copy(
-                                                multiPorts = p.multiPorts.map { pg ->
-                                                    if (pg.id != group.id) pg
-                                                    else {
-                                                        val next = pg.products.filter { it.id != product.id }
-                                                        pg.copy(products = next.ifEmpty { listOf(Product()) })
-                                                    }
+                                        onRequestDelete(
+                                            context.getString(R.string.delete_product_title),
+                                            context.getString(
+                                                R.string.delete_product_msg,
+                                                product.name.ifBlank {
+                                                    context.getString(R.string.new_product)
                                                 }
                                             )
+                                        ) {
+                                            update { p ->
+                                                p.copy(
+                                                    multiPorts = p.multiPorts.map { pg ->
+                                                        if (pg.id != group.id) pg
+                                                        else {
+                                                            val next = pg.products.filter { it.id != product.id }
+                                                            pg.copy(products = next.ifEmpty { listOf(Product()) })
+                                                        }
+                                                    }
+                                                )
+                                            }
                                         }
                                     },
                                     onAddToDictionary = onAddToDictionary
@@ -648,18 +714,6 @@ fun ScheduledPayloadFields(
                                 modifier = Modifier.fillMaxWidth()
                             ) { Text(stringResource(R.string.add_product)) }
                         }
-                        SchedulerDeleteButton(
-                            onClick = {
-                                update { p ->
-                                    val next = p.multiPorts.filter { it.id != group.id }
-                                    p.copy(
-                                        multiPorts = next.ifEmpty {
-                                            listOf(PortGroup(products = listOf(Product())))
-                                        }
-                                    )
-                                }
-                            }
-                        )
                     }
                 }
                 FishyButton(
@@ -692,7 +746,8 @@ fun ScheduledPayloadFields(
                     manufacturers = manufacturers,
                     autoSpaceContainers = autoSpaceContainers,
                     autoSpaceVehicles = autoSpaceVehicles,
-                    onAddToDictionary = onAddToDictionary
+                    onAddToDictionary = onAddToDictionary,
+                    onRequestDelete = onRequestDelete
                 )
             }
         }

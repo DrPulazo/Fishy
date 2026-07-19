@@ -49,6 +49,7 @@ import com.example.fishy.data.settings.AppLanguage
 import com.example.fishy.data.settings.FishySettings
 import com.example.fishy.domain.model.ShipmentMode
 import com.example.fishy.feature.shipment.ModePickerDialog
+import com.example.fishy.ui.ErrorFeedback
 import com.example.fishy.ui.components.FishyButton
 import com.example.fishy.ui.components.FishyOutlinedButton
 import com.example.fishy.ui.components.DialogCenteredFishyButton
@@ -141,6 +142,7 @@ fun HomeScreen(
                             easterEggClickCount++
                             if (easterEggClickCount >= 10) {
                                 easterEggClickCount = 0
+                                ErrorFeedback.vibrate(context)
                                 Toast.makeText(
                                     context,
                                     LOGO_EASTER_MESSAGES.random(),
@@ -178,7 +180,15 @@ fun HomeScreen(
                 .padding(16.dp)
                 .size(48.dp)
         ) {
-            Icon(Icons.Default.Info, contentDescription = null)
+            Icon(
+                Icons.Default.Info,
+                contentDescription = null,
+                tint = if (isLightTheme()) {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                } else {
+                    MaterialTheme.colorScheme.onSurface
+                }
+            )
         }
 
         IconButton(
@@ -188,7 +198,15 @@ fun HomeScreen(
                 .padding(16.dp)
                 .size(48.dp)
         ) {
-            Icon(Icons.Default.Settings, contentDescription = stringResource(R.string.nav_settings))
+            Icon(
+                Icons.Default.Settings,
+                contentDescription = stringResource(R.string.nav_settings),
+                tint = if (isLightTheme()) {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                } else {
+                    MaterialTheme.colorScheme.onSurface
+                }
+            )
         }
     }
 
@@ -237,11 +255,7 @@ fun HomeScreen(
                         },
                         textAlign = TextAlign.Center,
                         color = if (aboutBeerVisit >= 12) {
-                            if (isLightTheme()) {
-                                FishyAccentLink
-                            } else {
-                                FishyAccent
-                            }
+                            if (isLightTheme()) FishyAccentLink else FishyAccent
                         } else {
                             Color.Unspecified
                         },
@@ -280,10 +294,13 @@ fun HomeScreen(
                         }
                     )
                     AboutLink(
-                        label = stringResource(R.string.about_link_max),
+                        label = stringResource(R.string.about_link_email),
                         onClick = {
                             context.startActivity(
-                                Intent(Intent.ACTION_VIEW, Uri.parse("https://max.ru/channel_FishyApp"))
+                                Intent(
+                                    Intent.ACTION_SENDTO,
+                                    Uri.parse("mailto:FishyApp@mail.ru")
+                                )
                             )
                         },
                         modifier = Modifier.padding(bottom = 8.dp)

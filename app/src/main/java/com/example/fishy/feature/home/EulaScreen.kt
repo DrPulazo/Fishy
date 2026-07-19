@@ -56,7 +56,7 @@ fun EulaScreen(onBack: () -> Unit) {
             Text(
                 text = eulaText,
                 style = MaterialTheme.typography.bodyMedium,
-                textAlign = TextAlign.Start
+                textAlign = TextAlign.Justify
             )
         }
     }

@@ -23,7 +23,14 @@ data class Transport(
     val trailerNumber: String = "",
     val wagonNumber: String = "",
     val sealNumber: String = ""
-)
+) {
+    fun hasUserContent(): Boolean =
+        containerNumber.isNotBlank() ||
+            truckNumber.isNotBlank() ||
+            trailerNumber.isNotBlank() ||
+            wagonNumber.isNotBlank() ||
+            sealNumber.isNotBlank()
+}
 
 @Serializable
 data class Pallet(
@@ -49,6 +56,14 @@ data class Product(
     val placesCount: Int
         get() = pallets.filter { !it.isPlaceholder }.sumOf { it.places }
     val totalWeight: Double get() = packageWeight * quantity
+
+    fun hasUserContent(): Boolean =
+        name.isNotBlank() ||
+            manufacturer.isNotBlank() ||
+            batch.isNotBlank() ||
+            packageWeight > 0.0 ||
+            quantity > 0 ||
+            pallets.any { !it.isPlaceholder }
 }
 
 @Serializable
@@ -133,7 +148,55 @@ data class ShipmentPayload(
     val editedReportText: String? = null,
     val createdAtMillis: Long = System.currentTimeMillis(),
     val completedAtMillis: Long? = null
-)
+) {
+    /** True if the user filled any meaningful field (not just empty mode scaffold). */
+    fun hasUserContent(): Boolean {
+        if (customer.isNotBlank() || port.isNotBlank() || vessel.isNotBlank() || notes.isNotBlank()) {
+            return true
+        }
+        if (transport.hasUserContent()) return true
+        if (products.any { it.hasUserContent() }) return true
+        if (multiVehicles.any { vg ->
+                vg.transport.hasUserContent() || vg.products.any { it.hasUserContent() }
+            }
+        ) {
+            return true
+        }
+        if (multiPorts.any { pg ->
+                pg.port.isNotBlank() ||
+                    pg.vessel.isNotBlank() ||
+                    pg.products.any { it.hasUserContent() }
+            }
+        ) {
+            return true
+        }
+        if (unloadReceptions.any { reception ->
+                reception.name.isNotBlank() ||
+                    reception.transport.hasUserContent() ||
+                    reception.inbounds.any { inbound ->
+                        inbound.port.isNotBlank() ||
+                            inbound.vessel.isNotBlank() ||
+                            inbound.transport.hasUserContent() ||
+                            inbound.products.any { it.hasUserContent() }
+                    }
+            }
+        ) {
+            return true
+        }
+        if (batchLimits.any {
+                it.productName.isNotBlank() ||
+                    it.batchName.isNotBlank() ||
+                    it.manufacturer.isNotBlank() ||
+                    it.packageWeight > 0.0 ||
+                    it.plannedPlaces > 0
+            }
+        ) {
+            return true
+        }
+        if (checklist.any { it.title.isNotBlank() }) return true
+        return false
+    }
+}
 
 enum class DictionaryType(val key: String) {
     CUSTOMER("customer"),

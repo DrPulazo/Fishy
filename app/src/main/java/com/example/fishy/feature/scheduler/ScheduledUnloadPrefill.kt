@@ -3,10 +3,16 @@ package com.example.fishy.feature.scheduler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.example.fishy.R
@@ -33,14 +39,37 @@ fun ScheduledUnloadPrefill(
     manufacturers: List<DictionaryEntity>,
     autoSpaceContainers: Boolean,
     autoSpaceVehicles: Boolean,
-    onAddToDictionary: (DictionaryType, String) -> Unit
+    onAddToDictionary: (DictionaryType, String) -> Unit,
+    onRequestDelete: SchedulerDeleteRequest
 ) {
+    val context = LocalContext.current
     fun update(block: (ShipmentPayload) -> ShipmentPayload) = onChange(block(payload))
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         payload.unloadReceptions.forEach { reception ->
             val receptionTitle = unloadReceptionTitle(reception.name, reception.transport)
-            AccordionCard(title = receptionTitle) {
+            AccordionCard(
+                title = receptionTitle,
+                trailing = {
+                    IconButton(onClick = {
+                        onRequestDelete(
+                            context.getString(R.string.delete_reception_title),
+                            context.getString(R.string.delete_reception_msg)
+                        ) {
+                            update { p ->
+                                val next = p.unloadReceptions.filter { it.id != reception.id }
+                                p.copy(unloadReceptions = next.ifEmpty { listOf(emptyUnloadReception()) })
+                            }
+                        }
+                    }) {
+                        Icon(
+                            Icons.Default.Delete,
+                            contentDescription = stringResource(R.string.delete),
+                            tint = MaterialTheme.colorScheme.error
+                        )
+                    }
+                }
+            ) {
                 AccordionCard(
                     title = stringResource(R.string.reception_point),
                     initiallyExpanded = true
@@ -75,7 +104,40 @@ fun ScheduledUnloadPrefill(
                         if (t != stringResource(R.string.new_transport)) t
                         else stringResource(R.string.unload_source)
                     }
-                    AccordionCard(title = inboundTitle, initiallyExpanded = true) {
+                    AccordionCard(
+                        title = inboundTitle,
+                        initiallyExpanded = true,
+                        trailing = {
+                            IconButton(onClick = {
+                                onRequestDelete(
+                                    context.getString(R.string.delete_source_title),
+                                    context.getString(R.string.delete_source_msg)
+                                ) {
+                                    update { p ->
+                                        p.copy(
+                                            unloadReceptions = p.unloadReceptions.map { r ->
+                                                if (r.id != reception.id) r
+                                                else {
+                                                    val next = r.inbounds.filter { it.id != inbound.id }
+                                                    r.copy(
+                                                        inbounds = next.ifEmpty {
+                                                            listOf(UnloadInbound(products = listOf(Product())))
+                                                        }
+                                                    )
+                                                }
+                                            }
+                                        )
+                                    }
+                                }
+                            }) {
+                                Icon(
+                                    Icons.Default.Delete,
+                                    contentDescription = stringResource(R.string.delete),
+                                    tint = MaterialTheme.colorScheme.error
+                                )
+                            }
+                        }
+                    ) {
                         DictionaryAutocomplete(
                             label = stringResource(R.string.port),
                             value = inbound.port,
@@ -162,21 +224,31 @@ fun ScheduledUnloadPrefill(
                                     }
                                 },
                                 onDelete = {
-                                    update { p ->
-                                        p.copy(
-                                            unloadReceptions = p.unloadReceptions.map { r ->
-                                                if (r.id != reception.id) r
-                                                else r.copy(
-                                                    inbounds = r.inbounds.map { ib ->
-                                                        if (ib.id != inbound.id) ib
-                                                        else {
-                                                            val next = ib.products.filter { it.id != product.id }
-                                                            ib.copy(products = next.ifEmpty { listOf(Product()) })
-                                                        }
-                                                    }
-                                                )
+                                    onRequestDelete(
+                                        context.getString(R.string.delete_product_title),
+                                        context.getString(
+                                            R.string.delete_product_msg,
+                                            product.name.ifBlank {
+                                                context.getString(R.string.new_product)
                                             }
                                         )
+                                    ) {
+                                        update { p ->
+                                            p.copy(
+                                                unloadReceptions = p.unloadReceptions.map { r ->
+                                                    if (r.id != reception.id) r
+                                                    else r.copy(
+                                                        inbounds = r.inbounds.map { ib ->
+                                                            if (ib.id != inbound.id) ib
+                                                            else {
+                                                                val next = ib.products.filter { it.id != product.id }
+                                                                ib.copy(products = next.ifEmpty { listOf(Product()) })
+                                                            }
+                                                        }
+                                                    )
+                                                }
+                                            )
+                                        }
                                     }
                                 },
                                 onAddToDictionary = onAddToDictionary
@@ -200,25 +272,6 @@ fun ScheduledUnloadPrefill(
                                 }
                             }
                         ) { Text(stringResource(R.string.add_product)) }
-                        SchedulerDeleteButton(
-                            onClick = {
-                                update { p ->
-                                    p.copy(
-                                        unloadReceptions = p.unloadReceptions.map { r ->
-                                            if (r.id != reception.id) r
-                                            else {
-                                                val next = r.inbounds.filter { it.id != inbound.id }
-                                                r.copy(
-                                                    inbounds = next.ifEmpty {
-                                                        listOf(UnloadInbound(products = listOf(Product())))
-                                                    }
-                                                )
-                                            }
-                                        }
-                                    )
-                                }
-                            }
-                        )
                     }
                 }
                 FishyButton(
@@ -239,14 +292,6 @@ fun ScheduledUnloadPrefill(
                     },
                     modifier = Modifier.fillMaxWidth()
                 ) { Text(stringResource(R.string.add_source)) }
-                SchedulerDeleteButton(
-                    onClick = {
-                        update { p ->
-                            val next = p.unloadReceptions.filter { it.id != reception.id }
-                            p.copy(unloadReceptions = next.ifEmpty { listOf(emptyUnloadReception()) })
-                        }
-                    }
-                )
             }
         }
         FishyButton(

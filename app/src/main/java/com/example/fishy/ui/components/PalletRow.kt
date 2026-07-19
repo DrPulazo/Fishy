@@ -283,7 +283,8 @@ fun PalletRow(
                     Checkbox(
                         checked = pallet.isImported,
                         onCheckedChange = { onToggleImported() },
-                        enabled = !pallet.isPlaceholder
+                        enabled = !pallet.isPlaceholder,
+                        colors = fishyCheckboxColors()
                     )
                 }
             } else {

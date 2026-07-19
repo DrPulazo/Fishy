@@ -22,7 +22,7 @@
     <string name="about_budget_nights">12个不眠之夜</string>
     <string name="about_feedback">反馈：</string>
     <string name="about_link_telegram">Telegram</string>
-    <string name="about_link_max">Max</string>
+    <string name="about_link_email">FishyApp@mail.ru</string>
     <string name="about_source">源代码：</string>
     <string name="about_link_github">GitHub</string>
     <string name="about_support_developer">支持开发者：</string>
@@ -49,6 +49,7 @@
     <string name="save">保存</string>
     <string name="confirm">是</string>
     <string name="no">否</string>
+    <string name="cancel_planning_title">取消计划？</string>
     <string name="create">创建</string>
     <string name="edit">编辑</string>
     <string name="add">添加</string>

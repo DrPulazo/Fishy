@@ -51,6 +51,8 @@ import com.example.fishy.ui.components.CenteredDialogMessage
 import com.example.fishy.ui.components.CenteredDialogTitle
 import com.example.fishy.ui.components.ConfirmDeleteDialog
 import com.example.fishy.ui.components.DialogCancelConfirmActions
+import com.example.fishy.ui.components.fishyCheckboxColors
+import com.example.fishy.ui.components.fishySwitchColors
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -166,7 +168,8 @@ fun SettingsScreen(onBack: () -> Unit) {
                                     it.copy(themeMode = if (enabled) ThemeMode.DARK else ThemeMode.LIGHT)
                                 }
                             }
-                        }
+                        },
+                        colors = fishySwitchColors()
                     )
                 }
 
@@ -176,7 +179,8 @@ fun SettingsScreen(onBack: () -> Unit) {
                         checked = settings.inputGuardEnabled,
                         onCheckedChange = { v ->
                             scope.launch { settingsRepo.update { it.copy(inputGuardEnabled = v) } }
-                        }
+                        },
+                        colors = fishySwitchColors()
                     )
                 }
                 if (settings.inputGuardEnabled) {
@@ -227,7 +231,8 @@ fun SettingsScreen(onBack: () -> Unit) {
                         checked = settings.autoSpacesEnabled,
                         onCheckedChange = { v ->
                             scope.launch { settingsRepo.update { it.copy(autoSpacesEnabled = v) } }
-                        }
+                        },
+                        colors = fishySwitchColors()
                     )
                 }
                 if (settings.autoSpacesEnabled) {
@@ -236,7 +241,8 @@ fun SettingsScreen(onBack: () -> Unit) {
                             checked = settings.autoSpaceContainers,
                             onCheckedChange = { v ->
                                 scope.launch { settingsRepo.update { it.copy(autoSpaceContainers = v) } }
-                            }
+                            },
+                            colors = fishyCheckboxColors()
                         )
                         Text(
                             stringResource(R.string.auto_spaces_containers),
@@ -248,7 +254,8 @@ fun SettingsScreen(onBack: () -> Unit) {
                             checked = settings.autoSpaceVehicles,
                             onCheckedChange = { v ->
                                 scope.launch { settingsRepo.update { it.copy(autoSpaceVehicles = v) } }
-                            }
+                            },
+                            colors = fishyCheckboxColors()
                         )
                         Text(
                             stringResource(R.string.auto_spaces_vehicles),
@@ -263,7 +270,8 @@ fun SettingsScreen(onBack: () -> Unit) {
                         checked = settings.floatingFabEnabled,
                         onCheckedChange = { v ->
                             scope.launch { settingsRepo.update { it.copy(floatingFabEnabled = v) } }
-                        }
+                        },
+                        colors = fishySwitchColors()
                     )
                 }
             }

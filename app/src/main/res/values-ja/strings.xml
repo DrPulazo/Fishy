@@ -22,7 +22,7 @@
     <string name="about_budget_nights">12 眠れない夜</string>
     <string name="about_feedback">フィードバック：</string>
     <string name="about_link_telegram">Telegram</string>
-    <string name="about_link_max">Max</string>
+    <string name="about_link_email">FishyApp@mail.ru</string>
     <string name="about_source">ソースコード:</string>
     <string name="about_link_github">GitHub</string>
     <string name="about_support_developer">開発者を支援する：</string>
@@ -49,6 +49,7 @@
     <string name="save">保存</string>
     <string name="confirm">はい</string>
     <string name="no">いいえ</string>
+    <string name="cancel_planning_title">スケジュールをキャンセルしますか？</string>
     <string name="create">作成する</string>
     <string name="edit">編集</string>
     <string name="add">追加</string>

@@ -88,6 +88,8 @@ import com.example.fishy.ui.components.FishySentenceKeyboardOptions
 import com.example.fishy.ui.components.LocalAccordionTitleStyle
 import com.example.fishy.ui.components.LocalFormTextStyle
 import com.example.fishy.ui.components.TimePickerField
+import com.example.fishy.ui.components.fishyCheckboxColors
+import com.example.fishy.ui.components.fishySwitchColors
 import com.example.fishy.ui.components.formLabelStyleOrDefault
 import com.example.fishy.ui.components.formTextStyleOrDefault
 import com.example.fishy.ui.theme.Error
@@ -534,6 +536,36 @@ private fun ScheduledEditorDialog(
             }.timeInMillis
         )
     }
+    val baselinePayloadJson = remember {
+        FishyJson.encodePayload(
+            decodeScheduledPayload(
+                initial.payloadJson,
+                initial.mode,
+                initial.customer,
+                initial.port,
+                initial.vessel
+            )
+        )
+    }
+    val baselineTime = remember { initial.scheduledTime }
+    val baselineDateMillis = remember { initial.scheduledDateMillis }
+    val baselineNotify = remember { initial.notificationEnabled }
+    val baselineNotifyAt = remember { notifyAt }
+    var pendingDelete by remember { mutableStateOf<PendingSchedulerDelete?>(null) }
+    var showDiscardConfirm by remember { mutableStateOf(false) }
+
+    val isDirty =
+        FishyJson.encodePayload(payload) != baselinePayloadJson ||
+            time != baselineTime ||
+            dateMillis != baselineDateMillis ||
+            notify != baselineNotify ||
+            (notify && notifyAt != baselineNotifyAt) ||
+            (!notify && baselineNotify)
+
+    fun requestDismiss() {
+        if (isDirty) showDiscardConfirm = true else onDismiss()
+    }
+
     val dateFmt = remember { SimpleDateFormat("dd.MM.yyyy", Locale.getDefault()) }
     val notifyFmt = remember { SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.getDefault()) }
 
@@ -545,7 +577,7 @@ private fun ScheduledEditorDialog(
     )
 
     AlertDialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = { requestDismiss() },
         containerColor = MaterialTheme.colorScheme.background,
         title = {
             CenteredDialogTitle(
@@ -625,6 +657,9 @@ private fun ScheduledEditorDialog(
                     autoSpaceVehicles = settings.effectiveAutoSpaceVehicles,
                     onAddToDictionary = { type, value ->
                         scope.launch { repo.addDictionary(type, value) }
+                    },
+                    onRequestDelete = { title, message, onConfirm ->
+                        pendingDelete = PendingSchedulerDelete(title, message, onConfirm)
                     }
                 )
 
@@ -640,7 +675,7 @@ private fun ScheduledEditorDialog(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(stringResource(R.string.notify_enable))
-                    Switch(checked = notify, onCheckedChange = { notify = it })
+                    Switch(checked = notify, onCheckedChange = { notify = it }, colors = fishySwitchColors())
                 }
                 if (notify) {
                     val notifyTime = remember(notifyAt) {
@@ -690,7 +725,7 @@ private fun ScheduledEditorDialog(
         },
         confirmButton = {
             DialogCancelConfirmActions(
-                onCancel = onDismiss,
+                onCancel = { requestDismiss() },
                 onConfirm = {
                     val finalPayload = ensurePayloadStructure(payload)
                     val autoTitle = listOf(
@@ -727,7 +762,44 @@ private fun ScheduledEditorDialog(
             )
         }
     )
+
+    pendingDelete?.let { del ->
+        ConfirmDeleteDialog(
+            title = del.title,
+            message = del.message,
+            onConfirm = {
+                del.onConfirm()
+                pendingDelete = null
+            },
+            onDismiss = { pendingDelete = null }
+        )
+    }
+
+    if (showDiscardConfirm) {
+        AlertDialog(
+            onDismissRequest = { showDiscardConfirm = false },
+            containerColor = MaterialTheme.colorScheme.background,
+            title = { CenteredDialogTitle(stringResource(R.string.cancel_planning_title)) },
+            confirmButton = {
+                DialogCancelConfirmActions(
+                    onCancel = { showDiscardConfirm = false },
+                    onConfirm = {
+                        showDiscardConfirm = false
+                        onDismiss()
+                    },
+                    cancelText = stringResource(R.string.no),
+                    confirmText = stringResource(R.string.confirm)
+                )
+            }
+        )
+    }
 }
+
+private data class PendingSchedulerDelete(
+    val title: String,
+    val message: String,
+    val onConfirm: () -> Unit
+)
 
 @Composable
 private fun ScheduledChecklistDialog(scheduledId: Long, onDismiss: () -> Unit) {
@@ -805,7 +877,8 @@ private fun ScheduledChecklistDialog(scheduledId: Long, onDismiss: () -> Unit) {
                                         scope.launch {
                                             repo.upsertChecklistItem(item.copy(isCompleted = it))
                                         }
-                                    }
+                                    },
+                                    colors = fishyCheckboxColors()
                                 )
                                 Text(item.title, modifier = Modifier.weight(1f))
                                 IconButton(onClick = {

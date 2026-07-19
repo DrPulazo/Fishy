@@ -256,12 +256,22 @@ class ShipmentViewModel(application: Application) : AndroidViewModel(application
     }
 
     private suspend fun saveDraftInternal(force: Boolean = false) {
+        val current = _payload.value
+        if (!current.hasUserContent()) {
+            val existingId = _draftId.value
+            if (existingId != null) {
+                repo.deleteShipment(existingId)
+                _draftId.value = null
+                baselinePayloadJson = FishyJson.encodePayload(current)
+            }
+            return
+        }
         if (!force && !isDirty()) return
         val previousKey = _sessionKey.value
         val id = repo.saveDraft(
             _draftId.value,
             getApplication<Application>().getString(R.string.draft_default),
-            _payload.value
+            current
         )
         _draftId.value = id
         val newKey = "draft_$id"
@@ -269,15 +279,17 @@ class ShipmentViewModel(application: Application) : AndroidViewModel(application
             repo.rekeyEvents(previousKey, newKey)
             _sessionKey.value = newKey
         }
-        repo.rememberDictionaryValues(_payload.value)
-        baselinePayloadJson = FishyJson.encodePayload(_payload.value)
+        repo.rememberDictionaryValues(current)
+        baselinePayloadJson = FishyJson.encodePayload(current)
     }
 
     fun saveDraftManual() {
         flushPendingPlacesLog()
         autoSaveJob?.cancel()
         viewModelScope.launch {
+            if (!_payload.value.hasUserContent()) return@launch
             saveDraftInternal(force = true)
+            if (_draftId.value == null) return@launch
             repo.log(
                 _sessionKey.value,
                 ShipmentEventType.DRAFT_SAVED,

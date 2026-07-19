@@ -9,11 +9,15 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonColors
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ButtonElevation
+import androidx.compose.material3.CheckboxColors
+import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.FloatingActionButtonElevation
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.SwitchColors
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.contentColorFor
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -26,7 +30,7 @@ import com.example.fishy.ui.theme.isLightTheme
 val FishyButtonShape: Shape
     get() = RoundedCornerShape(FishyCornerRadius)
 
-/** Filled buttons: teal accent in light theme; theme primary in dark. */
+/** Filled buttons: brand teal in light; Material primary in dark (better contrast). */
 @Composable
 fun fishyFilledButtonColors(): ButtonColors {
     return if (isLightTheme()) {
@@ -38,6 +42,32 @@ fun fishyFilledButtonColors(): ButtonColors {
         ButtonDefaults.buttonColors()
     }
 }
+
+/** Checkboxes: brand teal in light; Material defaults in dark. */
+@Composable
+fun fishyCheckboxColors(): CheckboxColors {
+    return if (isLightTheme()) {
+        CheckboxDefaults.colors(
+            checkedColor = FishyAccent,
+            uncheckedColor = FishyAccent,
+            checkmarkColor = Color.White
+        )
+    } else {
+        CheckboxDefaults.colors()
+    }
+}
+
+/** Switches: brand teal in both themes. */
+@Composable
+fun fishySwitchColors(): SwitchColors =
+    SwitchDefaults.colors(
+        checkedThumbColor = Color.White,
+        checkedTrackColor = FishyAccent,
+        checkedBorderColor = FishyAccent,
+        uncheckedThumbColor = Color.White,
+        uncheckedTrackColor = FishyAccent.copy(alpha = 0.35f),
+        uncheckedBorderColor = FishyAccent
+    )
 
 @Composable
 fun FishyButton(

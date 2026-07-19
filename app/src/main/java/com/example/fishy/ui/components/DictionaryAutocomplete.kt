@@ -45,19 +45,24 @@ fun DictionaryAutocomplete(
             dictionaryType != null &&
             value.isNotBlank() &&
             !hasExactMatch
+    val menuExpanded = expanded && filtered.isNotEmpty() && !hasExactMatch
     val textStyle = formTextStyleOrDefault()
     val labelStyle = formLabelStyleOrDefault()
 
     ExposedDropdownMenuBox(
-        expanded = expanded && filtered.isNotEmpty(),
-        onExpandedChange = { expanded = it },
+        expanded = menuExpanded,
+        onExpandedChange = { want ->
+            expanded = want && !hasExactMatch
+        },
         modifier = modifier
     ) {
         OutlinedTextField(
             value = value,
             onValueChange = {
                 onValueChange(it)
-                expanded = true
+                val exact = it.isNotBlank() &&
+                    suggestions.any { s -> s.value.equals(it, ignoreCase = true) }
+                expanded = !exact
             },
             label = { Text(label, style = labelStyle) },
             textStyle = textStyle,
@@ -70,19 +75,20 @@ fun DictionaryAutocomplete(
                     if (showAddButton) {
                         IconButton(
                             onClick = {
+                                expanded = false
                                 onAddToDictionary?.invoke(dictionaryType!!, value.trim())
                             }
                         ) {
                             Icon(Icons.Default.Add, contentDescription = null)
                         }
                     }
-                    ExposedDropdownMenuDefaults.TrailingIcon(expanded)
+                    ExposedDropdownMenuDefaults.TrailingIcon(menuExpanded)
                 }
             },
             singleLine = true
         )
         ExposedDropdownMenu(
-            expanded = expanded && filtered.isNotEmpty(),
+            expanded = menuExpanded,
             onDismissRequest = { expanded = false }
         ) {
             filtered.forEach { item ->

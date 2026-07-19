@@ -32,6 +32,7 @@ import androidx.compose.material3.AlertDialog
 import com.example.fishy.ui.components.FishyButton
 import com.example.fishy.ui.components.DraggableAddPalletFab
 import com.example.fishy.ui.components.FishyOutlinedButton
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
@@ -43,9 +44,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarDuration
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -56,7 +54,6 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -65,6 +62,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.fishy.R
@@ -84,6 +82,7 @@ import com.example.fishy.ui.components.ConfirmSaveDialog
 import com.example.fishy.ui.components.CenteredDialogMessage
 import com.example.fishy.ui.components.CenteredDialogTitle
 import com.example.fishy.ui.components.DialogCancelConfirmActions
+import com.example.fishy.ui.components.DialogCenteredAction
 import com.example.fishy.ui.components.DialogCenteredFishyButton
 import com.example.fishy.ui.components.DictionaryAutocomplete
 import com.example.fishy.ui.components.FillProgressBar
@@ -92,15 +91,18 @@ import com.example.fishy.ui.components.PalletRow
 import com.example.fishy.ui.components.PalletTableHeader
 import com.example.fishy.ui.components.TransportFields
 import com.example.fishy.ui.components.UnloadReceptionFields
+import com.example.fishy.ui.components.fishyCheckboxColors
+import com.example.fishy.ui.components.fishySwitchColors
 import com.example.fishy.ui.components.transportTitle
 import com.example.fishy.ui.components.unloadReceptionTitle
 import com.example.fishy.ui.theme.Error
+import com.example.fishy.ui.theme.FishyAccent
 import com.example.fishy.ui.theme.PlaceholderGrey
 import com.example.fishy.ui.theme.ProgressGreen
 import com.example.fishy.ui.theme.ProgressYellow
 import com.example.fishy.ui.theme.Success
 import com.example.fishy.ui.theme.Warning
-import kotlinx.coroutines.launch
+import com.example.fishy.ui.theme.isLightTheme
 
 private enum class CompletePlacesMismatch {
     None, Over, Under
@@ -135,10 +137,8 @@ fun ShipmentScreen(
     var completePlacesMismatch by remember { mutableStateOf(CompletePlacesMismatch.None) }
     var guardDialog by remember { mutableStateOf<ShipmentUiEvent.GuardConfirm?>(null) }
     var pendingDelete by remember { mutableStateOf<PendingDelete?>(null) }
-    val snackbarHostState = remember { SnackbarHostState() }
-    val scope = rememberCoroutineScope()
+    var forecastExpectationMsg by remember { mutableStateOf<String?>(null) }
     val forecastRunningMsg = stringResource(R.string.forecast_running)
-    var forecastRunningJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
     var focusPalletTarget by remember {
         mutableStateOf<ShipmentUiEvent.FocusPalletPlaces?>(null)
     }
@@ -163,30 +163,12 @@ fun ShipmentScreen(
                 is ShipmentUiEvent.FocusPalletPlaces -> focusPalletTarget = event
                 is ShipmentUiEvent.ForecastRunning -> {
                     if (event.running) {
-                        forecastRunningJob?.cancel()
-                        snackbarHostState.currentSnackbarData?.dismiss()
-                        forecastRunningJob = scope.launch {
-                            snackbarHostState.showSnackbar(
-                                message = forecastRunningMsg,
-                                duration = SnackbarDuration.Indefinite
-                            )
-                        }
-                    } else {
-                        forecastRunningJob?.cancel()
-                        forecastRunningJob = null
-                        snackbarHostState.currentSnackbarData?.dismiss()
+                        Toast.makeText(context, forecastRunningMsg, Toast.LENGTH_SHORT).show()
                     }
                 }
                 is ShipmentUiEvent.ForecastExpectation -> {
-                    forecastRunningJob?.cancel()
-                    forecastRunningJob = null
-                    snackbarHostState.currentSnackbarData?.dismiss()
-                    scope.launch {
-                        snackbarHostState.showSnackbar(
-                            message = event.message,
-                            duration = SnackbarDuration.Long
-                        )
-                    }
+                    ErrorFeedback.vibrate(context)
+                    forecastExpectationMsg = event.message
                 }
             }
         }
@@ -207,7 +189,6 @@ fun ShipmentScreen(
     }
 
     Scaffold(
-        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             Column {
                 CenterAlignedTopAppBar(
@@ -666,7 +647,21 @@ fun ShipmentScreen(
                         AccordionCard(
                             title = receptionTitle,
                             initiallyExpanded = sectionExpanded(resumeDraft, activeReceptionId, reception.id),
-                            forceExpandToken = focusPalletTarget?.takeIf { focusInReception }
+                            forceExpandToken = focusPalletTarget?.takeIf { focusInReception },
+                            trailing = {
+                                IconButton(onClick = {
+                                    pendingDelete = PendingDelete(
+                                        title = context.getString(R.string.delete_reception_title),
+                                        message = context.getString(R.string.delete_reception_msg)
+                                    ) { vm.deleteUnloadReception(reception.id) }
+                                }) {
+                                    Icon(
+                                        Icons.Default.Delete,
+                                        contentDescription = stringResource(R.string.delete),
+                                        tint = MaterialTheme.colorScheme.error
+                                    )
+                                }
+                            }
                         ) {
                             AccordionCard(
                                 title = stringResource(R.string.reception_point),
@@ -696,7 +691,21 @@ fun ShipmentScreen(
                                 AccordionCard(
                                     title = inboundTitle,
                                     initiallyExpanded = !resumeDraft || reception.id == activeReceptionId,
-                                    forceExpandToken = focusPalletTarget?.takeIf { focusInInbound }
+                                    forceExpandToken = focusPalletTarget?.takeIf { focusInInbound },
+                                    trailing = {
+                                        IconButton(onClick = {
+                                            pendingDelete = PendingDelete(
+                                                title = context.getString(R.string.delete_source_title),
+                                                message = context.getString(R.string.delete_source_msg)
+                                            ) { vm.deleteUnloadInbound(reception.id, inbound.id) }
+                                        }) {
+                                            Icon(
+                                                Icons.Default.Delete,
+                                                contentDescription = stringResource(R.string.delete),
+                                                tint = MaterialTheme.colorScheme.error
+                                            )
+                                        }
+                                    }
                                 ) {
                                     DictionaryAutocomplete(
                                         label = stringResource(R.string.port),
@@ -783,14 +792,6 @@ fun ShipmentScreen(
                                     ) {
                                         Text(stringResource(R.string.add_product))
                                     }
-                                    TextButton(onClick = {
-                                        pendingDelete = PendingDelete(
-                                            title = context.getString(R.string.delete_source_title),
-                                            message = context.getString(R.string.delete_source_msg)
-                                        ) { vm.deleteUnloadInbound(reception.id, inbound.id) }
-                                    }) {
-                                        Text(stringResource(R.string.delete))
-                                    }
                                 }
                             }
                             FishyButton(
@@ -804,14 +805,6 @@ fun ShipmentScreen(
                                 initiallyExpanded = !resumeDraft || reception.id == activeReceptionId
                             ) {
                                 TotalsBlock(totals = uTotals)
-                            }
-                            TextButton(onClick = {
-                                pendingDelete = PendingDelete(
-                                    title = context.getString(R.string.delete_reception_title),
-                                    message = context.getString(R.string.delete_reception_msg)
-                                ) { vm.deleteUnloadReception(reception.id) }
-                            }) {
-                                Text(stringResource(R.string.delete))
                             }
                         }
                     }
@@ -942,6 +935,47 @@ fun ShipmentScreen(
         )
     }
 
+    forecastExpectationMsg?.let { msg ->
+        val messageColor = if (isLightTheme()) {
+            MaterialTheme.colorScheme.onSurface
+        } else {
+            Color.White
+        }
+        val okColors = if (isLightTheme()) {
+            ButtonDefaults.buttonColors(
+                containerColor = FishyAccent,
+                contentColor = Color.White
+            )
+        } else {
+            ButtonDefaults.buttonColors(
+                containerColor = Color.White,
+                contentColor = Color(0xFF2C2C2C)
+            )
+        }
+        AlertDialog(
+            onDismissRequest = { forecastExpectationMsg = null },
+            containerColor = MaterialTheme.colorScheme.background,
+            text = {
+                Text(
+                    text = msg,
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = TextAlign.Center,
+                    color = messageColor
+                )
+            },
+            confirmButton = {
+                DialogCenteredAction {
+                    FishyButton(
+                        onClick = { forecastExpectationMsg = null },
+                        colors = okColors
+                    ) {
+                        Text("OK")
+                    }
+                }
+            }
+        )
+    }
+
     guardDialog?.let { g ->
         AlertDialog(
             onDismissRequest = { guardDialog = null },
@@ -1054,7 +1088,7 @@ private fun SettingsMenuSwitchRow(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(label, modifier = Modifier.weight(1f).padding(end = 12.dp))
-                Switch(checked = checked, onCheckedChange = onCheckedChange)
+                Switch(checked = checked, onCheckedChange = onCheckedChange, colors = fishySwitchColors())
             }
         },
         onClick = { onCheckedChange(!checked) }
@@ -1486,7 +1520,8 @@ private fun ChecklistDialog(vm: ShipmentViewModel, onDismiss: () -> Unit) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Checkbox(
                                 checked = task.isCompleted,
-                                onCheckedChange = { vm.toggleChecklist(task.id) }
+                                onCheckedChange = { vm.toggleChecklist(task.id) },
+                                colors = fishyCheckboxColors()
                             )
                             OutlinedTextField(
                                 value = task.title,

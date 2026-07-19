@@ -22,7 +22,7 @@
     <string name="about_budget_nights">12 noches sin dormir</string>
     <string name="about_feedback">Comentarios:</string>
     <string name="about_link_telegram">Telegram</string>
-    <string name="about_link_max">Max</string>
+    <string name="about_link_email">FishyApp@mail.ru</string>
     <string name="about_source">Código fuente:</string>
     <string name="about_link_github">GitHub</string>
     <string name="about_support_developer">Apoyar al desarrollador:</string>
@@ -49,6 +49,7 @@
     <string name="save">Guardar</string>
     <string name="confirm">Sí</string>
     <string name="no">No</string>
+    <string name="cancel_planning_title">¿Cancelar la planificación?</string>
     <string name="create">Crear</string>
     <string name="edit">Editar</string>
     <string name="add">Añadir</string>

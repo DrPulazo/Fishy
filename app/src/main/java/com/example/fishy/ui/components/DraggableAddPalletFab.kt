@@ -30,12 +30,14 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.example.fishy.R
+import com.example.fishy.ui.ErrorFeedback
 import com.example.fishy.ui.theme.FishyAccent
 import kotlin.math.roundToInt
 
@@ -53,6 +55,7 @@ fun DraggableAddPalletFab(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
     val density = LocalDensity.current
     val haloPx = with(density) { HaloSize.toPx() }
     val marginPx = with(density) { EdgeMargin.toPx() }
@@ -96,6 +99,7 @@ fun DraggableAddPalletFab(
                 .alpha(if (sized) 1f else 0f)
                 .pointerInput(maxX, maxY, defaultX, defaultY, userDragged) {
                     detectDragGesturesAfterLongPress(
+                        onDragStart = { ErrorFeedback.vibrate(context) },
                         onDrag = { change, dragAmount ->
                             change.consume()
                             if (!userDragged) {

@@ -20,10 +20,10 @@ enum class AppLanguage(val tag: String) {
     SYSTEM(""),
     RU("ru"),
     EN("en"),
+    ES("es"),
     ZH("zh"),
     KO("ko"),
-    JA("ja"),
-    ES("es")
+    JA("ja")
 }
 
 data class FishySettings(
