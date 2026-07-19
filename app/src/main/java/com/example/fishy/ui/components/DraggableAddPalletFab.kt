@@ -97,14 +97,25 @@ fun DraggableAddPalletFab(
                 .offset { IntOffset(posX.roundToInt(), posY.roundToInt()) }
                 .size(HaloSize)
                 .alpha(if (sized) 1f else 0f)
-                .pointerInput(maxX, maxY, defaultX, defaultY, userDragged) {
+                .pointerInput(maxX, maxY, marginPx) {
+                    val startX = (maxX - marginPx).coerceIn(0f, maxX)
+                    val startY = (maxY / 2f).coerceIn(0f, maxY)
                     detectDragGesturesAfterLongPress(
-                        onDragStart = { ErrorFeedback.vibrate(context) },
+                        onDragStart = {
+                            ErrorFeedback.vibrate(context)
+                            // Seed before first move; do not key pointerInput on userDragged —
+                            // flipping it mid-gesture would cancel the current drag.
+                            if (!userDragged) {
+                                savedX = startX
+                                savedY = startY
+                                userDragged = true
+                            }
+                        },
                         onDrag = { change, dragAmount ->
                             change.consume()
                             if (!userDragged) {
-                                savedX = defaultX
-                                savedY = defaultY
+                                savedX = startX
+                                savedY = startY
                                 userDragged = true
                             }
                             savedX = (savedX + dragAmount.x).coerceIn(0f, maxX)

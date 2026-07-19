@@ -884,8 +884,6 @@ fun ShipmentScreen(
                     }
                 }
             }
-
-            item { Spacer(modifier = Modifier.height(72.dp)) }
             }
 
             if (settings.floatingFabEnabled) {
