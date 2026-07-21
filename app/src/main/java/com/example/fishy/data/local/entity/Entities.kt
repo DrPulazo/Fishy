@@ -53,7 +53,9 @@ data class ChecklistItemEntity(
 data class DictionaryEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val type: String,
-    val value: String
+    val value: String,
+    /** Last time this value was used in a shipment / added; newest first in dropdowns. */
+    val lastUsedAtMillis: Long = 0L
 )
 
 @Entity(tableName = "shipment_events")

@@ -325,17 +325,23 @@ class NotificationAlarmReceiver : BroadcastReceiver() {
             ChecklistStatus.EMPTY -> context.getString(R.string.notif_checklist_empty)
         }
         val customerLabel = customer.ifBlank { context.getString(R.string.notif_customer_unknown) }
-        val bigText = """
-            ${context.getString(R.string.notif_big_time, timeText)}
-            
-            ⚓ ${context.getString(R.string.port)}: $portText
-            📅 ${context.getString(R.string.schedule_date_field)}: $dateStr
-            🕐 ${context.getString(R.string.schedule_time_field)}: ${shipment.scheduledTime}
-            💼 ${context.getString(R.string.customer)}: $customerLabel
-            $checklistEmoji $checklistText
-        """.trimIndent()
+        val bigText = buildString {
+            if (!timeText.isNullOrBlank()) {
+                appendLine(timeText)
+                appendLine()
+            }
+            appendLine("⚓ ${context.getString(R.string.port)}: $portText")
+            appendLine("📅 ${context.getString(R.string.schedule_date_field)}: $dateStr")
+            appendLine("🕐 ${context.getString(R.string.schedule_time_field)}: ${shipment.scheduledTime}")
+            appendLine("💼 ${context.getString(R.string.customer)}: $customerLabel")
+            append("$checklistEmoji $checklistText")
+        }
         return ShipmentNotifBody(
-            contentLine = context.getString(R.string.notif_content_line, timeText, portText),
+            contentLine = if (timeText.isNullOrBlank()) {
+                portText
+            } else {
+                context.getString(R.string.notif_content_line, timeText, portText)
+            },
             bigText = bigText
         )
     }
@@ -359,19 +365,70 @@ class NotificationAlarmReceiver : BroadcastReceiver() {
         return shipment.port.ifBlank { payload?.port.orEmpty() }.ifBlank { unknown }
     }
 
-    private fun formatTimeUntil(context: Context, shipment: ScheduledShipmentEntity): String {
+    private fun formatTimeUntil(context: Context, shipment: ScheduledShipmentEntity): String? {
         val startAt = NotificationScheduler.scheduledStartMillis(shipment)
         val timeUntil = startAt - System.currentTimeMillis()
-        if (timeUntil <= 0) return context.getString(R.string.notif_time_now)
-        val days = TimeUnit.MILLISECONDS.toDays(timeUntil)
-        val hours = TimeUnit.MILLISECONDS.toHours(timeUntil) % 24
-        val minutes = TimeUnit.MILLISECONDS.toMinutes(timeUntil) % 60
-        return when {
-            days > 0 -> context.getString(R.string.notif_time_days, days.toInt(), hours.toInt())
-            hours > 0 -> context.getString(R.string.notif_time_hours, hours.toInt(), minutes.toInt())
-            minutes > 0 -> context.getString(R.string.notif_time_minutes, minutes.toInt())
-            else -> context.getString(R.string.notif_time_now)
+        if (timeUntil <= 0) return null
+        val totalMinutes = TimeUnit.MILLISECONDS.toMinutes(timeUntil)
+        val roundedMinutes = ((totalMinutes + 2) / 5) * 5
+        if (roundedMinutes <= 0) return null
+        val days = roundedMinutes / (60 * 24)
+        val hours = (roundedMinutes / 60) % 24
+        val minutes = roundedMinutes % 60
+        val locale = context.resources.configuration.locales[0]
+        return if (locale.language == "ru") {
+            when {
+                days > 0 -> {
+                    val dayPart = ruCountWord(days.toInt(), "день", "дня", "дней")
+                    if (hours > 0) {
+                        val hourPart = ruCountWord(hours.toInt(), "час", "часа", "часов")
+                        "До погрузки $dayPart $hourPart"
+                    } else {
+                        "До погрузки $dayPart"
+                    }
+                }
+                hours > 0 -> "До погрузки ${ruCountWord(hours.toInt(), "час", "часа", "часов")}"
+                minutes > 0 -> "До погрузки ${ruMinutesAccusative(minutes.toInt())}"
+                else -> null
+            }
+        } else {
+            when {
+                days > 0 -> {
+                    if (hours > 0) {
+                        context.getString(R.string.notif_until_days_hours, days.toInt(), hours.toInt())
+                    } else {
+                        context.getString(R.string.notif_until_days, days.toInt())
+                    }
+                }
+                hours > 0 -> context.getString(R.string.notif_until_hours, hours.toInt())
+                minutes > 0 -> context.getString(R.string.notif_until_minutes, minutes.toInt())
+                else -> null
+            }
         }
+    }
+
+    private fun ruCountWord(n: Int, one: String, few: String, many: String): String {
+        val mod100 = kotlin.math.abs(n) % 100
+        val mod10 = kotlin.math.abs(n) % 10
+        val word = when {
+            mod100 in 11..14 -> many
+            mod10 == 1 -> one
+            mod10 in 2..4 -> few
+            else -> many
+        }
+        return "$n $word"
+    }
+
+    private fun ruMinutesAccusative(n: Int): String {
+        val mod100 = kotlin.math.abs(n) % 100
+        val mod10 = kotlin.math.abs(n) % 10
+        val word = when {
+            mod100 in 11..14 -> "минут"
+            mod10 == 1 -> "минуту"
+            mod10 in 2..4 -> "минуты"
+            else -> "минут"
+        }
+        return "$n $word"
     }
 
     private fun checklistStatus(items: List<ChecklistItemEntity>): ChecklistStatus {

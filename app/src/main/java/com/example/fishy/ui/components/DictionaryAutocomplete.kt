@@ -30,7 +30,8 @@ fun DictionaryAutocomplete(
     onValueChange: (String) -> Unit,
     modifier: Modifier = Modifier,
     dictionaryType: DictionaryType? = null,
-    onAddToDictionary: ((DictionaryType, String) -> Unit)? = null
+    onAddToDictionary: ((DictionaryType, String) -> Unit)? = null,
+    isError: Boolean = false
 ) {
     var expanded by remember { mutableStateOf(false) }
     val filtered = remember(value, suggestions) {
@@ -70,6 +71,7 @@ fun DictionaryAutocomplete(
                 .menuAnchor()
                 .fillMaxWidth(),
             keyboardOptions = FishySentenceKeyboardOptions,
+            isError = isError,
             trailingIcon = {
                 Row {
                     if (showAddButton) {

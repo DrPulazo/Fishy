@@ -9,9 +9,11 @@ import com.example.fishy.data.serialization.FishyJson
 import com.example.fishy.data.settings.FishySettings
 import com.example.fishy.domain.calc.ShipmentCalculator
 import com.example.fishy.domain.format.NumberFormatters
+import com.example.fishy.domain.format.QuantityFormatters
 import com.example.fishy.domain.model.BatchLimit
 import com.example.fishy.domain.model.ChecklistTask
 import com.example.fishy.domain.model.DictionaryType
+import com.example.fishy.domain.model.mergeShipmentChecklist
 import com.example.fishy.domain.model.Pallet
 import com.example.fishy.domain.model.PortGroup
 import com.example.fishy.domain.model.Product
@@ -36,6 +38,10 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
 
 sealed interface ShipmentUiEvent {
     data class Toast(val message: String, val isError: Boolean = false) : ShipmentUiEvent
@@ -69,6 +75,13 @@ class ShipmentViewModel(application: Application) : AndroidViewModel(application
 
     private val confirmedGuards = mutableSetOf<String>()
     private var autoSaveJob: Job? = null
+    private var manualSaveJob: Job? = null
+    private var unknownBatchWarnJob: Job? = null
+    /** productId|batchKey already toasted while unknown — avoid spam. */
+    private val unknownBatchWarnedKeys = mutableSetOf<String>()
+    private val draftSaveMutex = Mutex()
+    private val completing = AtomicBoolean(false)
+    private val saveGeneration = AtomicInteger(0)
     private val placesLogJobs = mutableMapOf<Long, Job>()
     private val pendingPlacesLogs = mutableMapOf<Long, PendingPlacesLog>()
     private val forecastJobs = mutableMapOf<Long, Job>()
@@ -77,6 +90,8 @@ class ShipmentViewModel(application: Application) : AndroidViewModel(application
     private val forecastAppliedSignature = mutableMapOf<Long, String>()
     /** Encoded payload after init; autosave skipped while unchanged. Null = always dirty (e.g. from scheduler). */
     private var baselinePayloadJson: String? = null
+    /** Scheduler row to mark completed once a draft exists or shipment is archived. */
+    private var scheduledSourceId: Long? = null
 
     companion object {
         private const val FORECAST_DEBOUNCE_MS = 2_500L
@@ -88,8 +103,8 @@ class ShipmentViewModel(application: Application) : AndroidViewModel(application
         val palletId: Long,
         val palletNumber: Int,
         val productName: String,
-        val oldPlaces: Int,
-        val newPlaces: Int
+        val oldPlaces: Double,
+        val newPlaces: Double
     )
 
     val settings: StateFlow<FishySettings> = settingsRepo.settings.stateIn(
@@ -152,6 +167,7 @@ class ShipmentViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun startNew(mode: ShipmentMode) {
+        scheduledSourceId = null
         autoSaveJob?.cancel()
         autoSaveJob = null
         forecastJobs.values.forEach { it.cancel() }
@@ -190,6 +206,7 @@ class ShipmentViewModel(application: Application) : AndroidViewModel(application
     fun loadDraft(id: Long) {
         viewModelScope.launch {
             val entity = repo.getShipment(id) ?: return@launch
+            scheduledSourceId = null
             autoSaveJob?.cancel()
             _draftId.value = id
             _sessionKey.value = "draft_$id"
@@ -213,33 +230,79 @@ class ShipmentViewModel(application: Application) : AndroidViewModel(application
                     scheduled.vessel
                 )
             )
+            val incompletePrep = repo.getChecklist(scheduledId)
+                .filter { !it.isCompleted }
+                .map { ChecklistTask(title = it.title, isCompleted = false) }
             val payload = base.copy(
                 createdAtMillis = System.currentTimeMillis(),
                 completedAtMillis = null,
                 editedReportText = null,
                 batchWarnThreshold = settings.value.defaultBatchWarnThreshold,
-                checklistEnabled = true
+                checklistEnabled = true,
+                checklist = mergeShipmentChecklist(base.checklist, incompletePrep)
             )
             autoSaveJob?.cancel()
             _draftId.value = null
+            scheduledSourceId = scheduledId
             _sessionKey.value = "from_sched_$scheduledId"
             _payload.value = payload
-            // Always allow autosave: schedule entry is already marked completed.
             baselinePayloadJson = null
-            repo.markScheduledCompleted(scheduledId)
-            FishyApp.instance.notificationScheduler.cancel(scheduledId)
             repo.log(
                 _sessionKey.value,
                 ShipmentEventType.STARTED,
                 app.getString(R.string.history_msg_from_scheduler, scheduledId)
             )
-            scheduleAutoSave()
+            if (payload.hasUserContent()) {
+                saveDraftInternal(force = true)
+                finishScheduledSource()
+            } else {
+                scheduleAutoSave()
+            }
         }
+    }
+
+    private suspend fun finishScheduledSource() {
+        val id = scheduledSourceId ?: return
+        repo.markScheduledCompleted(id)
+        FishyApp.instance.notificationScheduler.cancel(id)
+        scheduledSourceId = null
     }
 
     private fun update(block: (ShipmentPayload) -> ShipmentPayload) {
         _payload.update(block)
         scheduleAutoSave()
+        scheduleUnknownBatchWarn()
+    }
+
+    private fun scheduleUnknownBatchWarn() {
+        unknownBatchWarnJob?.cancel()
+        unknownBatchWarnJob = viewModelScope.launch {
+            delay(500)
+            val p = _payload.value
+            if (!p.batchControlEnabled || p.batchLimits.isEmpty()) {
+                unknownBatchWarnedKeys.clear()
+                return@launch
+            }
+            val unknown = ShipmentCalculator.allProducts(p)
+                .filter { ShipmentCalculator.isUnknownBatch(it, p) }
+            val activeKeys = unknown.map {
+                "${it.id}|${ShipmentCalculator.batchKey(it)}"
+            }.toSet()
+            unknownBatchWarnedKeys.retainAll(activeKeys)
+            val newlyUnknown = unknown.firstOrNull { product ->
+                val key = "${product.id}|${ShipmentCalculator.batchKey(product)}"
+                key !in unknownBatchWarnedKeys
+            } ?: return@launch
+            val warnKey = "${newlyUnknown.id}|${ShipmentCalculator.batchKey(newlyUnknown)}"
+            unknownBatchWarnedKeys += warnKey
+            vibrateShort()
+            _events.emit(
+                ShipmentUiEvent.Toast(
+                    app.getString(R.string.batch_unknown),
+                    isError = true
+                )
+            )
+        }
     }
 
     private fun isDirty(): Boolean {
@@ -248,6 +311,7 @@ class ShipmentViewModel(application: Application) : AndroidViewModel(application
     }
 
     private fun scheduleAutoSave() {
+        if (completing.get()) return
         autoSaveJob?.cancel()
         autoSaveJob = viewModelScope.launch {
             delay(3000)
@@ -256,40 +320,49 @@ class ShipmentViewModel(application: Application) : AndroidViewModel(application
     }
 
     private suspend fun saveDraftInternal(force: Boolean = false) {
-        val current = _payload.value
-        if (!current.hasUserContent()) {
-            val existingId = _draftId.value
-            if (existingId != null) {
-                repo.deleteShipment(existingId)
-                _draftId.value = null
-                baselinePayloadJson = FishyJson.encodePayload(current)
+        if (completing.get()) return
+        val gen = saveGeneration.get()
+        draftSaveMutex.withLock {
+            if (completing.get() || gen != saveGeneration.get()) return
+            val current = _payload.value
+            if (!current.hasUserContent()) {
+                val existingId = _draftId.value
+                if (existingId != null) {
+                    repo.deleteShipment(existingId)
+                    _draftId.value = null
+                    baselinePayloadJson = FishyJson.encodePayload(current)
+                }
+                return
             }
-            return
+            if (!force && !isDirty()) return
+            if (completing.get() || gen != saveGeneration.get()) return
+            val previousKey = _sessionKey.value
+            val id = repo.saveDraft(
+                _draftId.value,
+                getApplication<Application>().getString(R.string.draft_default),
+                current
+            )
+            if (completing.get() || gen != saveGeneration.get()) return
+            _draftId.value = id
+            val newKey = "draft_$id"
+            if (previousKey != newKey) {
+                repo.rekeyEvents(previousKey, newKey)
+                _sessionKey.value = newKey
+            }
+            repo.rememberDictionaryValues(current)
+            baselinePayloadJson = FishyJson.encodePayload(current)
         }
-        if (!force && !isDirty()) return
-        val previousKey = _sessionKey.value
-        val id = repo.saveDraft(
-            _draftId.value,
-            getApplication<Application>().getString(R.string.draft_default),
-            current
-        )
-        _draftId.value = id
-        val newKey = "draft_$id"
-        if (previousKey != newKey) {
-            repo.rekeyEvents(previousKey, newKey)
-            _sessionKey.value = newKey
-        }
-        repo.rememberDictionaryValues(current)
-        baselinePayloadJson = FishyJson.encodePayload(current)
     }
 
     fun saveDraftManual() {
+        if (completing.get()) return
         flushPendingPlacesLog()
         autoSaveJob?.cancel()
-        viewModelScope.launch {
+        manualSaveJob?.cancel()
+        manualSaveJob = viewModelScope.launch {
             if (!_payload.value.hasUserContent()) return@launch
             saveDraftInternal(force = true)
-            if (_draftId.value == null) return@launch
+            if (completing.get() || _draftId.value == null) return@launch
             repo.log(
                 _sessionKey.value,
                 ShipmentEventType.DRAFT_SAVED,
@@ -301,9 +374,22 @@ class ShipmentViewModel(application: Application) : AndroidViewModel(application
 
     /** Flush pending autosave immediately (e.g. before opening history). */
     fun flushDraft() {
+        if (completing.get()) return
         flushPendingPlacesLog()
         autoSaveJob?.cancel()
-        viewModelScope.launch { saveDraftInternal(force = false) }
+        manualSaveJob?.cancel()
+        manualSaveJob = viewModelScope.launch { saveDraftInternal(force = false) }
+    }
+
+    /** Await pending autosave before leaving the screen (back navigation). */
+    suspend fun flushDraftAndAwait() {
+        if (completing.get()) return
+        flushPendingPlacesLogNow()
+        autoSaveJob?.cancel()
+        autoSaveJob = null
+        manualSaveJob?.cancel()
+        manualSaveJob = null
+        saveDraftInternal(force = false)
     }
 
     fun addToDictionary(type: DictionaryType, value: String) {
@@ -319,23 +405,35 @@ class ShipmentViewModel(application: Application) : AndroidViewModel(application
 
     fun complete() {
         viewModelScope.launch {
-            flushPendingPlacesLogNow()
-            autoSaveJob?.cancel()
-            autoSaveJob = null
-            forecastJobs.values.forEach { it.cancel() }
-            forecastJobs.clear()
-            val previousKey = _sessionKey.value
-            val draftIdBefore = _draftId.value
-            val id = repo.completeShipment(draftIdBefore, _payload.value)
-            repo.rekeyEvents(previousKey, id.toString())
-            _sessionKey.value = id.toString()
-            _draftId.value = null
-            repo.log(
-                id.toString(),
-                ShipmentEventType.COMPLETED,
-                app.getString(R.string.history_msg_completed)
-            )
-            _events.emit(ShipmentUiEvent.NavigateArchiveDetail(id))
+            completing.set(true)
+            saveGeneration.incrementAndGet()
+            try {
+                flushPendingPlacesLogNow()
+                autoSaveJob?.cancel()
+                autoSaveJob = null
+                manualSaveJob?.cancel()
+                manualSaveJob = null
+                forecastJobs.values.forEach { it.cancel() }
+                forecastJobs.clear()
+                // Wait out any in-flight save before flipping the row to archive.
+                draftSaveMutex.withLock { /* barrier */ }
+                finishScheduledSource()
+                val previousKey = _sessionKey.value
+                val draftIdBefore = _draftId.value
+                val id = repo.completeShipment(draftIdBefore, _payload.value)
+                repo.rekeyEvents(previousKey, id.toString())
+                _sessionKey.value = id.toString()
+                _draftId.value = null
+                repo.log(
+                    id.toString(),
+                    ShipmentEventType.COMPLETED,
+                    app.getString(R.string.history_msg_completed)
+                )
+                _events.emit(ShipmentUiEvent.NavigateArchiveDetail(id))
+            } catch (t: Throwable) {
+                completing.set(false)
+                throw t
+            }
         }
     }
 
@@ -363,7 +461,11 @@ class ShipmentViewModel(application: Application) : AndroidViewModel(application
     fun setChecklistEnabled(v: Boolean) = update {
         it.copy(checklistEnabled = v)
     }
-    fun setBatchControl(v: Boolean) = update { it.copy(batchControlEnabled = v) }
+    fun setBatchControl(v: Boolean) = update {
+        if (!v) unknownBatchWarnedKeys.clear()
+        it.copy(batchControlEnabled = v)
+    }
+    fun setGrossWeightEnabled(v: Boolean) = update { it.copy(grossWeightEnabled = v) }
     fun setBatchWarn(v: Int) = update { it.copy(batchWarnThreshold = v) }
 
     fun updateTransport(transform: (Transport) -> Transport) = update {
@@ -457,7 +559,7 @@ class ShipmentViewModel(application: Application) : AndroidViewModel(application
         mutateProductPallet(productId) { product ->
             val real = ShipmentCalculator.realPallets(product)
             val nextNum = real.size + 1
-            val newPallet = Pallet(palletNumber = nextNum, places = 0)
+            val newPallet = Pallet(palletNumber = nextNum, places = 0.0)
             newPalletId = newPallet.id
             newPalletNumber = nextNum
             // Manual add takes over — drop placeholders, do not auto-forecast.
@@ -479,7 +581,7 @@ class ShipmentViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
-    fun updatePalletPlaces(productId: Long, palletId: Long, places: Int) {
+    fun updatePalletPlaces(productId: Long, palletId: Long, places: Double) {
         val settings = settings.value
         val apply = {
             var shouldSchedule = false
@@ -494,13 +596,13 @@ class ShipmentViewModel(application: Application) : AndroidViewModel(application
                             ShipmentCalculator.batchKey(it) == key
                         }
                         val used = ShipmentCalculator.placesForProduct(product, _payload.value.doubleControlEnabled)
-                        val avail = (limit?.plannedPlaces ?: 0) - used + oldPlaces
+                        val avail = (limit?.plannedPlaces ?: 0.0) - used + oldPlaces
                         _events.emit(
                             ShipmentUiEvent.Toast(
                                 app.getString(
                                     R.string.batch_limit_exceeded,
                                     product.batch.ifBlank { product.name }.ifBlank { "—" },
-                                    avail.coerceAtLeast(0)
+                                    QuantityFormatters.formatCount(avail.coerceAtLeast(0.0))
                                 ),
                                 isError = true
                             )
@@ -563,17 +665,20 @@ class ShipmentViewModel(application: Application) : AndroidViewModel(application
         if (settings.inputGuardEnabled &&
             settings.maxPlacesPerPallet > 0 &&
             places > settings.maxPlacesPerPallet &&
-            "places" !in confirmedGuards
+            guardKey("places", "$productId:$palletId") !in confirmedGuards
         ) {
             viewModelScope.launch {
                 _events.emit(
-                    ShipmentUiEvent.GuardConfirm("places", places.toString()) {
-                        confirmedGuards += "places"
+                    ShipmentUiEvent.GuardConfirm("places", QuantityFormatters.formatCount(places)) {
+                        confirmedGuards += guardKey("places", "$productId:$palletId")
                         viewModelScope.launch {
                             repo.log(
                                 _sessionKey.value,
                                 ShipmentEventType.INPUT_GUARD_CONFIRMED,
-                                app.getString(R.string.history_msg_guard_places, places)
+                                app.getString(
+                                    R.string.history_msg_guard_places,
+                                    QuantityFormatters.formatCount(places)
+                                )
                             )
                         }
                         apply()
@@ -607,7 +712,7 @@ class ShipmentViewModel(application: Application) : AndroidViewModel(application
                 msgRes,
                 pallet.palletNumber,
                 productLabel(product.name),
-                pallet.places
+                QuantityFormatters.formatCount(pallet.places)
             )
         )
     }
@@ -618,13 +723,13 @@ class ShipmentViewModel(application: Application) : AndroidViewModel(application
         flushPendingPlacesLog()
         var removedPlaceholder = false
         var removedNumber = 0
-        var removedPlaces = 0
+        var removedPlaces = 0.0
         val productName = findProduct(productId)?.name.orEmpty()
         mutateProductPallet(productId) { product ->
             val removed = product.pallets.find { it.id == palletId }
             removedPlaceholder = removed?.isPlaceholder == true
             removedNumber = removed?.palletNumber ?: 0
-            removedPlaces = removed?.places ?: 0
+            removedPlaces = removed?.places ?: 0.0
             var num = 1
             val remaining = product.pallets
                 .filter { it.id != palletId }
@@ -642,7 +747,7 @@ class ShipmentViewModel(application: Application) : AndroidViewModel(application
                     R.string.history_msg_pallet_deleted,
                     removedNumber,
                     productLabel(productName),
-                    removedPlaces
+                    QuantityFormatters.formatCount(removedPlaces)
                 )
             )
             scheduleForecastIfEligible(productId)
@@ -789,8 +894,12 @@ class ShipmentViewModel(application: Application) : AndroidViewModel(application
         val p = _payload.value
         when (p.mode) {
             ShipmentMode.MONO -> {
-                val product = p.products.lastOrNull() ?: run {
+                val product = preferredFabProduct(p) ?: run {
                     addProduct()
+                    return
+                }
+                if (p.palletForecastEnabled && product.pallets.any { it.isPlaceholder }) {
+                    focusOrAddPallet(product.id)
                     return
                 }
                 if (ShipmentCalculator.remainder(product, p.doubleControlEnabled, false) <= 0 && product.quantity > 0) {
@@ -813,6 +922,18 @@ class ShipmentViewModel(application: Application) : AndroidViewModel(application
                     if (last != null) listOf(last) + vehicles.filter { it.id != lastId } else vehicles
                 } else vehicles
 
+                // Prefer products that still have forecast placeholders — don't jump to next transport.
+                if (p.palletForecastEnabled) {
+                    for (v in ordered) {
+                        val product = v.products.lastOrNull() ?: continue
+                        if (product.pallets.any { it.isPlaceholder }) {
+                            update { it.copy(lastUsedVehicleId = v.id) }
+                            focusOrAddPallet(product.id)
+                            return
+                        }
+                    }
+                }
+
                 for (v in ordered) {
                     val product = v.products.lastOrNull() ?: continue
                     val rem = ShipmentCalculator.remainder(product, p.doubleControlEnabled || v.doubleControlEnabled, false)
@@ -827,14 +948,49 @@ class ShipmentViewModel(application: Application) : AndroidViewModel(application
                 }
             }
             ShipmentMode.MULTI_PORT -> {
-                val product = ShipmentCalculator.allProducts(p).lastOrNull()
+                val product = preferredFabProduct(p)
                 if (product != null) focusOrAddPallet(product.id)
             }
             ShipmentMode.UNLOAD -> {
-                val product = ShipmentCalculator.allProducts(p).lastOrNull()
+                val product = preferredFabProduct(p)
                 if (product != null) focusOrAddPallet(product.id)
             }
         }
+    }
+
+    private fun preferredFabProduct(p: ShipmentPayload): Product? {
+        val products = when (p.mode) {
+            ShipmentMode.MONO -> p.products
+            else -> ShipmentCalculator.allProducts(p)
+        }
+        if (products.isEmpty()) return null
+
+        fun doubleControlFor(product: Product): Boolean = when (p.mode) {
+            ShipmentMode.MONO -> p.doubleControlEnabled
+            ShipmentMode.MULTI_VEHICLE -> p.multiVehicles.find { v ->
+                v.products.any { it.id == product.id }
+            }?.let { v -> p.doubleControlEnabled || v.doubleControlEnabled } ?: p.doubleControlEnabled
+            ShipmentMode.MULTI_PORT -> p.multiPorts.find { g ->
+                g.products.any { it.id == product.id }
+            }?.let { g -> p.doubleControlEnabled || g.doubleControlEnabled } ?: p.doubleControlEnabled
+            ShipmentMode.UNLOAD -> false
+        }
+
+        fun hasPlaceholders(prod: Product) = prod.pallets.any { it.isPlaceholder }
+        fun hasRoom(prod: Product) =
+            prod.quantity == 0 ||
+                ShipmentCalculator.remainder(prod, doubleControlFor(prod), p.mode == ShipmentMode.UNLOAD) > 0
+
+        p.lastUsedProductId?.let { id ->
+            products.find { it.id == id }?.let { prod ->
+                if (p.palletForecastEnabled && hasPlaceholders(prod)) return prod
+                if (hasRoom(prod)) return prod
+            }
+        }
+        if (p.palletForecastEnabled) {
+            products.firstOrNull { hasPlaceholders(it) }?.let { return it }
+        }
+        return products.firstOrNull { hasRoom(it) } ?: products.lastOrNull()
     }
 
     /**
@@ -1046,11 +1202,13 @@ class ShipmentViewModel(application: Application) : AndroidViewModel(application
 
     fun checkPackageWeight(weight: Double, apply: (Double) -> Unit) {
         val s = settings.value
-        if (s.inputGuardEnabled && s.maxPlaceWeightKg > 0 && weight > s.maxPlaceWeightKg && "weight" !in confirmedGuards) {
+        if (s.inputGuardEnabled && s.maxPlaceWeightKg > 0 && weight > s.maxPlaceWeightKg &&
+            guardKey("weight", "global") !in confirmedGuards
+        ) {
             viewModelScope.launch {
                 _events.emit(
                     ShipmentUiEvent.GuardConfirm("weight", weight.toString()) {
-                        confirmedGuards += "weight"
+                        confirmedGuards += guardKey("weight", "global")
                         viewModelScope.launch {
                             repo.log(
                                 _sessionKey.value,
@@ -1065,13 +1223,15 @@ class ShipmentViewModel(application: Application) : AndroidViewModel(application
         } else apply(weight)
     }
 
+    private fun guardKey(field: String, scope: String): String = "$field:$scope"
+
     private fun schedulePlacesLog(
         productId: Long,
         palletId: Long,
         palletNumber: Int,
         productName: String,
-        oldPlaces: Int,
-        newPlaces: Int
+        oldPlaces: Double,
+        newPlaces: Double
     ) {
         val existing = pendingPlacesLogs[palletId]
         pendingPlacesLogs[palletId] = PendingPlacesLog(
@@ -1121,15 +1281,15 @@ class ShipmentViewModel(application: Application) : AndroidViewModel(application
                 R.string.history_msg_pallet_places_changed,
                 pending.palletNumber,
                 productLabel(pending.productName),
-                pending.oldPlaces,
-                pending.newPlaces
+                QuantityFormatters.formatCount(pending.oldPlaces),
+                QuantityFormatters.formatCount(pending.newPlaces)
             )
         } else {
             app.getString(
                 R.string.history_msg_pallet_places,
                 pending.palletNumber,
                 productLabel(pending.productName),
-                pending.newPlaces
+                QuantityFormatters.formatCount(pending.newPlaces)
             )
         }
         repo.log(_sessionKey.value, ShipmentEventType.PALLET_PLACES, message)

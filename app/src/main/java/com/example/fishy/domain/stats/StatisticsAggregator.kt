@@ -179,6 +179,33 @@ object StatisticsAggregator {
         return prevFrom to prevTo
     }
 
+    fun stackedChart(
+        entities: List<ShipmentEntity>,
+        groupBy: StatDimension,
+        splitBy: StatSplit,
+        fromMonthStart: Long,
+        toMonthStart: Long,
+        topGroups: Int = StatisticsBreakdown.DEFAULT_TOP_GROUPS,
+        topSeries: Int = StatisticsBreakdown.DEFAULT_TOP_SERIES,
+        otherSeriesLabel: String = "…",
+        otherGroupLabel: String = "…",
+        portFilter: String = ""
+    ): StackedChartResult = StatisticsBreakdown.buildStackedChart(
+        entities = entities,
+        groupBy = groupBy,
+        splitBy = splitBy,
+        fromMonthStart = fromMonthStart,
+        toMonthStart = toMonthStart,
+        topGroups = topGroups,
+        topSeries = topSeries,
+        otherSeriesLabel = otherSeriesLabel,
+        otherGroupLabel = otherGroupLabel,
+        portFilter = portFilter
+    )
+
+    internal fun monthsInclusivePublic(fromMonthStart: Long, toMonthStart: Long): List<Long> =
+        monthsInclusive(fromMonthStart, toMonthStart)
+
     private fun monthsInclusive(fromMonthStart: Long, toMonthStart: Long): List<Long> {
         val result = mutableListOf<Long>()
         var cursor = fromMonthStart

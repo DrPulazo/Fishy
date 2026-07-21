@@ -1,5 +1,6 @@
 package com.example.fishy.ui.components
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -26,6 +27,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -48,11 +50,15 @@ fun AccordionCard(
     forceExpandToken: Any? = null,
     titleStyle: TextStyle? = null,
     trailing: (@Composable () -> Unit)? = null,
+    onExpandedChange: ((Boolean) -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit
 ) {
     var expanded by rememberSaveable { mutableStateOf(initiallyExpanded) }
     LaunchedEffect(forceExpandToken) {
-        if (forceExpandToken != null) expanded = true
+        if (forceExpandToken != null) {
+            expanded = true
+            onExpandedChange?.invoke(true)
+        }
     }
     val nesting = LocalAccordionNesting.current
     // MD3 tonal containers: white/surface on canvas, then stepped grey insets when nested.
@@ -67,6 +73,11 @@ fun AccordionCard(
         ?: LocalAccordionTitleStyle.current
         ?: MaterialTheme.typography.titleMedium
 
+    fun setExpanded(value: Boolean) {
+        expanded = value
+        onExpandedChange?.invoke(value)
+    }
+
     Card(
         modifier = modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.medium,
@@ -80,7 +91,14 @@ fun AccordionCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column(modifier = Modifier.weight(1f)) {
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable(
+                            role = Role.Button,
+                            onClick = { setExpanded(!expanded) }
+                        )
+                ) {
                     Text(
                         text = title,
                         style = resolvedTitleStyle,
@@ -96,7 +114,7 @@ fun AccordionCard(
                     }
                 }
                 trailing?.invoke()
-                IconButton(onClick = { expanded = !expanded }) {
+                IconButton(onClick = { setExpanded(!expanded) }) {
                     Icon(
                         if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
                         contentDescription = null,

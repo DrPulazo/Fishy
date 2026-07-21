@@ -1,12 +1,21 @@
 package com.example.fishy.ui.navigation
 
+import android.os.Build
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.example.fishy.FishyApp
+import com.example.fishy.data.settings.FishySettings
 import com.example.fishy.domain.model.ShipmentMode
 import com.example.fishy.feature.archive.ArchiveScreen
 import com.example.fishy.feature.archive.ShipmentDetailScreen
@@ -21,6 +30,7 @@ import com.example.fishy.feature.settings.SettingsScreen
 import com.example.fishy.feature.shipment.ShipmentScreen
 import com.example.fishy.feature.statistics.StatisticsScreen
 import com.example.fishy.feature.templates.TemplatesScreen
+import kotlinx.coroutines.launch
 
 @Composable
 fun FishyNavHost(
@@ -28,6 +38,40 @@ fun FishyNavHost(
     startScheduledId: Long? = null,
     onNotificationNavConsumed: () -> Unit = {}
 ) {
+    val context = LocalContext.current
+    val settingsRepo = FishyApp.instance.settingsRepository
+    var settings by remember { mutableStateOf<FishySettings?>(null) }
+    LaunchedEffect(Unit) {
+        settingsRepo.settings.collect { settings = it }
+    }
+    val scope = rememberCoroutineScope()
+    val versionCode = remember {
+        val pm = context.packageManager
+        val pkg = context.packageName
+        @Suppress("DEPRECATION")
+        if (Build.VERSION.SDK_INT >= 28) {
+            pm.getPackageInfo(pkg, 0).longVersionCode.toInt()
+        } else {
+            pm.getPackageInfo(pkg, 0).versionCode
+        }
+    }
+    val loaded = settings
+    if (loaded == null) {
+        return
+    }
+    if (loaded.eulaAcceptedVersion < versionCode) {
+        EulaScreen(
+            onBack = {},
+            requireAccept = true,
+            onAccepted = {
+                scope.launch {
+                    settingsRepo.update { it.copy(eulaAcceptedVersion = versionCode) }
+                }
+            }
+        )
+        return
+    }
+
     val navController = rememberNavController()
 
     LaunchedEffect(openScheduler, startScheduledId) {

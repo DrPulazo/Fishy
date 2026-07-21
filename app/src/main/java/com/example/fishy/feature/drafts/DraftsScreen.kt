@@ -52,6 +52,7 @@ import com.example.fishy.ui.ErrorFeedback
 import com.example.fishy.ui.components.ConfirmDeleteDialog
 import com.example.fishy.ui.components.EmptyListPlaceholder
 import com.example.fishy.ui.components.FishyButton
+import com.example.fishy.ui.components.ListCardActionRow
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -165,7 +166,7 @@ private fun DraftCard(
     onDelete: () -> Unit
 ) {
     val payload = remember(item.payloadJson) {
-        runCatching { FishyJson.decodePayload(item.payloadJson) }.getOrNull()
+        FishyJson.decodePayloadOrNull(item.payloadJson)
     }
     val title = item.customer.ifBlank { stringResource(R.string.no_customer) }
     val ports = payload?.let { ShipmentSummaries.ports(it) }.orEmpty()
@@ -181,10 +182,9 @@ private fun DraftCard(
                 .padding(16.dp)
         ) {
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Top
             ) {
                 Text(
                     title,
@@ -194,46 +194,61 @@ private fun DraftCard(
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis
                 )
-                if (isDuplicated) {
+                Column(horizontalAlignment = Alignment.End) {
                     Text(
-                        stringResource(R.string.draft_duplicated_badge),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f)
+                        modifiedLabel,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                     )
+                    if (isDuplicated) {
+                        Text(
+                            stringResource(R.string.draft_duplicated_badge),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f)
+                        )
+                    }
                 }
             }
-            if (ports.isNotEmpty()) {
-                Text(
-                    stringResource(R.string.port_prefix, ports.joinToString(", ")),
-                    style = MaterialTheme.typography.bodyMedium
-                )
+            Spacer(modifier = Modifier.height(12.dp))
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                if (payload == null) {
+                    Text(
+                        stringResource(R.string.data_corrupted),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                } else {
+                if (ports.isNotEmpty()) {
+                    Text(
+                        stringResource(R.string.port_prefix, ports.joinToString(", ")),
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+                if (transports.isNotEmpty()) {
+                    Text(
+                        stringResource(R.string.transport_prefix, transports.joinToString(", ")),
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+                if (receptions.isNotEmpty()) {
+                    Text(
+                        stringResource(R.string.reception_prefix, receptions.joinToString(", ")),
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+                }
             }
-            if (transports.isNotEmpty()) {
-                Text(
-                    stringResource(R.string.transport_prefix, transports.joinToString(", ")),
-                    style = MaterialTheme.typography.bodyMedium
-                )
-            }
-            if (receptions.isNotEmpty()) {
-                Text(
-                    stringResource(R.string.reception_prefix, receptions.joinToString(", ")),
-                    style = MaterialTheme.typography.bodyMedium
-                )
-            }
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                stringResource(R.string.draft_modified, modifiedLabel),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-            )
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(12.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 FishyButton(
                     onClick = onContinue,
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .padding(end = 4.dp),
                     contentPadding = ButtonDefaults.ButtonWithIconContentPadding
                 ) {
                     Icon(
@@ -250,6 +265,7 @@ private fun DraftCard(
                         overflow = TextOverflow.Ellipsis
                     )
                 }
+
                 IconButton(onClick = onDuplicate) {
                     Icon(
                         Icons.Default.ContentCopy,
@@ -257,27 +273,31 @@ private fun DraftCard(
                         tint = MaterialTheme.colorScheme.primary
                     )
                 }
+
                 FishyButton(
                     onClick = onDelete,
-            colors = ButtonDefaults.buttonColors(
-                containerColor = MaterialTheme.colorScheme.error,
-                contentColor = MaterialTheme.colorScheme.onError
-            ),
-            modifier = Modifier.weight(1f),
-            contentPadding = ButtonDefaults.ButtonWithIconContentPadding
-        ) {
-            Icon(
-                Icons.Default.Delete,
-                contentDescription = null,
-                modifier = Modifier.size(16.dp),
-                tint = MaterialTheme.colorScheme.onError
-            )
-            Spacer(modifier = Modifier.width(4.dp))
-            Text(
-                stringResource(R.string.delete),
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Medium,
-                color = MaterialTheme.colorScheme.onError,
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .padding(start = 4.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.error,
+                        contentColor = MaterialTheme.colorScheme.onError
+                    ),
+                    contentPadding = ButtonDefaults.ButtonWithIconContentPadding
+                ) {
+                    Icon(
+                        Icons.Default.Delete,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                        tint = MaterialTheme.colorScheme.onError
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        stringResource(R.string.delete),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onError,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )

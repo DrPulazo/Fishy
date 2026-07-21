@@ -37,11 +37,14 @@ import androidx.compose.ui.unit.dp
 import com.example.fishy.FishyApp
 import com.example.fishy.R
 import com.example.fishy.data.serialization.FishyJson
+import com.example.fishy.data.settings.FishySettings
 import com.example.fishy.domain.model.ShipmentEventType
 import com.example.fishy.domain.report.ReportGenerator
 import com.example.fishy.domain.report.ReportTemplate
 import com.example.fishy.ui.components.FishyButton
 import com.example.fishy.ui.components.FishySentenceKeyboardOptions
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -51,9 +54,8 @@ fun ReportScreen(
     onBack: () -> Unit
 ) {
     val repo = FishyApp.instance.repository
-    val settings by FishyApp.instance.settingsRepository.settings.collectAsState(
-        initial = com.example.fishy.data.settings.FishySettings()
-    )
+    val settingsRepo = FishyApp.instance.settingsRepository
+    val settings by settingsRepo.settings.collectAsState(initial = FishySettings())
     val scope = rememberCoroutineScope()
     val clipboard = LocalClipboardManager.current
     val context = LocalContext.current
@@ -64,18 +66,29 @@ fun ReportScreen(
     var editText by remember { mutableStateOf("") }
     var displayText by remember { mutableStateOf("") }
 
-    LaunchedEffect(shipmentId) {
+    // Wait for DataStore (not collectAsState initial defaults) so auto-spaces aren't flaky.
+    LaunchedEffect(
+        shipmentId,
+        settings.effectiveAutoSpaceContainers,
+        settings.effectiveAutoSpaceVehicles,
+        settings.effectiveThousandsSeparator
+    ) {
+        val s = settingsRepo.settings.first()
         val entity = repo.getShipment(shipmentId) ?: return@LaunchedEffect
-        payload = FishyJson.decodePayload(entity.payloadJson)
+        val loaded = FishyJson.decodePayload(entity.payloadJson)
         val tpl = ReportTemplate.defaultBody()
-        templateBody = tpl
-        displayText = ReportGenerator.generate(
-            payload = payload,
+        val text = ReportGenerator.generate(
+            payload = loaded,
             templateBody = tpl,
-            formatContainerSpaces = settings.effectiveAutoSpaceContainers,
-            formatVehicleSpaces = settings.effectiveAutoSpaceVehicles
+            formatContainerSpaces = s.effectiveAutoSpaceContainers,
+            formatVehicleSpaces = s.effectiveAutoSpaceVehicles,
+            thousandsSeparator = s.effectiveThousandsSeparator
         )
-        editText = displayText
+        ensureActive()
+        payload = loaded
+        templateBody = tpl
+        displayText = text
+        editText = text
     }
 
     Scaffold(
@@ -136,20 +149,23 @@ fun ReportScreen(
                     }
                 }) { Text(stringResource(R.string.save)) }
                 TextButton(onClick = {
-                    val regenerated = ReportGenerator.generate(
-                        payload = payload.copy(editedReportText = null),
-                        templateBody = templateBody,
-                        formatContainerSpaces = settings.effectiveAutoSpaceContainers,
-                        formatVehicleSpaces = settings.effectiveAutoSpaceVehicles
-                    )
-                    editText = regenerated
-                    displayText = regenerated
                     scope.launch {
+                        val s = settingsRepo.settings.first()
+                        val regenerated = ReportGenerator.generate(
+                            payload = payload.copy(editedReportText = null),
+                            templateBody = templateBody,
+                            formatContainerSpaces = s.effectiveAutoSpaceContainers,
+                            formatVehicleSpaces = s.effectiveAutoSpaceVehicles,
+                            thousandsSeparator = s.effectiveThousandsSeparator
+                        )
+                        ensureActive()
+                        editText = regenerated
+                        displayText = regenerated
                         val updated = payload.copy(editedReportText = null)
                         repo.updateArchivedShipment(shipmentId, updated)
                         payload = updated
+                        editing = false
                     }
-                    editing = false
                 }) { Text(stringResource(R.string.reset_report)) }
             } else {
                 SelectionContainer(

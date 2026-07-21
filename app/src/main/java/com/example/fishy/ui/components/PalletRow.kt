@@ -50,6 +50,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.example.fishy.R
 import com.example.fishy.domain.calc.ShipmentCalculator
+import com.example.fishy.domain.format.QuantityFormatters
 import com.example.fishy.domain.model.Pallet
 import com.example.fishy.ui.theme.forecastPlacesColor
 import com.example.fishy.ui.theme.forecastRowBackground
@@ -138,15 +139,20 @@ fun PalletTableHeader(doubleControl: Boolean) {
 fun PalletRow(
     pallet: Pallet,
     doubleControl: Boolean,
-    onPlacesChange: (Int) -> Unit,
+    onPlacesChange: (Double) -> Unit,
     onToggleImported: () -> Unit,
     onDelete: () -> Unit,
     requestFocus: Boolean = false,
-    onFocusHandled: () -> Unit = {}
+    onFocusHandled: () -> Unit = {},
+    thousandsSeparator: Boolean = false
 ) {
     var showDelete by remember { mutableStateOf(false) }
     var clearingPlaceholder by remember(pallet.id) { mutableStateOf(false) }
     var draftPlaces by remember(pallet.id) { mutableStateOf("") }
+    var placesFocused by remember { mutableStateOf(false) }
+    var placesText by remember(pallet.id) {
+        mutableStateOf(QuantityFormatters.formatWeightInput(pallet.places, thousandsSeparator))
+    }
     val interactionSource = remember { MutableInteractionSource() }
     val focused by interactionSource.collectIsFocusedAsState()
     val focusRequester = remember { FocusRequester() }
@@ -167,16 +173,22 @@ fun PalletRow(
         if (focused && pallet.isPlaceholder && !clearingPlaceholder) {
             clearingPlaceholder = true
             draftPlaces = ""
+            placesText = ""
         }
         if (!focused && clearingPlaceholder && draftPlaces.isEmpty()) {
             clearingPlaceholder = false
         }
     }
 
-    val placesText = when {
+    LaunchedEffect(pallet.places, placesFocused, clearingPlaceholder, thousandsSeparator) {
+        if (!placesFocused && !(pallet.isPlaceholder && clearingPlaceholder)) {
+            placesText = QuantityFormatters.formatWeightInput(pallet.places, thousandsSeparator)
+        }
+    }
+
+    val displayPlacesText = when {
         pallet.isPlaceholder && clearingPlaceholder -> draftPlaces
-        pallet.places == 0 -> ""
-        else -> pallet.places.toString()
+        else -> placesText
     }
     val placesTextColor = if (pallet.isPlaceholder && !clearingPlaceholder) {
         forecastPlacesColor()
@@ -238,25 +250,29 @@ fun PalletRow(
             val placesW = placesFieldWidth()
             val placesField: @Composable (Modifier: Modifier) -> Unit = { fieldModifier ->
                 OutlinedTextField(
-                    value = placesText,
+                    value = displayPlacesText,
                     onValueChange = { value ->
-                        val digits = value.filter { it.isDigit() }.take(4)
+                        val sanitized = QuantityFormatters.sanitizeDecimalInput(value).take(8)
                         if (pallet.isPlaceholder) {
                             clearingPlaceholder = true
-                            draftPlaces = digits
+                            draftPlaces = sanitized
                         }
-                        onPlacesChange(if (digits.isEmpty()) 0 else digits.toIntOrNull() ?: 0)
+                        placesText = sanitized
+                        val parsed = QuantityFormatters.parseDecimalInput(sanitized)
+                        if (parsed != null) onPlacesChange(parsed)
                     },
                     modifier = fieldModifier
                         .focusRequester(focusRequester)
                         .onFocusChanged { state ->
+                            placesFocused = state.isFocused
                             if (state.isFocused && pallet.isPlaceholder) {
                                 clearingPlaceholder = true
                                 draftPlaces = ""
+                                placesText = ""
                             }
                         },
                     interactionSource = interactionSource,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     singleLine = true,
                     textStyle = MaterialTheme.typography.bodySmall.copy(
                         textAlign = TextAlign.Center,

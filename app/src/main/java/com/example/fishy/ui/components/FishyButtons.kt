@@ -4,6 +4,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonColors
@@ -125,10 +126,8 @@ fun FishyOutlinedButton(
 fun FishyFloatingActionButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    containerColor: Color = run {
-        if (isLightTheme()) FishyAccent else FloatingActionButtonDefaults.containerColor
-    },
-    contentColor: Color = contentColorFor(containerColor),
+    containerColor: Color = FishyAccent,
+    contentColor: Color = Color.White,
     elevation: FloatingActionButtonElevation = FloatingActionButtonDefaults.elevation(),
     interactionSource: MutableInteractionSource? = null,
     content: @Composable () -> Unit
@@ -136,7 +135,7 @@ fun FishyFloatingActionButton(
     FloatingActionButton(
         onClick = onClick,
         modifier = modifier,
-        shape = FishyButtonShape,
+        shape = CircleShape,
         containerColor = containerColor,
         contentColor = contentColor,
         elevation = elevation,

@@ -21,7 +21,7 @@ class ShipmentDuplicatorTest {
                     batch = "B1",
                     packageWeight = 12.5,
                     quantity = 100,
-                    pallets = listOf(Pallet(places = 40))
+                    pallets = listOf(Pallet(places = 40.0))
                 )
             ),
             notes = "Important note",
@@ -54,7 +54,7 @@ class ShipmentDuplicatorTest {
             multiVehicles = listOf(
                 VehicleGroup(
                     transport = Transport(containerNumber = "ABCD1234567"),
-                    products = listOf(Product(name = "Cod", quantity = 50, pallets = listOf(Pallet(places = 10))))
+                    products = listOf(Product(name = "Cod", quantity = 50, pallets = listOf(Pallet(places = 10.0))))
                 )
             )
         )

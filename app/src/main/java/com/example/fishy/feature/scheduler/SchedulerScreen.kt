@@ -32,6 +32,7 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -67,6 +68,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.DialogProperties
 import androidx.core.content.ContextCompat
 import com.example.fishy.FishyApp
 import com.example.fishy.R
@@ -74,10 +76,17 @@ import com.example.fishy.data.local.entity.ChecklistItemEntity
 import com.example.fishy.data.local.entity.ScheduledShipmentEntity
 import com.example.fishy.data.serialization.FishyJson
 import com.example.fishy.data.settings.FishySettings
+import com.example.fishy.domain.calc.ShipmentCalculator
+import com.example.fishy.domain.format.QuantityFormatters
+import com.example.fishy.domain.model.BatchLimit
+import com.example.fishy.domain.model.ChecklistTask
 import com.example.fishy.domain.model.DictionaryType
+import com.example.fishy.domain.model.ShipmentEventType
 import com.example.fishy.domain.model.ShipmentMode
 import com.example.fishy.notifications.NotificationScheduler
+import com.example.fishy.ui.components.BatchEntryDialog
 import com.example.fishy.ui.components.ConfirmDeleteDialog
+import com.example.fishy.ui.components.CenteredDialogMessage
 import com.example.fishy.ui.components.CenteredDialogTitle
 import com.example.fishy.ui.components.DatePickerField
 import com.example.fishy.ui.components.DialogCancelConfirmActions
@@ -135,13 +144,17 @@ fun SchedulerScreen(
     val repo = app.repository
     val scheduler = app.notificationScheduler
     val items by repo.observeScheduled().collectAsState(initial = emptyList())
+    val duplicatedKeys by repo.observeDuplicatedDraftKeys().collectAsState(initial = emptySet())
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     var showEditor by remember { mutableStateOf(false) }
     var editing by remember { mutableStateOf<ScheduledShipmentEntity?>(null) }
     var checklistFor by remember { mutableStateOf<Long?>(null) }
     var pendingDelete by remember { mutableStateOf<ScheduledShipmentEntity?>(null) }
-    val dateFmt = remember { SimpleDateFormat("dd.MM.yyyy (EEE)", Locale.getDefault()) }
+    var pendingStart by remember { mutableStateOf<ScheduledShipmentEntity?>(null) }
+    val settings by app.settingsRepository.settings.collectAsState(initial = FishySettings())
+    val dateFmt = remember { SimpleDateFormat("dd.MM.yyyy", Locale.getDefault()) }
+    val weekdayFmt = remember { SimpleDateFormat("EEEE", Locale.getDefault()) }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -185,11 +198,7 @@ fun SchedulerScreen(
             val now = System.currentTimeMillis()
             val copy = item.copy(
                 id = 0,
-                title = if (item.title.isBlank()) {
-                    context.getString(R.string.copy_default)
-                } else {
-                    context.getString(R.string.copy_suffix, item.title)
-                },
+                title = item.title,
                 notificationSent = false,
                 startNotificationSent = false,
                 isCompleted = false,
@@ -208,6 +217,7 @@ fun SchedulerScreen(
                     )
                 )
             }
+            repo.log("sched_$newId", ShipmentEventType.DUPLICATED, "sched#${item.id}")
             val saved = copy.copy(id = newId)
             scheduler.schedule(saved)
         }
@@ -268,17 +278,22 @@ fun SchedulerScreen(
                     .padding(16.dp)
             ) {
                 items(items, key = { it.id }) { item ->
+                    val whenDate = Date(item.scheduledDateMillis)
+                    val weekday = weekdayFmt.format(whenDate).replaceFirstChar { ch ->
+                        if (ch.isLowerCase()) ch.titlecase(Locale.getDefault()) else ch.toString()
+                    }
                     val dateLabel =
-                        "${dateFmt.format(Date(item.scheduledDateMillis))}, ${item.scheduledTime}"
+                        "${dateFmt.format(whenDate)} — $weekday, ${item.scheduledTime}"
                     ScheduledShipmentCard(
                         item = item,
                         dateLabel = dateLabel,
+                        isDuplicated = "sched_${item.id}" in duplicatedKeys,
                         onEdit = {
                             editing = item
                             showEditor = true
                         },
                         onOpenChecklist = { checklistFor = item.id },
-                        onStart = { onStartShipment(item.id) },
+                        onStart = { pendingStart = item },
                         onDuplicate = { duplicate(item) },
                         onDelete = { pendingDelete = item }
                     )
@@ -320,12 +335,64 @@ fun SchedulerScreen(
             onDismiss = { pendingDelete = null }
         )
     }
+
+    pendingStart?.let { item ->
+        val whenDate = Date(item.scheduledDateMillis)
+        val weekday = weekdayFmt.format(whenDate).replaceFirstChar { ch ->
+            if (ch.isLowerCase()) ch.titlecase(Locale.getDefault()) else ch.toString()
+        }
+        val dateTimeLine = "${dateFmt.format(whenDate)} — $weekday, ${item.scheduledTime}"
+        val customerLine = item.customer.ifBlank {
+            stringResource(R.string.customer_not_specified)
+        }
+        val payload = decodeScheduledPayload(
+            item.payloadJson,
+            item.mode,
+            item.customer,
+            item.port,
+            item.vessel
+        )
+        val tonnageKg = ShipmentCalculator.totals(payload).targetWeight
+        val tonnageLine = stringResource(
+            R.string.weight_label,
+            QuantityFormatters.formatWeight(tonnageKg, settings.effectiveThousandsSeparator)
+        )
+        AlertDialog(
+            onDismissRequest = { pendingStart = null },
+            containerColor = MaterialTheme.colorScheme.background,
+            title = {
+                CenteredDialogTitle(stringResource(R.string.start_shipment_confirm_title))
+            },
+            text = {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    CenteredDialogMessage(customerLine)
+                    CenteredDialogMessage(dateTimeLine)
+                    CenteredDialogMessage(tonnageLine)
+                }
+            },
+            confirmButton = {
+                DialogCancelConfirmActions(
+                    onCancel = { pendingStart = null },
+                    onConfirm = {
+                        val id = item.id
+                        pendingStart = null
+                        onStartShipment(id)
+                    },
+                    confirmText = stringResource(R.string.start)
+                )
+            }
+        )
+    }
 }
 
 @Composable
 private fun ScheduledShipmentCard(
     item: ScheduledShipmentEntity,
     dateLabel: String,
+    isDuplicated: Boolean,
     onEdit: () -> Unit,
     onOpenChecklist: () -> Unit,
     onStart: () -> Unit,
@@ -357,10 +424,22 @@ private fun ScheduledShipmentCard(
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        item.customer.ifBlank { item.title.ifBlank { stringResource(R.string.untitled) } },
+                        if (item.customer.isBlank()) {
+                            stringResource(R.string.customer_not_specified)
+                        } else {
+                            item.customer
+                        },
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier.padding(top = 4.dp)
+                    )
+                }
+                if (isDuplicated) {
+                    Text(
+                        stringResource(R.string.draft_duplicated_badge),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f),
+                        modifier = Modifier.padding(end = 4.dp)
                     )
                 }
                 Box {
@@ -378,14 +457,6 @@ private fun ScheduledShipmentCard(
                                 onEdit()
                             },
                             leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) }
-                        )
-                        DropdownMenuItem(
-                            text = { Text(stringResource(R.string.start)) },
-                            onClick = {
-                                showMenu = false
-                                onStart()
-                            },
-                            leadingIcon = { Icon(Icons.Default.PlayArrow, contentDescription = null) }
                         )
                         DropdownMenuItem(
                             text = { Text(stringResource(R.string.duplicate)) },
@@ -553,6 +624,10 @@ private fun ScheduledEditorDialog(
     val baselineNotifyAt = remember { notifyAt }
     var pendingDelete by remember { mutableStateOf<PendingSchedulerDelete?>(null) }
     var showDiscardConfirm by remember { mutableStateOf(false) }
+    var showSettingsMenu by remember { mutableStateOf(false) }
+    var batchForceExpandToken by remember { mutableStateOf<Any?>(null) }
+    var batchEditor by remember { mutableStateOf<BatchLimit?>(null) }
+    var showShipmentChecklist by remember { mutableStateOf(false) }
 
     val isDirty =
         FishyJson.encodePayload(payload) != baselinePayloadJson ||
@@ -578,11 +653,87 @@ private fun ScheduledEditorDialog(
 
     AlertDialog(
         onDismissRequest = { requestDismiss() },
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp),
         containerColor = MaterialTheme.colorScheme.background,
         title = {
-            CenteredDialogTitle(
-                stringResource(if (initial.id == 0L) R.string.schedule_new else R.string.schedule_edit)
-            )
+            Box(modifier = Modifier.fillMaxWidth()) {
+                CenteredDialogTitle(
+                    stringResource(if (initial.id == 0L) R.string.schedule_new else R.string.schedule_edit)
+                )
+                Box(modifier = Modifier.align(Alignment.CenterEnd)) {
+                    IconButton(onClick = { showSettingsMenu = true }) {
+                        Icon(
+                            Icons.Default.Settings,
+                            contentDescription = stringResource(R.string.shipment_settings)
+                        )
+                    }
+                    DropdownMenu(
+                        expanded = showSettingsMenu,
+                        onDismissRequest = { showSettingsMenu = false }
+                    ) {
+                        DropdownMenuItem(
+                            text = {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        stringResource(R.string.batch_control),
+                                        modifier = Modifier.weight(1f).padding(end = 12.dp)
+                                    )
+                                    Switch(
+                                        checked = payload.batchControlEnabled,
+                                        onCheckedChange = { enabled ->
+                                            payload = payload.copy(batchControlEnabled = enabled)
+                                            if (enabled) {
+                                                showSettingsMenu = false
+                                                batchForceExpandToken = System.currentTimeMillis()
+                                            }
+                                        },
+                                        colors = fishySwitchColors()
+                                    )
+                                }
+                            },
+                            onClick = {
+                                val enabled = !payload.batchControlEnabled
+                                payload = payload.copy(batchControlEnabled = enabled)
+                                if (enabled) {
+                                    showSettingsMenu = false
+                                    batchForceExpandToken = System.currentTimeMillis()
+                                }
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        stringResource(R.string.gross_weight),
+                                        modifier = Modifier.weight(1f).padding(end = 12.dp)
+                                    )
+                                    Switch(
+                                        checked = payload.grossWeightEnabled,
+                                        onCheckedChange = { enabled ->
+                                            payload = payload.copy(grossWeightEnabled = enabled)
+                                        },
+                                        colors = fishySwitchColors()
+                                    )
+                                }
+                            },
+                            onClick = {
+                                payload = payload.copy(grossWeightEnabled = !payload.grossWeightEnabled)
+                            }
+                        )
+                    }
+                }
+            }
         },
         text = {
             CompositionLocalProvider(
@@ -655,13 +806,31 @@ private fun ScheduledEditorDialog(
                     manufacturers = manufacturers,
                     autoSpaceContainers = settings.effectiveAutoSpaceContainers,
                     autoSpaceVehicles = settings.effectiveAutoSpaceVehicles,
+                    thousandsSeparator = settings.effectiveThousandsSeparator,
                     onAddToDictionary = { type, value ->
                         scope.launch { repo.addDictionary(type, value) }
                     },
                     onRequestDelete = { title, message, onConfirm ->
                         pendingDelete = PendingSchedulerDelete(title, message, onConfirm)
+                    },
+                    batchForceExpandToken = batchForceExpandToken,
+                    onEnterBatches = { batchEditor = BatchLimit() },
+                    onEditBatch = { batchEditor = it },
+                    onDeleteBatch = { limit ->
+                        payload = payload.copy(
+                            batchLimits = payload.batchLimits.filter { it.id != limit.id }
+                        )
                     }
                 )
+
+                FishyButton(
+                    onClick = { showShipmentChecklist = true },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(Icons.Default.Checklist, contentDescription = null)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(stringResource(R.string.checklist))
+                }
 
                 HorizontalDivider()
                 Text(
@@ -793,6 +962,38 @@ private fun ScheduledEditorDialog(
             }
         )
     }
+
+    batchEditor?.let { editing ->
+        BatchEntryDialog(
+            initial = editing,
+            productsDict = productsDict,
+            manufacturers = manufacturers,
+            onDismiss = { batchEditor = null },
+            onSave = { limit ->
+                val exists = payload.batchLimits.any { it.id == limit.id }
+                payload = payload.copy(
+                    batchLimits = if (exists) {
+                        payload.batchLimits.map { if (it.id == limit.id) limit else it }
+                    } else {
+                        payload.batchLimits + limit
+                    }
+                )
+                batchEditor = null
+            },
+            onAddToDictionary = { type, value ->
+                scope.launch { repo.addDictionary(type, value) }
+            },
+            isNew = payload.batchLimits.none { it.id == editing.id }
+        )
+    }
+
+    if (showShipmentChecklist) {
+        PayloadChecklistDialog(
+            checklist = payload.checklist,
+            onChange = { payload = payload.copy(checklist = it) },
+            onDismiss = { showShipmentChecklist = false }
+        )
+    }
 }
 
 private data class PendingSchedulerDelete(
@@ -821,7 +1022,7 @@ private fun ScheduledChecklistDialog(scheduledId: Long, onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = MaterialTheme.colorScheme.background,
-        title = { Text(stringResource(R.string.checklist_shipment)) },
+        title = { CenteredDialogTitle(stringResource(R.string.checklist_prep)) },
         text = {
             Column(
                 modifier = Modifier.heightIn(max = 480.dp),
@@ -939,6 +1140,163 @@ private fun ScheduledChecklistDialog(scheduledId: Long, onDismiss: () -> Unit) {
                                 newTitle = ""
                                 showAdd = false
                             }
+                        }
+                    },
+                    confirmText = stringResource(R.string.save)
+                )
+            }
+        )
+    }
+}
+
+@Composable
+private fun PayloadChecklistDialog(
+    checklist: List<ChecklistTask>,
+    onChange: (List<ChecklistTask>) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var showAdd by remember { mutableStateOf(false) }
+    var newTitle by remember { mutableStateOf("") }
+    val completed = checklist.count { it.isCompleted }
+    val total = checklist.size
+    val percent = if (total > 0) completed * 100 / total else 0
+    val percentColor = when {
+        total > 0 && completed == total -> Success
+        completed > 0 -> Warning
+        total > 0 -> Error
+        else -> PlaceholderGrey
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = MaterialTheme.colorScheme.background,
+        title = { CenteredDialogTitle(stringResource(R.string.checklist_shipment)) },
+        text = {
+            Column(
+                modifier = Modifier.heightIn(max = 480.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surface
+                    )
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(stringResource(R.string.checklist_done_progress, completed, total))
+                        Text(
+                            "$percent%",
+                            color = percentColor,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+
+                if (checklist.isEmpty()) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Icon(
+                            Icons.Default.Checklist,
+                            contentDescription = null,
+                            modifier = Modifier.size(48.dp),
+                            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text(
+                            stringResource(R.string.checklist_empty),
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                        )
+                    }
+                } else {
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        checklist.forEach { task ->
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Checkbox(
+                                    checked = task.isCompleted,
+                                    onCheckedChange = { checked ->
+                                        onChange(
+                                            checklist.map {
+                                                if (it.id == task.id) it.copy(isCompleted = checked) else it
+                                            }
+                                        )
+                                    },
+                                    colors = fishyCheckboxColors()
+                                )
+                                OutlinedTextField(
+                                    value = task.title,
+                                    onValueChange = { title ->
+                                        onChange(
+                                            checklist.map {
+                                                if (it.id == task.id) it.copy(title = title) else it
+                                            }
+                                        )
+                                    },
+                                    modifier = Modifier.weight(1f),
+                                    keyboardOptions = FishySentenceKeyboardOptions
+                                )
+                                IconButton(onClick = {
+                                    onChange(checklist.filter { it.id != task.id })
+                                }) {
+                                    Icon(Icons.Default.Delete, contentDescription = null)
+                                }
+                            }
+                        }
+                    }
+                }
+
+                FishyButton(
+                    onClick = { showAdd = true },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = null)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(stringResource(R.string.checklist_add_item))
+                }
+            }
+        },
+        confirmButton = {
+            DialogCenteredFishyButton(onClick = onDismiss) {
+                Text(stringResource(R.string.ok_done))
+            }
+        }
+    )
+
+    if (showAdd) {
+        AlertDialog(
+            onDismissRequest = { showAdd = false },
+            containerColor = MaterialTheme.colorScheme.background,
+            title = { CenteredDialogTitle(stringResource(R.string.checklist_add_item)) },
+            text = {
+                OutlinedTextField(
+                    value = newTitle,
+                    onValueChange = { newTitle = it },
+                    label = { Text(stringResource(R.string.checklist_item)) },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    keyboardOptions = FishySentenceKeyboardOptions
+                )
+            },
+            confirmButton = {
+                DialogCancelConfirmActions(
+                    onCancel = { showAdd = false },
+                    onConfirm = {
+                        if (newTitle.isNotBlank()) {
+                            onChange(
+                                checklist + ChecklistTask(
+                                    title = newTitle.trim()
+                                )
+                            )
+                            newTitle = ""
+                            showAdd = false
                         }
                     },
                     confirmText = stringResource(R.string.save)

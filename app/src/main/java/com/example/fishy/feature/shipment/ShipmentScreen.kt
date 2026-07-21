@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -46,15 +47,17 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -67,9 +70,9 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.fishy.R
 import com.example.fishy.domain.calc.BatchStatus
-import com.example.fishy.domain.calc.DoubleControlStats
 import com.example.fishy.domain.calc.ShipmentCalculator
 import com.example.fishy.domain.calc.ShipmentTotals
+import com.example.fishy.domain.format.QuantityFormatters
 import com.example.fishy.domain.model.BatchLimit
 import com.example.fishy.domain.model.DictionaryType
 import com.example.fishy.domain.model.Product
@@ -77,16 +80,20 @@ import com.example.fishy.domain.model.ShipmentMode
 import com.example.fishy.domain.model.ShipmentPayload
 import com.example.fishy.ui.ErrorFeedback
 import com.example.fishy.ui.components.AccordionCard
+import com.example.fishy.ui.components.BatchControlPanel
+import com.example.fishy.ui.components.BatchEntryDialog
 import com.example.fishy.ui.components.ConfirmDeleteDialog
 import com.example.fishy.ui.components.ConfirmSaveDialog
 import com.example.fishy.ui.components.CenteredDialogMessage
 import com.example.fishy.ui.components.CenteredDialogTitle
+import com.example.fishy.ui.components.DecimalNumberField
 import com.example.fishy.ui.components.DialogCancelConfirmActions
 import com.example.fishy.ui.components.DialogCenteredAction
 import com.example.fishy.ui.components.DialogCenteredFishyButton
 import com.example.fishy.ui.components.DictionaryAutocomplete
 import com.example.fishy.ui.components.FillProgressBar
 import com.example.fishy.ui.components.FishySentenceKeyboardOptions
+import com.example.fishy.ui.components.ProductWeightQuantityFields
 import com.example.fishy.ui.components.PalletRow
 import com.example.fishy.ui.components.PalletTableHeader
 import com.example.fishy.ui.components.TransportFields
@@ -99,7 +106,6 @@ import com.example.fishy.ui.theme.Error
 import com.example.fishy.ui.theme.FishyAccent
 import com.example.fishy.ui.theme.PlaceholderGrey
 import com.example.fishy.ui.theme.ProgressGreen
-import com.example.fishy.ui.theme.ProgressYellow
 import com.example.fishy.ui.theme.Success
 import com.example.fishy.ui.theme.Warning
 import com.example.fishy.ui.theme.isLightTheme
@@ -128,12 +134,22 @@ fun ShipmentScreen(
     val productsDict by vm.productsDict.collectAsState()
     val manufacturers by vm.manufacturers.collectAsState()
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val leaveScreen: () -> Unit = {
+        scope.launch {
+            vm.flushDraftAndAwait()
+            onBack()
+        }
+    }
+
+    BackHandler(onBack = leaveScreen)
 
     var showChecklist by remember { mutableStateOf(false) }
     var showSettingsMenu by remember { mutableStateOf(false) }
     var batchPanelExpanded by remember { mutableStateOf(true) }
     var batchEditor by remember { mutableStateOf<BatchLimit?>(null) }
     var showCompleteConfirm by remember { mutableStateOf(false) }
+    var showIncompleteChecklistConfirm by remember { mutableStateOf(false) }
     var completePlacesMismatch by remember { mutableStateOf(CompletePlacesMismatch.None) }
     var guardDialog by remember { mutableStateOf<ShipmentUiEvent.GuardConfirm?>(null) }
     var pendingDelete by remember { mutableStateOf<PendingDelete?>(null) }
@@ -185,7 +201,7 @@ fun ShipmentScreen(
         payload.checklist.isEmpty() -> PlaceholderGrey
         payload.checklist.none { it.isCompleted } -> Error
         payload.checklist.all { it.isCompleted } -> Success
-        else -> ProgressYellow
+        else -> Warning
     }
 
     Scaffold(
@@ -194,7 +210,7 @@ fun ShipmentScreen(
                 CenterAlignedTopAppBar(
                     title = { },
                     navigationIcon = {
-                        IconButton(onClick = onBack) {
+                        IconButton(onClick = leaveScreen) {
                             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
                         }
                     },
@@ -247,19 +263,25 @@ fun ShipmentScreen(
                                         }
                                     }
                                 )
+                                SettingsMenuSwitchRow(
+                                    label = stringResource(R.string.gross_weight),
+                                    checked = payload.grossWeightEnabled,
+                                    onCheckedChange = vm::setGrossWeightEnabled
+                                )
                             }
                         }
                     }
                 )
                 FillProgressBar(progress = progress)
                 if (payload.batchControlEnabled) {
-                    StickyBatchControlBar(
+                    BatchControlPanel(
                         payload = payload,
                         batchStatuses = batchStatuses,
                         expanded = batchPanelExpanded,
                         onExpandedChange = { batchPanelExpanded = it },
                         onEnterBatches = { batchEditor = BatchLimit() },
-                        onEditBatch = { batchEditor = it }
+                        onEditBatch = { batchEditor = it },
+                        onDeleteBatch = { vm.deleteBatchLimit(it.id) }
                     )
                 }
             }
@@ -377,7 +399,10 @@ fun ShipmentScreen(
                             },
                             onWeightGuard = { w, apply -> vm.checkPackageWeight(w, apply) },
                             onAddToDictionary = vm::addToDictionary,
-                            unload = false
+                            unload = false,
+                            thousandsSeparator = settings.effectiveThousandsSeparator,
+                            batchMismatch = ShipmentCalculator.isUnknownBatch(product, payload),
+                            grossWeightEnabled = payload.grossWeightEnabled
                         )
                     }
                     item {
@@ -390,13 +415,16 @@ fun ShipmentScreen(
                     items(payload.multiVehicles, key = { it.id }) { vehicle ->
                         val dc = payload.doubleControlEnabled || vehicle.doubleControlEnabled
                         val vTotals = ShipmentCalculator.totalsForProducts(vehicle.products, dc)
-                        val done = vTotals.remainder == 0 && vehicle.products.any { it.quantity > 0 }
-                        val dcStats = ShipmentCalculator.doubleControlStats(vehicle.products, dc)
+                        val done = kotlin.math.abs(vTotals.remainder) < 1e-9 && vehicle.products.any { it.quantity > 0 }
                         val focusInVehicle = focusPalletTarget?.let { t ->
                             vehicle.products.any { it.id == t.productId }
                         } == true
                         AccordionCard(
-                            title = transportTitle(vehicle.transport),
+                            title = transportTitle(
+                                vehicle.transport,
+                                settings.effectiveAutoSpaceContainers,
+                                settings.effectiveAutoSpaceVehicles
+                            ),
                             titleColor = if (done) Success else MaterialTheme.colorScheme.onSurface,
                             initiallyExpanded = sectionExpanded(resumeDraft, activeVehicleId, vehicle.id),
                             forceExpandToken = focusPalletTarget?.takeIf { focusInVehicle },
@@ -473,7 +501,10 @@ fun ShipmentScreen(
                                         },
                                         onWeightGuard = { w, apply -> vm.checkPackageWeight(w, apply) },
                                         onAddToDictionary = vm::addToDictionary,
-                                        unload = false
+                                        unload = false,
+                                        thousandsSeparator = settings.effectiveThousandsSeparator,
+                                        batchMismatch = ShipmentCalculator.isUnknownBatch(product, payload),
+                                        grossWeightEnabled = payload.grossWeightEnabled
                                     )
                                 }
                                 FishyButton(
@@ -489,8 +520,8 @@ fun ShipmentScreen(
                             ) {
                                 TotalsBlock(
                                     totals = vTotals,
-                                    doubleControlEnabled = dc,
-                                    dcStats = dcStats
+                                    thousandsSeparator = settings.effectiveThousandsSeparator,
+                                    grossWeightEnabled = payload.grossWeightEnabled
                                 )
                             }
                         }
@@ -505,14 +536,16 @@ fun ShipmentScreen(
                     items(payload.multiPorts, key = { it.id }) { group ->
                         val dc = payload.doubleControlEnabled || group.doubleControlEnabled
                         val gTotals = ShipmentCalculator.totalsForProducts(group.products, dc)
-                        val done = gTotals.remainder == 0 && group.products.any { it.quantity > 0 }
+                        val done = kotlin.math.abs(gTotals.remainder) < 1e-9 && group.products.any { it.quantity > 0 }
                         val portTitle = if (group.port.isBlank()) stringResource(R.string.new_port) else stringResource(R.string.port_title, group.port)
-                        val dcStats = ShipmentCalculator.doubleControlStats(group.products, dc)
                         val portSubtitle = if (group.products.isNotEmpty()) {
                             stringResource(
                                 R.string.port_products_summary,
                                 group.products.size,
-                                gTotals.places
+                                QuantityFormatters.formatCount(
+                                    gTotals.places,
+                                    settings.effectiveThousandsSeparator
+                                )
                             )
                         } else null
                         val focusInPort = focusPalletTarget?.let { t ->
@@ -604,7 +637,10 @@ fun ShipmentScreen(
                                         },
                                         onWeightGuard = { w, apply -> vm.checkPackageWeight(w, apply) },
                                         onAddToDictionary = vm::addToDictionary,
-                                        unload = false
+                                        unload = false,
+                                        thousandsSeparator = settings.effectiveThousandsSeparator,
+                                        batchMismatch = ShipmentCalculator.isUnknownBatch(product, payload),
+                                        grossWeightEnabled = payload.grossWeightEnabled
                                     )
                                 }
                                 FishyButton(
@@ -620,8 +656,8 @@ fun ShipmentScreen(
                             ) {
                                 TotalsBlock(
                                     totals = gTotals,
-                                    doubleControlEnabled = dc,
-                                    dcStats = dcStats
+                                    thousandsSeparator = settings.effectiveThousandsSeparator,
+                                    grossWeightEnabled = payload.grossWeightEnabled
                                 )
                             }
                         }
@@ -640,7 +676,12 @@ fun ShipmentScreen(
                             doubleControl = false,
                             unload = true
                         )
-                        val receptionTitle = unloadReceptionTitle(reception.name, reception.transport)
+                        val receptionTitle = unloadReceptionTitle(
+                            reception.name,
+                            reception.transport,
+                            settings.effectiveAutoSpaceContainers,
+                            settings.effectiveAutoSpaceVehicles
+                        )
                         val focusInReception = focusPalletTarget?.let { t ->
                             reception.inbounds.any { ib -> ib.products.any { it.id == t.productId } }
                         } == true
@@ -676,12 +717,18 @@ fun ShipmentScreen(
                                     onTransportChange = { t ->
                                         vm.updateUnloadReception(reception.id) { r -> r.copy(transport = t) }
                                     },
+                                    ports = ports,
+                                    onAddToDictionary = { type, value -> vm.addToDictionary(type, value) },
                                     autoSpaceContainers = settings.effectiveAutoSpaceContainers,
                                     autoSpaceVehicles = settings.effectiveAutoSpaceVehicles
                                 )
                             }
                             reception.inbounds.forEach { inbound ->
-                                val inboundTitle = transportTitle(inbound.transport).let { t ->
+                                val inboundTitle = transportTitle(
+                                    inbound.transport,
+                                    settings.effectiveAutoSpaceContainers,
+                                    settings.effectiveAutoSpaceVehicles
+                                ).let { t ->
                                     if (t != stringResource(R.string.new_transport)) t
                                     else stringResource(R.string.unload_source)
                                 }
@@ -719,16 +766,6 @@ fun ShipmentScreen(
                                         dictionaryType = DictionaryType.PORT,
                                         onAddToDictionary = vm::addToDictionary
                                     )
-                                    TransportFields(
-                                        transport = inbound.transport,
-                                        onChange = { t ->
-                                            vm.updateUnloadInbound(reception.id, inbound.id) { ib ->
-                                                ib.copy(transport = t)
-                                            }
-                                        },
-                                        autoSpaceContainers = settings.effectiveAutoSpaceContainers,
-                                        autoSpaceVehicles = settings.effectiveAutoSpaceVehicles
-                                    )
                                     DictionaryAutocomplete(
                                         label = stringResource(R.string.vessel),
                                         value = inbound.vessel,
@@ -740,6 +777,16 @@ fun ShipmentScreen(
                                         },
                                         dictionaryType = DictionaryType.VESSEL,
                                         onAddToDictionary = vm::addToDictionary
+                                    )
+                                    TransportFields(
+                                        transport = inbound.transport,
+                                        onChange = { t ->
+                                            vm.updateUnloadInbound(reception.id, inbound.id) { ib ->
+                                                ib.copy(transport = t)
+                                            }
+                                        },
+                                        autoSpaceContainers = settings.effectiveAutoSpaceContainers,
+                                        autoSpaceVehicles = settings.effectiveAutoSpaceVehicles
                                     )
                                     inbound.products.forEach { product ->
                                         ProductCard(
@@ -783,7 +830,10 @@ fun ShipmentScreen(
                                             },
                                             onWeightGuard = { w, apply -> vm.checkPackageWeight(w, apply) },
                                             onAddToDictionary = vm::addToDictionary,
-                                            unload = true
+                                            unload = true,
+                                            thousandsSeparator = settings.effectiveThousandsSeparator,
+                                            batchMismatch = ShipmentCalculator.isUnknownBatch(product, payload),
+                                            grossWeightEnabled = payload.grossWeightEnabled
                                         )
                                     }
                                     FishyButton(
@@ -791,6 +841,22 @@ fun ShipmentScreen(
                                         modifier = Modifier.fillMaxWidth()
                                     ) {
                                         Text(stringResource(R.string.add_product))
+                                    }
+                                    val inboundTotals = ShipmentCalculator.totalsForProducts(
+                                        inbound.products,
+                                        doubleControl = false,
+                                        unload = true
+                                    )
+                                    AccordionCard(
+                                        title = stringResource(R.string.totals_by_transport),
+                                        initiallyExpanded = !resumeDraft || reception.id == activeReceptionId
+                                    ) {
+                                        TotalsBlock(
+                                            totals = inboundTotals,
+                                            thousandsSeparator = settings.effectiveThousandsSeparator,
+                                            grossWeightEnabled = payload.grossWeightEnabled,
+                                            unload = true
+                                        )
                                     }
                                 }
                             }
@@ -804,7 +870,12 @@ fun ShipmentScreen(
                                 title = stringResource(R.string.totals_section),
                                 initiallyExpanded = !resumeDraft || reception.id == activeReceptionId
                             ) {
-                                TotalsBlock(totals = uTotals)
+                                TotalsBlock(
+                                    totals = uTotals,
+                                    thousandsSeparator = settings.effectiveThousandsSeparator,
+                                    grossWeightEnabled = payload.grossWeightEnabled,
+                                    unload = true
+                                )
                             }
                         }
                     }
@@ -821,19 +892,15 @@ fun ShipmentScreen(
 
             item {
                 val totals = ShipmentCalculator.totals(payload)
-                val allProducts = ShipmentCalculator.allProducts(payload)
-                val dcStats = ShipmentCalculator.doubleControlStats(
-                    allProducts,
-                    payload.doubleControlEnabled
-                )
                 AccordionCard(
                     title = stringResource(R.string.totals_overall),
                     initiallyExpanded = !resumeDraft
                 ) {
                     TotalsBlock(
                         totals = totals,
-                        doubleControlEnabled = payload.doubleControlEnabled,
-                        dcStats = dcStats
+                        thousandsSeparator = settings.effectiveThousandsSeparator,
+                        grossWeightEnabled = payload.grossWeightEnabled,
+                        unload = payload.mode == ShipmentMode.UNLOAD
                     )
                 }
             }
@@ -864,19 +931,24 @@ fun ShipmentScreen(
                     }
                     FishyButton(
                         onClick = {
-                            val totals = ShipmentCalculator.totals(payload)
-                            completePlacesMismatch = when {
-                                totals.places > totals.quantity -> {
-                                    ErrorFeedback.vibrate(context)
-                                    CompletePlacesMismatch.Over
+                            if (payload.checklist.any { !it.isCompleted }) {
+                                ErrorFeedback.vibrate(context)
+                                showIncompleteChecklistConfirm = true
+                            } else {
+                                val totals = ShipmentCalculator.totals(payload)
+                                completePlacesMismatch = when {
+                                    totals.places > totals.quantity -> {
+                                        ErrorFeedback.vibrate(context)
+                                        CompletePlacesMismatch.Over
+                                    }
+                                    totals.places < totals.quantity -> {
+                                        ErrorFeedback.vibrate(context)
+                                        CompletePlacesMismatch.Under
+                                    }
+                                    else -> CompletePlacesMismatch.None
                                 }
-                                totals.places < totals.quantity -> {
-                                    ErrorFeedback.vibrate(context)
-                                    CompletePlacesMismatch.Under
-                                }
-                                else -> CompletePlacesMismatch.None
+                                showCompleteConfirm = true
                             }
-                            showCompleteConfirm = true
                         },
                         modifier = Modifier.fillMaxWidth()
                     ) {
@@ -906,13 +978,36 @@ fun ShipmentScreen(
                 vm.upsertBatchLimit(limit)
                 batchEditor = null
             },
-            onDelete = if (payload.batchLimits.any { it.id == editing.id }) {
-                {
-                    vm.deleteBatchLimit(editing.id)
-                    batchEditor = null
+            onAddToDictionary = { type, value -> vm.addToDictionary(type, value) },
+            isNew = payload.batchLimits.none { it.id == editing.id }
+        )
+    }
+
+    if (showIncompleteChecklistConfirm) {
+        ConfirmSaveDialog(
+            title = stringResource(R.string.checklist_incomplete_title),
+            message = stringResource(R.string.checklist_incomplete_finish_msg),
+            confirmText = stringResource(R.string.action_finish),
+            onConfirm = {
+                showIncompleteChecklistConfirm = false
+                val totals = ShipmentCalculator.totals(payload)
+                completePlacesMismatch = when {
+                    totals.places > totals.quantity -> {
+                        ErrorFeedback.vibrate(context)
+                        CompletePlacesMismatch.Over
+                    }
+                    totals.places < totals.quantity -> {
+                        ErrorFeedback.vibrate(context)
+                        CompletePlacesMismatch.Under
+                    }
+                    else -> CompletePlacesMismatch.None
                 }
-            } else null,
-            onAddToDictionary = { type, value -> vm.addToDictionary(type, value) }
+                showCompleteConfirm = true
+            },
+            onDismiss = {
+                showIncompleteChecklistConfirm = false
+                showChecklist = true
+            }
         )
     }
 
@@ -979,7 +1074,15 @@ fun ShipmentScreen(
             onDismissRequest = { guardDialog = null },
             containerColor = MaterialTheme.colorScheme.background,
             title = { CenteredDialogTitle(stringResource(R.string.guard_confirm)) },
-            text = { CenteredDialogMessage("${g.field} = ${g.value}") },
+            text = {
+                val fieldLabel = when (g.field) {
+                    "weight" -> stringResource(R.string.guard_field_tare)
+                    "places" -> stringResource(R.string.guard_field_places)
+                    "quantity" -> stringResource(R.string.guard_field_quantity)
+                    else -> g.field
+                }
+                CenteredDialogMessage("$fieldLabel = ${g.value}")
+            },
             confirmButton = {
                 DialogCancelConfirmActions(
                     onCancel = { guardDialog = null },
@@ -1016,48 +1119,70 @@ private data class PendingDelete(
 @Composable
 private fun TotalsBlock(
     totals: ShipmentTotals,
-    doubleControlEnabled: Boolean = false,
-    dcStats: DoubleControlStats? = null
+    thousandsSeparator: Boolean = false,
+    grossWeightEnabled: Boolean = false,
+    unload: Boolean = false
 ) {
-    TotalsRow(stringResource(R.string.product_types), "${totals.productTypes}")
-    TotalsRow(stringResource(R.string.loaded_pallets), "${totals.pallets}")
-    TotalsRow(stringResource(R.string.loaded_places), "${totals.places}")
-    TotalsRow(stringResource(R.string.target_qty), "${totals.quantity}")
-    TotalsRow(stringResource(R.string.target_mass_label), stringResource(R.string.total_mass_value, totals.targetWeight))
-    TotalsRow(stringResource(R.string.total_mass_label), stringResource(R.string.total_mass_value, totals.actualWeight))
+    val placesFmt = QuantityFormatters.formatCount(totals.places, thousandsSeparator)
+    val palletsFmt = QuantityFormatters.formatInteger(totals.pallets, thousandsSeparator)
+    val qtyFmt = QuantityFormatters.formatInteger(totals.quantity, thousandsSeparator)
+    val typesFmt = QuantityFormatters.formatInteger(totals.productTypes, thousandsSeparator)
+    TotalsRow(stringResource(R.string.product_types), typesFmt)
+    TotalsRow(
+        stringResource(if (unload) R.string.unloaded_pallets else R.string.loaded_pallets),
+        palletsFmt
+    )
+    TotalsRow(
+        stringResource(if (unload) R.string.unloaded_places else R.string.loaded_places),
+        placesFmt
+    )
+    TotalsRow(stringResource(R.string.target_qty), qtyFmt)
+    TotalsRow(
+        stringResource(R.string.target_mass_label),
+        stringResource(
+            R.string.total_mass_value,
+            QuantityFormatters.formatWeight(totals.targetWeight, thousandsSeparator)
+        )
+    )
+    TotalsRow(
+        stringResource(R.string.total_mass_label),
+        stringResource(
+            R.string.total_mass_value,
+            QuantityFormatters.formatWeight(totals.actualWeight, thousandsSeparator)
+        )
+    )
+    if (grossWeightEnabled) {
+        TotalsRow(
+            stringResource(R.string.target_gross_mass_label),
+            stringResource(
+                R.string.total_mass_value,
+                QuantityFormatters.formatWeight(totals.targetGrossWeight, thousandsSeparator)
+            )
+        )
+        TotalsRow(
+            stringResource(R.string.total_gross_mass_label),
+            stringResource(
+                R.string.total_mass_value,
+                QuantityFormatters.formatWeight(totals.actualGrossWeight, thousandsSeparator)
+            )
+        )
+    }
     when {
         totals.remainder > 0 -> Text(
-            stringResource(R.string.underload, totals.remainder),
+            stringResource(R.string.underload, ShipmentCalculator.formatPlacesRu(totals.remainder, thousandsSeparator)),
             color = Error,
             fontWeight = FontWeight.Bold
         )
         totals.remainder < 0 -> Text(
-            stringResource(R.string.overload, -totals.remainder),
+            stringResource(R.string.overload, ShipmentCalculator.formatPlacesRu(-totals.remainder, thousandsSeparator)),
             color = Warning,
             fontWeight = FontWeight.Bold
         )
         else -> Text(
-            stringResource(R.string.loading_done),
+            stringResource(if (unload) R.string.unloading_done else R.string.loading_done),
             color = Success,
             fontWeight = FontWeight.Bold
         )
-    }
-    if (doubleControlEnabled && dcStats != null) {
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceContainer
-            )
-        ) {
-            Column(
-                modifier = Modifier.padding(12.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                Text(stringResource(R.string.double_control), fontWeight = FontWeight.Bold)
-                Text(stringResource(R.string.pallets_dc, dcStats.importedPallets, dcStats.totalPallets))
-                Text(stringResource(R.string.places_dc, dcStats.importedPlaces, dcStats.exportedPlaces))
-            }
-        }
     }
 }
 
@@ -1094,192 +1219,6 @@ private fun SettingsMenuSwitchRow(
 }
 
 @Composable
-private fun StickyBatchControlBar(
-    payload: ShipmentPayload,
-    batchStatuses: List<BatchStatus>,
-    expanded: Boolean,
-    onExpandedChange: (Boolean) -> Unit,
-    onEnterBatches: () -> Unit,
-    onEditBatch: (BatchLimit) -> Unit
-) {
-    val statusByKey = remember(batchStatuses) { batchStatuses.associateBy { it.key } }
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-            .padding(horizontal = 12.dp, vertical = 8.dp)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable { onExpandedChange(!expanded) },
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = stringResource(R.string.batch_control),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.weight(1f)
-            )
-            Icon(
-                imageVector = if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                contentDescription = null
-            )
-        }
-        if (expanded) {
-            Spacer(modifier = Modifier.height(8.dp))
-            if (payload.batchLimits.isEmpty()) {
-                Text(
-                    text = stringResource(R.string.enter_batches),
-                    color = MaterialTheme.colorScheme.primary,
-                    fontWeight = FontWeight.Medium,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable(onClick = onEnterBatches)
-                        .padding(vertical = 8.dp)
-                )
-            } else {
-                payload.batchLimits.forEach { limit ->
-                    val status = statusByKey[ShipmentCalculator.batchKey(limit)]
-                    val color = when {
-                        status == null -> MaterialTheme.colorScheme.onSurface
-                        status.exhausted -> ProgressGreen
-                        else -> MaterialTheme.colorScheme.onSurface
-                    }
-                    val tare = if (limit.packageWeight == 0.0) "0" else {
-                        limit.packageWeight.toString().trimEnd('0').trimEnd('.')
-                    }
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { onEditBatch(limit) }
-                            .padding(vertical = 4.dp)
-                    ) {
-                        Text(
-                            text = stringResource(
-                                R.string.batch_plan_line,
-                                limit.productName.ifBlank { "—" },
-                                limit.batchName.ifBlank { "—" },
-                                limit.manufacturer.ifBlank { "—" },
-                                tare,
-                                limit.plannedPlaces
-                            ),
-                            color = color,
-                            style = MaterialTheme.typography.bodyMedium
-                        )
-                        if (status != null) {
-                            Text(
-                                text = stringResource(
-                                    R.string.batch_remaining,
-                                    limit.batchName.ifBlank { "—" },
-                                    status.remaining,
-                                    status.planned
-                                ),
-                                color = color,
-                                style = MaterialTheme.typography.bodySmall
-                            )
-                        }
-                    }
-                }
-                TextButton(onClick = onEnterBatches) {
-                    Text(stringResource(R.string.add_batch))
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun BatchEntryDialog(
-    initial: BatchLimit,
-    productsDict: List<com.example.fishy.data.local.entity.DictionaryEntity>,
-    manufacturers: List<com.example.fishy.data.local.entity.DictionaryEntity>,
-    onDismiss: () -> Unit,
-    onSave: (BatchLimit) -> Unit,
-    onDelete: (() -> Unit)?,
-    onAddToDictionary: (DictionaryType, String) -> Unit
-) {
-    var draft by remember(initial.id) { mutableStateOf(initial) }
-    val isNew = onDelete == null
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = MaterialTheme.colorScheme.background,
-        title = {
-            CenteredDialogTitle(
-                stringResource(if (isNew) R.string.enter_batches else R.string.edit_batch)
-            )
-        },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                DictionaryAutocomplete(
-                    label = stringResource(R.string.product),
-                    value = draft.productName,
-                    suggestions = productsDict,
-                    onValueChange = { v -> draft = draft.copy(productName = v) },
-                    dictionaryType = DictionaryType.PRODUCT,
-                    onAddToDictionary = onAddToDictionary
-                )
-                OutlinedTextField(
-                    value = draft.batchName,
-                    onValueChange = { draft = draft.copy(batchName = it) },
-                    label = { Text(stringResource(R.string.batch)) },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    keyboardOptions = FishySentenceKeyboardOptions
-                )
-                DictionaryAutocomplete(
-                    label = stringResource(R.string.manufacturer),
-                    value = draft.manufacturer,
-                    suggestions = manufacturers,
-                    onValueChange = { v -> draft = draft.copy(manufacturer = v) },
-                    dictionaryType = DictionaryType.MANUFACTURER,
-                    onAddToDictionary = onAddToDictionary
-                )
-                OutlinedTextField(
-                    value = if (draft.packageWeight > 0) draft.packageWeight.toString() else "",
-                    onValueChange = { value ->
-                        val parsed = value.replace(',', '.').toDoubleOrNull() ?: 0.0
-                        draft = draft.copy(packageWeight = parsed)
-                    },
-                    label = { Text(stringResource(R.string.tare)) },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
-                )
-                OutlinedTextField(
-                    value = if (draft.plannedPlaces == 0) "" else draft.plannedPlaces.toString(),
-                    onValueChange = { value ->
-                        val digits = value.filter { it.isDigit() }.take(6)
-                        draft = draft.copy(plannedPlaces = digits.toIntOrNull() ?: 0)
-                    },
-                    label = { Text(stringResource(R.string.places_count)) },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
-                )
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = { onSave(draft) }) {
-                Text(stringResource(R.string.ok_done))
-            }
-        },
-        dismissButton = {
-            Row {
-                if (onDelete != null) {
-                    TextButton(onClick = onDelete) {
-                        Text(stringResource(R.string.delete))
-                    }
-                }
-                TextButton(onClick = onDismiss) {
-                    Text(stringResource(R.string.cancel))
-                }
-            }
-        }
-    )
-}
-
-@Composable
 private fun ProductCard(
     product: Product,
     initiallyExpanded: Boolean = true,
@@ -1291,26 +1230,31 @@ private fun ProductCard(
     manufacturers: List<com.example.fishy.data.local.entity.DictionaryEntity>,
     onUpdate: ((Product) -> Product) -> Unit,
     onAddPallet: () -> Unit,
-    onPlaces: (Long, Int) -> Unit,
+    onPlaces: (Long, Double) -> Unit,
     onToggleImport: (Long) -> Unit,
     onDeletePallet: (Long) -> Unit,
     onDeleteProduct: () -> Unit,
     onWeightGuard: (Double, (Double) -> Unit) -> Unit,
     onAddToDictionary: (DictionaryType, String) -> Unit,
-    unload: Boolean
+    unload: Boolean,
+    thousandsSeparator: Boolean = false,
+    batchMismatch: Boolean = false,
+    grossWeightEnabled: Boolean = false
 ) {
     val rem = ShipmentCalculator.remainder(product, doubleControl, unload)
     val title = productAccordionTitle(product, stringResource(R.string.new_product))
     val places = ShipmentCalculator.placesForProduct(product, doubleControl)
+    val placesFmt = QuantityFormatters.formatCount(places, thousandsSeparator)
+    val qtyFmt = QuantityFormatters.formatInteger(product.quantity, thousandsSeparator)
     val subtitle = if (product.quantity > 0) {
-        val progress = "($places/${product.quantity})"
+        val progress = "($placesFmt/$qtyFmt)"
         when {
-            rem > 0 -> "${stringResource(R.string.product_remainder_short, rem)} $progress"
-            rem < 0 -> "${stringResource(R.string.product_overload_short, -rem)} $progress"
+            rem > 0 -> "${stringResource(R.string.product_remainder_short, ShipmentCalculator.formatPlacesRu(rem, thousandsSeparator))} $progress"
+            rem < 0 -> "${stringResource(R.string.product_overload_short, ShipmentCalculator.formatPlacesRu(-rem, thousandsSeparator))} $progress"
             else -> "${stringResource(R.string.loading_done)} $progress"
         }
     } else null
-    val titleColor = if (rem == 0 && product.quantity > 0) Success else MaterialTheme.colorScheme.onSurface
+    val titleColor = if (kotlin.math.abs(rem) < 1e-9 && product.quantity > 0) Success else MaterialTheme.colorScheme.onSurface
     val subtitleColor = when {
         rem > 0 -> MaterialTheme.colorScheme.onSurfaceVariant
         rem < 0 -> Warning
@@ -1346,7 +1290,8 @@ private fun ProductCard(
             suggestions = productsDict,
             onValueChange = { v: String -> onUpdate { p: Product -> p.copy(name = v) } },
             dictionaryType = DictionaryType.PRODUCT,
-            onAddToDictionary = onAddToDictionary
+            onAddToDictionary = onAddToDictionary,
+            isError = batchMismatch
         )
         OutlinedTextField(
             value = product.batch,
@@ -1357,6 +1302,7 @@ private fun ProductCard(
             textStyle = MaterialTheme.typography.bodyLarge,
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
+            isError = batchMismatch,
             keyboardOptions = FishySentenceKeyboardOptions
         )
         DictionaryAutocomplete(
@@ -1365,50 +1311,23 @@ private fun ProductCard(
             suggestions = manufacturers,
             onValueChange = { v: String -> onUpdate { p: Product -> p.copy(manufacturer = v) } },
             dictionaryType = DictionaryType.MANUFACTURER,
-            onAddToDictionary = onAddToDictionary
+            onAddToDictionary = onAddToDictionary,
+            isError = batchMismatch
         )
-        // Тара / Кол-во / Масса в одну строку — компактный ряд
-        Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-            OutlinedTextField(
-                value = if (product.packageWeight > 0) product.packageWeight.toString() else "",
-                onValueChange = { value ->
-                    val weight = value.replace(',', '.').toDoubleOrNull() ?: 0.0
-                    onWeightGuard(weight) { confirmed ->
-                        onUpdate { p -> p.copy(packageWeight = confirmed) }
-                    }
-                },
-                label = { Text(stringResource(R.string.tare), style = MaterialTheme.typography.bodySmall) },
-                modifier = Modifier.weight(0.25f),
-                textStyle = MaterialTheme.typography.bodySmall,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                singleLine = true
-            )
-            OutlinedTextField(
-                value = if (product.quantity > 0) product.quantity.toString() else "",
-                onValueChange = { value ->
-                    onUpdate { p -> p.copy(quantity = value.toIntOrNull() ?: 0) }
-                },
-                label = {
-                    Text(
-                        stringResource(R.string.quantity_short),
-                        style = MaterialTheme.typography.bodySmall
-                    )
-                },
-                modifier = Modifier.weight(0.35f),
-                textStyle = MaterialTheme.typography.bodySmall,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                singleLine = true
-            )
-            OutlinedTextField(
-                value = String.format("%.1f", product.totalWeight),
-                onValueChange = {},
-                label = { Text(stringResource(R.string.mass), style = MaterialTheme.typography.bodySmall) },
-                modifier = Modifier.weight(0.4f),
-                textStyle = MaterialTheme.typography.bodySmall,
-                readOnly = true,
-                singleLine = true
-            )
-        }
+        // Тара / Кол-во / Масса (или 3×2 при включённом брутто)
+        ProductWeightQuantityFields(
+            product = product,
+            grossWeightEnabled = grossWeightEnabled,
+            onPackageWeightChange = { weight ->
+                onWeightGuard(weight) { confirmed ->
+                    onUpdate { p -> p.copy(packageWeight = confirmed) }
+                }
+            },
+            onQuantityChange = { qty -> onUpdate { p -> p.copy(quantity = qty) } },
+            onCoefficientChange = { k -> onUpdate { p -> p.copy(grossCoefficient = k) } },
+            thousandsSeparator = thousandsSeparator,
+            tareError = batchMismatch
+        )
         if (product.pallets.isNotEmpty()) {
             PalletTableHeader(doubleControl = doubleControl)
             product.pallets.forEach { pallet ->
@@ -1419,7 +1338,8 @@ private fun ProductCard(
                     onToggleImported = { onToggleImport(pallet.id) },
                     onDelete = { onDeletePallet(pallet.id) },
                     requestFocus = focusPalletId == pallet.id,
-                    onFocusHandled = onFocusHandled
+                    onFocusHandled = onFocusHandled,
+                    thousandsSeparator = thousandsSeparator
                 )
             }
         }
@@ -1433,11 +1353,17 @@ private fun ProductCard(
                 .padding(8.dp)
         ) {
             val places = ShipmentCalculator.placesForProduct(product, doubleControl)
-            Text(stringResource(R.string.places_progress, places, product.quantity))
+            Text(
+                stringResource(
+                    R.string.places_progress,
+                    QuantityFormatters.formatCount(places, thousandsSeparator),
+                    QuantityFormatters.formatInteger(product.quantity, thousandsSeparator)
+                )
+            )
             Text(
                 text = when {
-                    rem > 0 -> stringResource(R.string.underload, rem)
-                    rem < 0 -> stringResource(R.string.overload, -rem)
+                    rem > 0 -> stringResource(R.string.underload, ShipmentCalculator.formatPlacesRu(rem, thousandsSeparator))
+                    rem < 0 -> stringResource(R.string.overload, ShipmentCalculator.formatPlacesRu(-rem, thousandsSeparator))
                     else -> stringResource(R.string.norm_ok)
                 },
                 color = statusColor,
@@ -1470,7 +1396,7 @@ private fun ChecklistDialog(vm: ShipmentViewModel, onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = MaterialTheme.colorScheme.background,
-        title = { Text(stringResource(R.string.checklist_shipment)) },
+        title = { CenteredDialogTitle(stringResource(R.string.checklist_shipment)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Card(
@@ -1527,8 +1453,8 @@ private fun ChecklistDialog(vm: ShipmentViewModel, onDismiss: () -> Unit) {
                                 modifier = Modifier.weight(1f),
                                 keyboardOptions = FishySentenceKeyboardOptions
                             )
-                            TextButton(onClick = { vm.deleteChecklistTask(task.id) }) {
-                                Text("×")
+                            IconButton(onClick = { vm.deleteChecklistTask(task.id) }) {
+                                Icon(Icons.Default.Delete, contentDescription = null)
                             }
                         }
                     }

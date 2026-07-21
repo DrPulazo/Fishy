@@ -19,6 +19,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -32,7 +33,9 @@ import com.example.fishy.FishyApp
 import com.example.fishy.R
 import com.example.fishy.data.serialization.FishyJson
 import com.example.fishy.domain.calc.ShipmentCalculator
+import com.example.fishy.domain.format.QuantityFormatters
 import com.example.fishy.domain.model.ShipmentPayload
+import com.example.fishy.domain.report.ReportGenerator
 import com.example.fishy.ui.ErrorFeedback
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
@@ -48,15 +51,22 @@ fun ShipmentDetailScreen(
     onOpenHistory: (String) -> Unit,
     onOpenDraft: (Long) -> Unit
 ) {
+    var payloadLoaded by remember { mutableStateOf(true) }
     var payload by remember { mutableStateOf(ShipmentPayload()) }
     var customer by remember { mutableStateOf("") }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val fmt = remember { SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.getDefault()) }
+    val settings by FishyApp.instance.settingsRepository.settings.collectAsState(
+        initial = com.example.fishy.data.settings.FishySettings()
+    )
+    val ts = settings.effectiveThousandsSeparator
 
     LaunchedEffect(shipmentId) {
         val entity = FishyApp.instance.repository.getShipment(shipmentId) ?: return@LaunchedEffect
-        payload = FishyJson.decodePayload(entity.payloadJson)
+        val decoded = FishyJson.decodePayloadOrNull(entity.payloadJson)
+        payloadLoaded = decoded != null
+        payload = decoded ?: ShipmentPayload()
         customer = entity.customer
     }
 
@@ -81,14 +91,55 @@ fun ShipmentDetailScreen(
                 .padding(16.dp)
                 .verticalScroll(rememberScrollState())
         ) {
+            if (!payloadLoaded) {
+                Text(
+                    stringResource(R.string.data_corrupted),
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.error
+                )
+            } else {
             Text(stringResource(R.string.port_prefix, payload.port))
             Text(stringResource(R.string.vessel_prefix, payload.vessel))
             Text(stringResource(R.string.date_label, fmt.format(Date(payload.completedAtMillis ?: payload.createdAtMillis))))
-            Text(stringResource(R.string.places_label, totals.places))
-            Text(stringResource(R.string.weight_label, totals.actualWeight))
-            Text(stringResource(R.string.detail_products), style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(top = 12.dp))
-            ShipmentCalculator.allProducts(payload).forEach { p ->
-                Text(stringResource(R.string.detail_product_line, p.name, p.batch, ShipmentCalculator.placesForProduct(p, payload.doubleControlEnabled)))
+            Text(
+                stringResource(
+                    R.string.places_label,
+                    QuantityFormatters.formatCount(totals.places, ts)
+                )
+            )
+            Text(
+                stringResource(
+                    R.string.weight_label,
+                    QuantityFormatters.formatWeight(totals.actualWeight, ts)
+                )
+            )
+            if (payload.grossWeightEnabled) {
+                Text(
+                    stringResource(
+                        R.string.weight_gross_label,
+                        QuantityFormatters.formatWeight(totals.actualGrossWeight, ts)
+                    )
+                )
+            }
+            Text(
+                stringResource(R.string.detail_products),
+                style = MaterialTheme.typography.titleLarge,
+                modifier = Modifier.padding(top = 12.dp)
+            )
+            ReportGenerator.transportProductBlocks(
+                payload = payload,
+                formatContainerSpaces = settings.effectiveAutoSpaceContainers,
+                formatVehicleSpaces = settings.effectiveAutoSpaceVehicles,
+                thousandsSeparator = ts
+            ).filter { it.isNotBlank() }.forEachIndexed { index, block ->
+                if (index > 0) {
+                    Text("", modifier = Modifier.padding(top = 8.dp))
+                }
+                block.lineSequence().forEach { line ->
+                    if (line.isNotBlank()) {
+                        Text(line, style = MaterialTheme.typography.bodyMedium)
+                    }
+                }
             }
             FishyButton(
                 onClick = { onOpenReport(shipmentId) },
@@ -125,6 +176,8 @@ fun ShipmentDetailScreen(
                 onClick = { onOpenHistory(shipmentId.toString()) },
                 modifier = Modifier.fillMaxWidth()
             ) { Text(stringResource(R.string.history)) }
+            }
         }
     }
 }
+

@@ -32,6 +32,9 @@ object FishyJson {
         return payload.copy(unloadReceptions = migrateLegacyUnload(sources))
     }
 
+    fun decodePayloadOrNull(raw: String): ShipmentPayload? =
+        runCatching { decodePayload(raw) }.getOrNull()
+
     private fun migrateLegacyUnload(sources: List<LegacyUnloadSource>): List<UnloadReception> {
         val receptions = mutableListOf<UnloadReception>()
         sources.forEach { src ->

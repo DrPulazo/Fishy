@@ -13,9 +13,11 @@ import com.example.fishy.domain.model.DictionaryType
 import com.example.fishy.domain.model.ShipmentDuplicator
 import com.example.fishy.domain.model.ShipmentEventType
 import com.example.fishy.domain.model.ShipmentPayload
+import com.example.fishy.domain.model.ShipmentSummaries
 import com.example.fishy.domain.report.ReportTemplate
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import kotlin.math.roundToInt
 
 class FishyRepository(private val db: FishyDatabase) {
 
@@ -37,9 +39,9 @@ class FishyRepository(private val db: FishyDatabase) {
             id = existingId,
             payloadJson = FishyJson.encodePayload(payload),
             customer = payload.customer,
-            port = payload.port,
+            port = summaryPort(payload),
             mode = payload.mode.name,
-            totalPlaces = totals.places,
+            totalPlaces = totals.places.roundToInt(),
             totalWeight = totals.actualWeight,
             transportSummary = payload.transport.containerNumber.ifBlank {
                 payload.transport.wagonNumber.ifBlank { payload.transport.truckNumber }
@@ -61,9 +63,9 @@ class FishyRepository(private val db: FishyDatabase) {
             id = existingId,
             payloadJson = FishyJson.encodePayload(completed),
             customer = completed.customer,
-            port = completed.port,
+            port = summaryPort(completed),
             mode = completed.mode.name,
-            totalPlaces = totals.places,
+            totalPlaces = totals.places.roundToInt(),
             totalWeight = totals.actualWeight,
             transportSummary = completed.transport.containerNumber.ifBlank {
                 completed.transport.wagonNumber.ifBlank { completed.transport.truckNumber }
@@ -81,7 +83,27 @@ class FishyRepository(private val db: FishyDatabase) {
 
     /** Update an already-archived shipment (report edit/reset) without lifecycle events. */
     suspend fun updateArchivedShipment(id: Long, payload: ShipmentPayload) {
-        completeShipment(id, payload)
+        val existing = getShipment(id) ?: return
+        val totals = ShipmentCalculator.totals(payload)
+        val preservedCompletedAt = existing.completedAtMillis
+        val updatedPayload = payload.copy(completedAtMillis = preservedCompletedAt)
+        shipments.upsert(
+            existing.copy(
+                payloadJson = FishyJson.encodePayload(updatedPayload),
+                customer = updatedPayload.customer,
+                port = summaryPort(updatedPayload),
+                mode = updatedPayload.mode.name,
+                totalPlaces = totals.places.roundToInt(),
+                totalWeight = totals.actualWeight,
+                transportSummary = updatedPayload.transport.containerNumber.ifBlank {
+                    updatedPayload.transport.wagonNumber.ifBlank { updatedPayload.transport.truckNumber }
+                },
+                createdAtMillis = updatedPayload.createdAtMillis,
+                completedAtMillis = preservedCompletedAt,
+                isDraft = false,
+                draftName = ""
+            )
+        )
     }
 
     suspend fun deleteShipment(id: Long) {
@@ -132,8 +154,14 @@ class FishyRepository(private val db: FishyDatabase) {
     suspend fun addDictionary(type: DictionaryType, value: String) {
         val trimmed = value.trim()
         if (trimmed.isEmpty()) return
-        if (dictionary.count(type.key, trimmed) == 0) {
-            dictionary.insert(DictionaryEntity(type = type.key, value = trimmed))
+        val now = System.currentTimeMillis()
+        val existing = dictionary.findByTypeAndValue(type.key, trimmed)
+        if (existing != null) {
+            dictionary.insert(existing.copy(lastUsedAtMillis = now))
+        } else {
+            dictionary.insert(
+                DictionaryEntity(type = type.key, value = trimmed, lastUsedAtMillis = now)
+            )
         }
     }
 
@@ -142,7 +170,13 @@ class FishyRepository(private val db: FishyDatabase) {
     suspend fun upsertDictionary(entity: DictionaryEntity) {
         val trimmed = entity.value.trim()
         if (trimmed.isEmpty()) return
-        dictionary.insert(entity.copy(value = trimmed))
+        val now = System.currentTimeMillis()
+        dictionary.insert(
+            entity.copy(
+                value = trimmed,
+                lastUsedAtMillis = if (entity.lastUsedAtMillis > 0L) entity.lastUsedAtMillis else now
+            )
+        )
     }
 
     suspend fun rememberDictionaryValues(payload: ShipmentPayload) {
@@ -213,4 +247,7 @@ class FishyRepository(private val db: FishyDatabase) {
         templates.getForCustomer(customer)?.let {
             ReportTemplate(it.id, it.name, it.body, it.customerBinding)
         }
+
+    private fun summaryPort(payload: ShipmentPayload): String =
+        ShipmentSummaries.ports(payload).joinToString(", ").ifBlank { payload.port.trim() }
 }

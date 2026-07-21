@@ -47,6 +47,7 @@ import com.example.fishy.FishyApp
 import com.example.fishy.R
 import com.example.fishy.data.settings.AppLanguage
 import com.example.fishy.data.settings.ThemeMode
+import com.example.fishy.domain.format.QuantityFormatters
 import com.example.fishy.ui.components.CenteredDialogMessage
 import com.example.fishy.ui.components.CenteredDialogTitle
 import com.example.fishy.ui.components.ConfirmDeleteDialog
@@ -60,9 +61,7 @@ import kotlinx.coroutines.withContext
 private enum class WipeDialogStep { None, FirstConfirm, TypeConfirm }
 
 private fun formatMaxWeightKg(value: Double): String =
-    if (value == 0.0) ""
-    else if (value == value.toLong().toDouble()) value.toLong().toString()
-    else value.toString()
+    QuantityFormatters.formatWeightInput(value)
 
 private fun formatMaxPlaces(value: Int): String =
     if (value == 0) "" else value.toString()
@@ -187,14 +186,14 @@ fun SettingsScreen(onBack: () -> Unit) {
                     OutlinedTextField(
                         value = maxWeightText,
                         onValueChange = { v ->
-                            val filtered = v.filter { it.isDigit() || it == '.' || it == ',' }
+                            val filtered = QuantityFormatters.sanitizeDecimalInput(v)
                             maxWeightText = filtered
-                            scope.launch {
-                                settingsRepo.update {
-                                    it.copy(
-                                        maxPlaceWeightKg = filtered.replace(',', '.')
-                                            .toDoubleOrNull() ?: 0.0
-                                    )
+                            val parsed = QuantityFormatters.parseDecimalInput(filtered)
+                            if (parsed != null) {
+                                scope.launch {
+                                    settingsRepo.update {
+                                        it.copy(maxPlaceWeightKg = parsed)
+                                    }
                                 }
                             }
                         },
@@ -230,7 +229,21 @@ fun SettingsScreen(onBack: () -> Unit) {
                     Switch(
                         checked = settings.autoSpacesEnabled,
                         onCheckedChange = { v ->
-                            scope.launch { settingsRepo.update { it.copy(autoSpacesEnabled = v) } }
+                            scope.launch {
+                                settingsRepo.update {
+                                    if (v) {
+                                        // Enabling master turns on subtypes so report/UI spacing works.
+                                        it.copy(
+                                            autoSpacesEnabled = true,
+                                            autoSpaceContainers = true,
+                                            autoSpaceVehicles = true,
+                                            thousandsSeparatorEnabled = true
+                                        )
+                                    } else {
+                                        it.copy(autoSpacesEnabled = false)
+                                    }
+                                }
+                            }
                         },
                         colors = fishySwitchColors()
                     )
@@ -259,6 +272,19 @@ fun SettingsScreen(onBack: () -> Unit) {
                         )
                         Text(
                             stringResource(R.string.auto_spaces_vehicles),
+                            modifier = Modifier.padding(start = 4.dp)
+                        )
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                        Checkbox(
+                            checked = settings.thousandsSeparatorEnabled,
+                            onCheckedChange = { v ->
+                                scope.launch { settingsRepo.update { it.copy(thousandsSeparatorEnabled = v) } }
+                            },
+                            colors = fishyCheckboxColors()
+                        )
+                        Text(
+                            stringResource(R.string.thousands_separator),
                             modifier = Modifier.padding(start = 4.dp)
                         )
                     }

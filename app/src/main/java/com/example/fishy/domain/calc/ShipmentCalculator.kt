@@ -1,33 +1,39 @@
 package com.example.fishy.domain.calc
 
+import com.example.fishy.domain.format.QuantityFormatters
 import com.example.fishy.domain.model.BatchLimit
 import com.example.fishy.domain.model.Pallet
 import com.example.fishy.domain.model.Product
 import com.example.fishy.domain.model.ShipmentMode
 import com.example.fishy.domain.model.ShipmentPayload
+import kotlin.math.abs
 import kotlin.math.ceil
+import kotlin.math.floor
+import kotlin.math.roundToLong
 
 data class DoubleControlStats(
     val totalPallets: Int = 0,
     val exportedPallets: Int = 0,
     val importedPallets: Int = 0,
-    val exportedPlaces: Int = 0,
-    val importedPlaces: Int = 0
+    val exportedPlaces: Double = 0.0,
+    val importedPlaces: Double = 0.0
 )
 
 data class ShipmentTotals(
     val productTypes: Int = 0,
     val pallets: Int = 0,
-    val places: Int = 0,
+    val places: Double = 0.0,
     val quantity: Int = 0,
     val targetWeight: Double = 0.0,
     val actualWeight: Double = 0.0,
-    val remainder: Int = 0
+    val remainder: Double = 0.0,
+    val targetGrossWeight: Double = 0.0,
+    val actualGrossWeight: Double = 0.0
 )
 
 data class PalletForecast(
     val fullPallets: Int,
-    val lastPalletPlaces: Int,
+    val lastPalletPlaces: Double,
     val totalExpected: Int
 )
 
@@ -37,11 +43,11 @@ data class BatchStatus(
     val productName: String = "",
     val manufacturer: String = "",
     val packageWeight: Double = 0.0,
-    val planned: Int,
-    val used: Int,
+    val planned: Double,
+    val used: Double,
     val warnThreshold: Int = 5
 ) {
-    val remaining: Int get() = (planned - used).coerceAtLeast(0)
+    val remaining: Double get() = (planned - used).coerceAtLeast(0.0)
     val exhausted: Boolean get() = used >= planned && planned > 0
     val nearLimit: Boolean get() = !exhausted && remaining <= warnThreshold && planned > 0
 }
@@ -51,10 +57,12 @@ object ShipmentCalculator {
     /** Soft cap: more than this would flood the UI and risk OOM / ANR. */
     const val MAX_FORECAST_PALLETS = 100
 
+    private const val EPS = 1e-9
+
     fun realPallets(product: Product): List<Pallet> =
         product.pallets.filter { !it.isPlaceholder }
 
-    fun placesForProduct(product: Product, doubleControl: Boolean): Int {
+    fun placesForProduct(product: Product, doubleControl: Boolean): Double {
         val pallets = realPallets(product)
         return if (doubleControl) {
             pallets.filter { it.isImported }.sumOf { it.places }
@@ -63,15 +71,9 @@ object ShipmentCalculator {
         }
     }
 
-    fun remainder(product: Product, doubleControl: Boolean, unload: Boolean): Int {
+    fun remainder(product: Product, doubleControl: Boolean, unload: Boolean): Double {
         val places = placesForProduct(product, doubleControl)
-        return if (unload) {
-            product.quantity + places // quantity is initial stock; places increase "removed"?
-            // Unload: counters decrease — quantity is plan to unload; each pallet.places counts toward unloading
-            product.quantity - places
-        } else {
-            product.quantity - places
-        }
+        return product.quantity.toDouble() - places
     }
 
     fun totalsForProducts(
@@ -79,14 +81,31 @@ object ShipmentCalculator {
         doubleControl: Boolean,
         unload: Boolean = false
     ): ShipmentTotals {
-        val types = products.count { it.name.isNotBlank() }
+        val types = products
+            .filter {
+                it.name.isNotBlank() || it.batch.isNotBlank() ||
+                    it.manufacturer.isNotBlank() || it.packageWeight > 0.0 ||
+                    it.quantity > 0 ||
+                    realPallets(it).any { p -> p.places > 0.0 }
+            }
+            .distinctBy { batchKey(it) }
+            .size
         val pallets = products.sumOf { realPallets(it).size }
         val places = products.sumOf { placesForProduct(it, doubleControl) }
         val quantity = products.sumOf { it.quantity }
         val targetWeight = products.sumOf { it.packageWeight * it.quantity }
         val actualWeight = products.sumOf { it.packageWeight * placesForProduct(it, doubleControl) }
+        val targetGrossWeight = products.sumOf {
+            it.packageWeight * it.quantity * it.grossCoefficient
+        }
+        val actualGrossWeight = products.sumOf {
+            it.packageWeight * placesForProduct(it, doubleControl) * it.grossCoefficient
+        }
         val rem = products.sumOf { remainder(it, doubleControl, unload) }
-        return ShipmentTotals(types, pallets, places, quantity, targetWeight, actualWeight, rem)
+        return ShipmentTotals(
+            types, pallets, places, quantity, targetWeight, actualWeight, rem,
+            targetGrossWeight, actualGrossWeight
+        )
     }
 
     fun totals(payload: ShipmentPayload): ShipmentTotals {
@@ -107,7 +126,7 @@ object ShipmentCalculator {
                 val products = payload.unloadReceptions.flatMap { r ->
                     r.inbounds.flatMap { it.products }
                 }
-                totalsForProducts(products, false, true)
+                totalsForProducts(products, false, unload = true)
             }
         }
     }
@@ -117,7 +136,7 @@ object ShipmentCalculator {
         if (t.quantity <= 0) return 0f
         val done = t.quantity - t.remainder
         // May exceed 1f on overload — FillProgressBar turns red in that case.
-        return done.toFloat() / t.quantity.toFloat()
+        return (done / t.quantity).toFloat()
     }
 
     fun doubleControlStats(products: List<Product>, enabled: Boolean): DoubleControlStats {
@@ -132,12 +151,13 @@ object ShipmentCalculator {
         )
     }
 
-    fun forecastFromFirstPallet(totalQuantity: Int, firstPalletPlaces: Int): PalletForecast? {
+    fun forecastFromFirstPallet(totalQuantity: Int, firstPalletPlaces: Double): PalletForecast? {
         if (firstPalletPlaces <= 0 || totalQuantity <= 0) return null
-        val full = totalQuantity / firstPalletPlaces
-        val rem = totalQuantity % firstPalletPlaces
-        val last = if (rem == 0) firstPalletPlaces else rem
-        val expected = if (rem == 0) full else full + 1
+        val full = floor(totalQuantity / firstPalletPlaces).toInt()
+        val rem = totalQuantity - full * firstPalletPlaces
+        val remIsZero = abs(rem) < EPS
+        val last = if (remIsZero) firstPalletPlaces else rem
+        val expected = if (remIsZero) full else full + 1
         return PalletForecast(
             fullPallets = full,
             lastPalletPlaces = last,
@@ -169,14 +189,15 @@ object ShipmentCalculator {
     }
 
     /** Russian message: «Ожидается N поддон(а/ов) по M мест(а/о) …». */
-    fun formatForecastExpectationRu(totalQuantity: Int, firstPalletPlaces: Int): String? {
+    fun formatForecastExpectationRu(totalQuantity: Int, firstPalletPlaces: Double): String? {
         val forecast = forecastFromFirstPallet(totalQuantity, firstPalletPlaces) ?: return null
         val full = forecast.fullPallets
-        val rem = totalQuantity % firstPalletPlaces
+        val rem = totalQuantity - full * firstPalletPlaces
+        val remIsZero = abs(rem) < EPS
         return when {
-            full == 0 && rem > 0 ->
+            full == 0 && !remIsZero ->
                 "Ожидается ${ruPallets(1)} по ${ruPlaces(rem)}"
-            rem == 0 ->
+            remIsZero ->
                 "Ожидается ${ruPallets(full)} по ${ruPlaces(firstPalletPlaces)}"
             else ->
                 "Ожидается ${ruPallets(full)} по ${ruPlaces(firstPalletPlaces)} и ${ruPallets(1)} по ${ruPlaces(rem)}"
@@ -195,20 +216,30 @@ object ShipmentCalculator {
         return "$n $word"
     }
 
-    /** «1 место», «2 места», «5 мест». */
-    fun formatPlacesRu(n: Int): String {
-        val mod100 = n % 100
-        val mod10 = n % 10
+    /** «1 место», «2 места», «5 мест»; fractions → «1,5 мест». */
+    fun formatPlacesRu(n: Int, thousandsSeparator: Boolean = false): String {
+        val mod100 = abs(n) % 100
+        val mod10 = abs(n) % 10
         val word = when {
             mod100 in 11..14 -> "мест"
             mod10 == 1 -> "место"
             mod10 in 2..4 -> "места"
             else -> "мест"
         }
-        return "$n $word"
+        val num = QuantityFormatters.formatInteger(n, thousandsSeparator)
+        return "$num $word"
     }
 
-    private fun ruPlaces(n: Int): String = formatPlacesRu(n)
+    fun formatPlacesRu(n: Double, thousandsSeparator: Boolean = false): String {
+        val asLong = n.roundToLong()
+        if (abs(n - asLong) < EPS) {
+            return formatPlacesRu(asLong.toInt(), thousandsSeparator)
+        }
+        val num = QuantityFormatters.formatWeight(n, thousandsSeparator)
+        return "$num мест"
+    }
+
+    private fun ruPlaces(n: Double): String = formatPlacesRu(n)
 
     fun applyForecastPlaceholders(product: Product): Product {
         val real = realPallets(product)
@@ -274,7 +305,7 @@ object ShipmentCalculator {
                 manufacturer = limit.manufacturer,
                 packageWeight = limit.packageWeight,
                 planned = limit.plannedPlaces,
-                used = usedByKey[key] ?: 0,
+                used = usedByKey[key] ?: 0.0,
                 warnThreshold = warnThreshold
             )
         }
@@ -283,7 +314,7 @@ object ShipmentCalculator {
     fun canAddPlaces(
         payload: ShipmentPayload,
         product: Product,
-        additionalPlaces: Int
+        additionalPlaces: Double
     ): Boolean {
         if (!payload.batchControlEnabled) return true
         val key = batchKey(product)
@@ -291,7 +322,24 @@ object ShipmentCalculator {
         val used = allProducts(payload)
             .filter { batchKey(it) == key }
             .sumOf { placesForProduct(it, payload.doubleControlEnabled) }
-        return used + additionalPlaces <= limit.plannedPlaces
+        return used + additionalPlaces <= limit.plannedPlaces + EPS
+    }
+
+    /**
+     * True when batch control is on, limits exist, product identity is complete
+     * (name + batch + manufacturer + tare), and its batchKey matches none of the limits.
+     */
+    fun isUnknownBatch(product: Product, payload: ShipmentPayload): Boolean {
+        if (!payload.batchControlEnabled || payload.batchLimits.isEmpty()) return false
+        if (product.name.isBlank() ||
+            product.batch.isBlank() ||
+            product.manufacturer.isBlank() ||
+            product.packageWeight <= 0.0
+        ) {
+            return false
+        }
+        val key = batchKey(product)
+        return payload.batchLimits.none { batchKey(it) == key }
     }
 
     fun allProducts(payload: ShipmentPayload): List<Product> = when (payload.mode) {

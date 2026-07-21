@@ -1,0 +1,74 @@
+ACUERDO DE LICENCIA DE USUARIO FINAL (EULA)
+
+1. DEFINICIONES
+
+1.1. «Desarrollador» — la persona física titular de los derechos exclusivos sobre el software «Fishy» / «Фишка» (en adelante, la «Aplicación»).
+
+1.2. «Usuario» — cualquier persona física o jurídica que instale, ejecute o utilice la Aplicación.
+
+1.3. «Aplicación» — el programa «Fishy» / «Фишка» para dispositivos móviles con sistema operativo Android, incluidos todos sus componentes, código fuente y objeto, elementos gráficos, documentación, así como todas las actualizaciones, correcciones y modificaciones publicadas por el Desarrollador.
+
+1.4. «Datos del Usuario» — cualquier información (incluidos datos personales, información sobre envíos, contrapartes, productos, vehículos, etc.) que el Usuario introduzca, almacene o genere durante el uso de la Aplicación.
+
+2. OBJETO DEL ACUERDO
+
+2.1. El presente Acuerdo de Licencia (en adelante, el «Acuerdo») constituye un contrato legalmente vinculante entre el Desarrollador y el Usuario. La instalación, ejecución o cualquier uso de la Aplicación implica la aceptación plena e incondicional de los términos del presente Acuerdo.
+
+2.2. El Desarrollador otorga al Usuario una licencia no exclusiva, intransferible y gratuita para utilizar la Aplicación conforme a su finalidad funcional directa en todos los países donde su uso no contravenga la legislación local.
+
+2.3. La Aplicación se proporciona «TAL CUAL» («AS IS»). El Desarrollador no ofrece garantías, expresas o implícitas, incluidas, entre otras, las garantías de comerciabilidad, idoneidad para un fin determinado, ausencia de errores, funcionamiento ininterrumpido o compatibilidad con cualquier hardware o software.
+
+2.4. Cualquier modificación de la funcionalidad, apariencia, política de precios o condiciones de distribución de la Aplicación será realizada por el Desarrollador de forma unilateral y no requerirá aprobación adicional del Usuario, salvo que la legislación aplicable disponga lo contrario de manera expresa.
+
+3. DERECHOS Y OBLIGACIONES DE LAS PARTES
+
+3.1. El Usuario tiene derecho a utilizar la Aplicación con fines personales o profesionales.
+
+3.2. El Usuario confirma que ha alcanzado la edad suficiente para celebrar el presente Acuerdo conforme a la legislación aplicable y comprende el significado de sus actos.
+
+3.3. El Usuario se compromete a utilizar la Aplicación exclusivamente con fines lícitos, sin infringir la legislación aplicable ni los derechos e intereses de terceros.
+
+3.4. El Usuario se compromete a verificar de forma independiente y exhaustiva todos los datos obtenidos como resultado del uso de la Aplicación, en cuanto a su exactitud y conformidad con las circunstancias reales del trabajo realizado, así como con la documentación contable primaria (albaranes, especificaciones, etc.).
+
+3.5. El Usuario reconoce que la Aplicación es únicamente una herramienta auxiliar de registro y no sustituye las competencias profesionales, la experiencia, las instrucciones de trabajo ni la responsabilidad del Usuario. La adopción de cualquier decisión basada en los datos de la Aplicación se realiza bajo el propio riesgo del Usuario.
+
+3.6. El Usuario se compromete a no realizar acciones tendentes a descompilar, desensamblar, modificar o crear productos derivados basados en la Aplicación o en cualquiera de sus partes sin el consentimiento del Desarrollador.
+
+4. LIMITACIÓN DE RESPONSABILIDAD
+
+4.1. En ningún caso el Desarrollador será responsable de ningún daño, pérdida o lucro cesante (directo, indirecto, incidental o consecuente) derivado del uso o imposibilidad de uso de la Aplicación, incluido como consecuencia de:
+- fallos técnicos, interrupciones o errores en el código del programa de la Aplicación;
+- introducción o interpretación incorrecta de datos por parte del Usuario;
+- incompatibilidad de la Aplicación con el hardware o software del Usuario;
+- actos de terceros, incluido el acceso no autorizado al dispositivo del Usuario;
+- pérdida de datos por cualquier motivo (incluidos avería, pérdida, robo o fallo del dispositivo).
+
+4.2. La responsabilidad íntegra por el proceso y el resultado del uso de la Aplicación, así como por cualquier consecuencia (incluidas financieras, administrativas, fiscales, penales u otras) relacionada con dicho uso, recae exclusivamente en el Usuario.
+
+4.3. El Desarrollador no es responsable del contenido, veracidad o validez jurídica de ningún dato, incluidos informes y demás documentos generados por la Aplicación.
+
+5. CONFIDENCIALIDAD Y TRATAMIENTO DE DATOS
+
+5.1. La Aplicación funciona completamente en modo local (sin conexión). Todos los Datos del Usuario se almacenan exclusivamente en el dispositivo del Usuario y no se transmiten al Desarrollador, a terceros ni se guardan en servidores externos controlados por el Desarrollador.
+
+5.2. El Desarrollador no dispone de medios técnicos ni jurídicos para acceder a los Datos del Usuario, ya que estos no abandonan el dispositivo del Usuario y no se sincronizan con servicios en la nube.
+
+5.3. El Usuario es el único responsable de la conservación, copia de seguridad y protección de sus Datos. El Desarrollador recomienda crear regularmente copias de seguridad de los informes y exportarlos a medios de almacenamiento externos.
+
+5.4. La Aplicación no utiliza servicios de analítica, no recopila estadísticas de uso, no envía registros de errores ni transmite automáticamente información sobre las acciones del Usuario.
+
+5.5. En caso de que el Usuario transmita voluntariamente cualquier Dato al Desarrollador con fines de soporte o mejora de la Aplicación, el Desarrollador se compromete a no divulgar dichos datos a terceros y a utilizarlos exclusivamente para resolver la solicitud concreta.
+
+5.6. A efectos de tramitar las consultas del Usuario, el Desarrollador podrá solicitar la información mínima necesaria, como la versión de la aplicación, el modelo del dispositivo y una descripción del problema. El Usuario no está obligado a facilitar datos personales para recibir soporte básico.
+
+6. DISPOSICIONES FINALES
+
+6.1. El presente Acuerdo se rige e interpreta de conformidad con la legislación de la Federación de Rusia. Todas las controversias y discrepancias derivadas del presente Acuerdo o relacionadas con él serán resueltas en el tribunal del domicilio del Desarrollador, salvo que las normas imperativas de la legislación aplicable dispongan lo contrario.
+
+6.2. El Desarrollador se reserva el derecho de modificar unilateralmente el presente Acuerdo. La nueva versión entrará en vigor desde el momento de su publicación en la Aplicación o en la página oficial del proyecto (github.com/drpulazo/fishy). La continuación del uso de la Aplicación tras la entrada en vigor de la nueva versión implica la aceptación de los cambios por parte del Usuario.
+
+6.3. El Desarrollador se reserva el derecho de modificar el modelo de distribución de la Aplicación (gratuita / de pago / por suscripción, etc.), notificando a los Usuarios a través de la interfaz de la Aplicación o de los canales oficiales con al menos 30 (treinta) días naturales de antelación a la entrada en vigor de los cambios. Un cambio en la política de precios no constituye motivo para la rescisión del presente Acuerdo.
+
+6.4. Si alguna disposición del presente Acuerdo fuera declarada inválida o inaplicable conforme a la ley, las demás disposiciones conservarán plena validez jurídica, y la disposición inválida será sustituida por otra admisible que refleje lo más fielmente posible la intención original de las partes.
+
+6.5. El presente Acuerdo entra en vigor desde el primer uso de la Aplicación por el Usuario y permanece vigente por tiempo indefinido hasta su rescisión (a iniciativa del Desarrollador o del Usuario mediante la eliminación de la Aplicación de todos los dispositivos).

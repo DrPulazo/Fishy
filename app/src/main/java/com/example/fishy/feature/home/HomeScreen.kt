@@ -8,7 +8,10 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -42,6 +45,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.example.fishy.FishyApp
 import com.example.fishy.R
@@ -92,6 +96,9 @@ fun HomeScreen(
             scope.launch {
                 settingsRepo.update { it.copy(aboutOpenCount = stored) }
             }
+            if (aboutBeerVisit >= 12) {
+                ErrorFeedback.vibrate(context)
+            }
         } else {
             aboutBeerVisit = 0
         }
@@ -107,69 +114,109 @@ fun HomeScreen(
 
     LaunchedEffect(Unit) {
         val drafts = FishyApp.instance.repository.getDrafts()
-        lastDraftId = drafts.maxByOrNull { it.createdAtMillis }?.id
+        lastDraftId = drafts.maxByOrNull { it.completedAtMillis }?.id
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            Text(
-                text = if (isRussianLanguageActive(settings.language)) {
-                    stringResource(R.string.home_title_ru)
-                } else {
-                    stringResource(R.string.home_title)
-                },
-                style = MaterialTheme.typography.displayLarge,
-                color = MaterialTheme.colorScheme.onSurface,
-                fontWeight = FontWeight.Bold,
-                textAlign = TextAlign.Center
-            )
-
-            Image(
-                painter = painterResource(id = R.drawable.fishylogo),
-                contentDescription = null,
-                modifier = Modifier
-                    .size(300.dp)
-                    .clickable {
-                        if (!isRussianLanguageActive(settings.language)) return@clickable
-                        val currentTime = System.currentTimeMillis()
-                        if (currentTime - lastClickTime < 500) {
-                            easterEggClickCount++
-                            if (easterEggClickCount >= 10) {
-                                easterEggClickCount = 0
-                                ErrorFeedback.vibrate(context)
-                                Toast.makeText(
-                                    context,
-                                    LOGO_EASTER_MESSAGES.random(),
-                                    Toast.LENGTH_LONG
-                                ).show()
-                            }
-                        }
-                        lastClickTime = currentTime
-                    }
-                    .padding(vertical = 10.dp)
-            )
+        BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+            val availableHeight = maxHeight
+            val buttonCount = if (lastDraftId != null) 7 else 6
+            val layout = remember(availableHeight, buttonCount) {
+                computeHomeLayoutMetrics(availableHeight, buttonCount)
+            }
+            val titleStyle = if (layout.useTightTitle) {
+                MaterialTheme.typography.headlineLarge
+            } else {
+                MaterialTheme.typography.displayLarge
+            }
 
             Column(
-                verticalArrangement = Arrangement.spacedBy(20.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(16.dp)
             ) {
-                HomeButton(stringResource(R.string.nav_new_shipment)) { showModePicker = true }
-                if (lastDraftId != null) {
-                    HomeButton(stringResource(R.string.nav_continue)) {
-                        onContinueDraft(lastDraftId!!)
+                val homeHeader: @Composable () -> Unit = {
+                    Text(
+                        text = if (isRussianLanguageActive(settings.language)) {
+                            stringResource(R.string.home_title_ru)
+                        } else {
+                            stringResource(R.string.home_title)
+                        },
+                        style = titleStyle,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        fontWeight = FontWeight.Bold,
+                        textAlign = TextAlign.Center
+                    )
+                    Image(
+                        painter = painterResource(id = R.drawable.fishylogo),
+                        contentDescription = null,
+                        modifier = Modifier
+                            .size(layout.logoSize)
+                            .clickable {
+                                if (!isRussianLanguageActive(settings.language)) return@clickable
+                                val currentTime = System.currentTimeMillis()
+                                if (currentTime - lastClickTime < 500) {
+                                    easterEggClickCount++
+                                    if (easterEggClickCount >= 10) {
+                                        easterEggClickCount = 0
+                                        ErrorFeedback.vibrate(context)
+                                        Toast.makeText(
+                                            context,
+                                            LOGO_EASTER_MESSAGES.random(),
+                                            Toast.LENGTH_LONG
+                                        ).show()
+                                    }
+                                }
+                                lastClickTime = currentTime
+                            }
+                            .padding(vertical = layout.logoVerticalPadding)
+                    )
+                }
+                val homeButtons: @Composable () -> Unit = {
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(layout.buttonGap),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        HomeButton(stringResource(R.string.nav_new_shipment)) { showModePicker = true }
+                        if (lastDraftId != null) {
+                            HomeButton(stringResource(R.string.nav_continue)) {
+                                onContinueDraft(lastDraftId!!)
+                            }
+                        }
+                        HomeButton(stringResource(R.string.nav_scheduler), onNavigateScheduler)
+                        HomeButton(stringResource(R.string.nav_archive), onNavigateArchive)
+                        HomeButton(stringResource(R.string.nav_drafts), onNavigateDrafts)
+                        HomeButton(stringResource(R.string.nav_templates), onNavigateTemplates)
+                        HomeButton(stringResource(R.string.nav_statistics), onNavigateStatistics)
                     }
                 }
-                HomeButton(stringResource(R.string.nav_scheduler), onNavigateScheduler)
-                HomeButton(stringResource(R.string.nav_archive), onNavigateArchive)
-                HomeButton(stringResource(R.string.nav_drafts), onNavigateDrafts)
-                HomeButton(stringResource(R.string.nav_templates), onNavigateTemplates)
-                HomeButton(stringResource(R.string.nav_statistics), onNavigateStatistics)
+
+                if (layout.contentFits) {
+                    Spacer(modifier = Modifier.weight(1f))
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        homeHeader()
+                        homeButtons()
+                    }
+                    Spacer(modifier = Modifier.weight(1f))
+                } else {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        homeHeader()
+                    }
+                    Spacer(modifier = Modifier.weight(1f))
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        homeButtons()
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                }
             }
         }
 
@@ -390,6 +437,7 @@ private fun HomeButton(text: String, onClick: () -> Unit) {
         onClick = onClick,
         modifier = Modifier
             .width(250.dp)
+            .defaultMinSize(minWidth = 250.dp, minHeight = 50.dp)
             .height(50.dp),
         border = BorderStroke(2.dp, MaterialTheme.colorScheme.onSurface)
     ) {
@@ -399,6 +447,73 @@ private fun HomeButton(text: String, onClick: () -> Unit) {
             fontWeight = FontWeight.Medium
         )
     }
+}
+
+private data class HomeLayoutMetrics(
+    val logoSize: Dp,
+    val logoVerticalPadding: Dp,
+    val buttonGap: Dp,
+    val useTightTitle: Boolean,
+    val contentFits: Boolean
+)
+
+private fun computeHomeLayoutMetrics(maxHeight: Dp, buttonCount: Int): HomeLayoutMetrics {
+    val verticalPadding = 16.dp * 2
+    val buttonHeight = 50.dp
+    val titleHeight = 57.dp
+    val logoPadding = 10.dp
+    val maxLogo = 300.dp
+    val minLogo = 48.dp
+    val normalGap = 20.dp
+    val reducedGap = 12.dp
+
+    fun fixedReserve(
+        buttonGap: Dp,
+        titleH: Dp = titleHeight,
+        logoPad: Dp = logoPadding
+    ): Dp {
+        val buttonsBlock = buttonHeight * buttonCount + buttonGap * (buttonCount - 1).coerceAtLeast(0)
+        return verticalPadding + titleH + buttonsBlock + logoPad * 2
+    }
+
+    fun result(
+        buttonGap: Dp,
+        logoSize: Dp,
+        useTightTitle: Boolean = false,
+        logoPad: Dp = logoPadding
+    ): HomeLayoutMetrics {
+        val titleH = if (useTightTitle) 45.dp else titleHeight
+        val fixed = fixedReserve(buttonGap, titleH, logoPad)
+        return HomeLayoutMetrics(
+            logoSize = logoSize,
+            logoVerticalPadding = logoPad,
+            buttonGap = buttonGap,
+            useTightTitle = useTightTitle,
+            contentFits = fixed + logoSize <= maxHeight
+        )
+    }
+
+    // 1) Normal gap, full logo
+    if (maxHeight - fixedReserve(normalGap) >= maxLogo) {
+        return result(normalGap, maxLogo)
+    }
+
+    // 2) Normal gap, shrink logo
+    val shrunkLogo = (maxHeight - fixedReserve(normalGap)).coerceIn(minLogo, maxLogo)
+    if (fixedReserve(normalGap) + minLogo <= maxHeight) {
+        return result(normalGap, shrunkLogo)
+    }
+
+    // 3) Logo at minimum, reduced gap
+    val reducedFixed = fixedReserve(reducedGap)
+    if (maxHeight - reducedFixed >= minLogo) {
+        return result(reducedGap, minLogo)
+    }
+
+    // 4) Last resort: tighter title + logo padding
+    val tightFixed = fixedReserve(reducedGap, titleH = 45.dp, logoPad = 4.dp)
+    val tightLogo = (maxHeight - tightFixed).coerceIn(minLogo, maxLogo)
+    return result(reducedGap, tightLogo, useTightTitle = true, logoPad = 4.dp)
 }
 
 /** Explicit RU, or SYSTEM when the device locale is Russian. */

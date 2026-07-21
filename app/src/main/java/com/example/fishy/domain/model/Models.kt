@@ -36,7 +36,7 @@ data class Transport(
 data class Pallet(
     val id: Long = nextEntityId(),
     val palletNumber: Int = 0,
-    val places: Int = 0,
+    val places: Double = 0.0,
     val isImported: Boolean = false,
     /** Grey forecast placeholder row (4.2) */
     val isPlaceholder: Boolean = false
@@ -50,12 +50,16 @@ data class Product(
     val batch: String = "",
     val packageWeight: Double = 0.0,
     val quantity: Int = 0,
+    /** Packaging factor: gross tare = net tare × k. Default 1.05. */
+    val grossCoefficient: Double = 1.05,
     val pallets: List<Pallet> = emptyList()
 ) {
     val palletCount: Int get() = pallets.count { !it.isPlaceholder }
-    val placesCount: Int
+    val placesCount: Double
         get() = pallets.filter { !it.isPlaceholder }.sumOf { it.places }
     val totalWeight: Double get() = packageWeight * quantity
+    val grossPackageWeight: Double get() = packageWeight * grossCoefficient
+    val totalGrossWeight: Double get() = grossPackageWeight * quantity
 
     fun hasUserContent(): Boolean =
         name.isNotBlank() ||
@@ -66,6 +70,21 @@ data class Product(
             pallets.any { !it.isPlaceholder }
 }
 
+/** Helpers for k ↔ gross tare linkage (net tare unchanged). */
+object GrossWeightMath {
+    private const val EPS = 1e-9
+
+    fun grossTare(netTare: Double, coefficient: Double): Double = netTare * coefficient
+
+    fun coefficientFromGrossTare(netTare: Double, grossTare: Double): Double? {
+        if (netTare <= EPS) return null
+        return grossTare / netTare
+    }
+
+    fun totalGross(netTare: Double, quantity: Int, coefficient: Double): Double =
+        netTare * quantity * coefficient
+}
+
 @Serializable
 data class BatchLimit(
     val id: Long = nextEntityId(),
@@ -73,7 +92,7 @@ data class BatchLimit(
     val batchName: String = "",
     val manufacturer: String = "",
     val packageWeight: Double = 0.0,
-    val plannedPlaces: Int = 0
+    val plannedPlaces: Double = 0.0
 )
 
 @Serializable
@@ -137,6 +156,7 @@ data class ShipmentPayload(
     val palletForecastEnabled: Boolean = false,
     val checklistEnabled: Boolean = true,
     val batchControlEnabled: Boolean = false,
+    val grossWeightEnabled: Boolean = false,
     val batchWarnThreshold: Int = 5,
     val batchLimits: List<BatchLimit> = emptyList(),
     val checklist: List<ChecklistTask> = emptyList(),

@@ -3,9 +3,8 @@ package com.example.fishy.ui.components
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Error
@@ -26,10 +25,12 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import com.example.fishy.R
+import com.example.fishy.data.local.entity.DictionaryEntity
 import com.example.fishy.domain.format.ContainerSpaceVisualTransformation
 import com.example.fishy.domain.format.NumberFormatters
 import com.example.fishy.domain.format.TrailerSpaceVisualTransformation
 import com.example.fishy.domain.format.VehicleSpaceVisualTransformation
+import com.example.fishy.domain.model.DictionaryType
 import com.example.fishy.domain.model.Transport
 import com.example.fishy.domain.validation.ContainerWagonValidator
 import com.example.fishy.domain.validation.ValidationState
@@ -118,8 +119,10 @@ fun TransportFields(
                         )
                     }
                 },
-                supportingText = {
-                    if (hasWagonError) Text(invalidMsg)
+                supportingText = if (hasWagonError) {
+                    { Text(invalidMsg) }
+                } else {
+                    null
                 }
             )
         }
@@ -157,12 +160,17 @@ fun TransportFields(
                         )
                     }
                 },
-                supportingText = {
-                    if (hasContainerError) Text(invalidMsg)
+                supportingText = if (hasContainerError) {
+                    { Text(invalidMsg) }
+                } else {
+                    null
                 }
             )
 
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
                 OutlinedTextField(
                     value = transport.truckNumber,
                     onValueChange = { raw ->
@@ -176,8 +184,10 @@ fun TransportFields(
                         )
                     },
                     label = { Text(stringResource(R.string.truck_label), style = labelStyle) },
-                textStyle = textStyle,
-                    modifier = Modifier.weight(1f),
+                    textStyle = textStyle,
+                    modifier = Modifier
+                        .weight(1f)
+                        .defaultMinSize(minWidth = 0.dp),
                     singleLine = true,
                     keyboardOptions = CapsKeyboard,
                     visualTransformation = if (autoSpaceVehicles) {
@@ -199,8 +209,10 @@ fun TransportFields(
                         )
                     },
                     label = { Text(stringResource(R.string.trailer_label), style = labelStyle) },
-                textStyle = textStyle,
-                    modifier = Modifier.weight(1f),
+                    textStyle = textStyle,
+                    modifier = Modifier
+                        .weight(1f)
+                        .defaultMinSize(minWidth = 0.dp),
                     singleLine = true,
                     keyboardOptions = CapsKeyboard,
                     visualTransformation = if (autoSpaceVehicles) {
@@ -212,12 +224,11 @@ fun TransportFields(
             }
         }
 
-        Spacer(modifier = Modifier.height(0.dp))
         OutlinedTextField(
             value = transport.sealNumber,
             onValueChange = { onChange(transport.copy(sealNumber = it.uppercase())) },
             label = { Text(stringResource(R.string.seal_label), style = labelStyle) },
-                textStyle = textStyle,
+            textStyle = textStyle,
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
             keyboardOptions = CapsKeyboard
@@ -226,8 +237,8 @@ fun TransportFields(
 }
 
 /**
- * Unload reception point: warehouse, wagon, container, vehicle, seal — mutually exclusive groups.
- * Order: склад → вагон → контейнер → авто/прицеп → пломба.
+ * Unload reception: port always visible; destination transport optional (wagon XOR road).
+ * Port is not cleared when transport is filled.
  */
 @Composable
 fun UnloadReceptionFields(
@@ -235,16 +246,16 @@ fun UnloadReceptionFields(
     transport: Transport,
     onWarehouseChange: (String) -> Unit,
     onTransportChange: (Transport) -> Unit,
+    ports: List<DictionaryEntity> = emptyList(),
+    onAddToDictionary: ((DictionaryType, String) -> Unit)? = null,
     autoSpaceContainers: Boolean = false,
     autoSpaceVehicles: Boolean = false,
     modifier: Modifier = Modifier
 ) {
-    val hasWarehouse = warehouse.isNotBlank()
     val hasWagon = transport.wagonNumber.isNotBlank()
     val hasRoad = transport.containerNumber.isNotBlank() ||
         transport.truckNumber.isNotBlank() ||
         transport.trailerNumber.isNotBlank()
-    val hasSealOnly = transport.sealNumber.isNotBlank() && !hasWagon && !hasRoad
 
     val containerValidation = remember(transport.containerNumber) {
         ContainerWagonValidator.validateContainerNumberLive(transport.containerNumber)
@@ -262,38 +273,30 @@ fun UnloadReceptionFields(
     VibrateOnTransportError(hasContainerError || hasWagonError)
 
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        if (!hasWagon && !hasRoad && !hasSealOnly) {
-            OutlinedTextField(
-                value = warehouse,
-                onValueChange = { raw ->
-                    if (raw.isNotBlank()) {
-                        onWarehouseChange(raw)
-                        onTransportChange(Transport())
-                    } else {
-                        onWarehouseChange("")
-                    }
-                },
-                label = { Text(stringResource(R.string.warehouse_destination), style = labelStyle) },
-                textStyle = textStyle,
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                keyboardOptions = FishySentenceKeyboardOptions
-            )
-        }
+        DictionaryAutocomplete(
+            label = stringResource(R.string.port),
+            value = warehouse,
+            suggestions = ports,
+            onValueChange = onWarehouseChange,
+            dictionaryType = DictionaryType.PORT,
+            onAddToDictionary = onAddToDictionary
+        )
 
-        if (!hasWarehouse && !hasRoad) {
+        if (!hasRoad) {
             OutlinedTextField(
                 value = transport.wagonNumber,
                 onValueChange = { raw ->
                     val clean = NumberFormatters.stripSpaces(raw)
                     onTransportChange(
                         if (clean.isNotEmpty()) {
-                            Transport(wagonNumber = clean)
+                            Transport(
+                                wagonNumber = clean,
+                                sealNumber = transport.sealNumber
+                            )
                         } else {
                             transport.copy(wagonNumber = "")
                         }
                     )
-                    if (clean.isNotEmpty()) onWarehouseChange("")
                 },
                 label = { Text(stringResource(R.string.wagon_label), style = labelStyle) },
                 textStyle = textStyle,
@@ -310,20 +313,26 @@ fun UnloadReceptionFields(
                         )
                     }
                 },
-                supportingText = {
-                    if (hasWagonError) Text(invalidMsg)
+                supportingText = if (hasWagonError) {
+                    { Text(invalidMsg) }
+                } else {
+                    null
                 }
             )
         }
 
-        if (!hasWarehouse && !hasWagon) {
+        if (!hasWagon) {
             OutlinedTextField(
                 value = transport.containerNumber,
                 onValueChange = { raw ->
                     val clean = NumberFormatters.stripSpaces(raw).uppercase()
-                    val base = if (clean.isNotEmpty()) Transport(containerNumber = clean) else transport.copy(containerNumber = "")
-                    onTransportChange(base.copy(wagonNumber = ""))
-                    if (clean.isNotEmpty()) onWarehouseChange("")
+                    onTransportChange(
+                        if (clean.isNotEmpty()) {
+                            transport.copy(containerNumber = clean, wagonNumber = "")
+                        } else {
+                            transport.copy(containerNumber = "")
+                        }
+                    )
                 },
                 label = { Text(stringResource(R.string.container_label), style = labelStyle) },
                 textStyle = textStyle,
@@ -345,27 +354,34 @@ fun UnloadReceptionFields(
                         )
                     }
                 },
-                supportingText = {
-                    if (hasContainerError) Text(invalidMsg)
+                supportingText = if (hasContainerError) {
+                    { Text(invalidMsg) }
+                } else {
+                    null
                 }
             )
 
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
                 OutlinedTextField(
                     value = transport.truckNumber,
                     onValueChange = { raw ->
                         val clean = NumberFormatters.stripSpaces(raw).uppercase()
-                        val next = if (clean.isNotEmpty()) {
-                            transport.copy(truckNumber = clean, wagonNumber = "")
-                        } else {
-                            transport.copy(truckNumber = "")
-                        }
-                        onTransportChange(next)
-                        if (clean.isNotEmpty()) onWarehouseChange("")
+                        onTransportChange(
+                            if (clean.isNotEmpty()) {
+                                transport.copy(truckNumber = clean, wagonNumber = "")
+                            } else {
+                                transport.copy(truckNumber = "")
+                            }
+                        )
                     },
                     label = { Text(stringResource(R.string.truck_label), style = labelStyle) },
-                textStyle = textStyle,
-                    modifier = Modifier.weight(1f),
+                    textStyle = textStyle,
+                    modifier = Modifier
+                        .weight(1f)
+                        .defaultMinSize(minWidth = 0.dp),
                     singleLine = true,
                     keyboardOptions = CapsKeyboard,
                     visualTransformation = if (autoSpaceVehicles) {
@@ -378,17 +394,19 @@ fun UnloadReceptionFields(
                     value = transport.trailerNumber,
                     onValueChange = { raw ->
                         val clean = NumberFormatters.stripSpaces(raw).uppercase()
-                        val next = if (clean.isNotEmpty()) {
-                            transport.copy(trailerNumber = clean, wagonNumber = "")
-                        } else {
-                            transport.copy(trailerNumber = "")
-                        }
-                        onTransportChange(next)
-                        if (clean.isNotEmpty()) onWarehouseChange("")
+                        onTransportChange(
+                            if (clean.isNotEmpty()) {
+                                transport.copy(trailerNumber = clean, wagonNumber = "")
+                            } else {
+                                transport.copy(trailerNumber = "")
+                            }
+                        )
                     },
                     label = { Text(stringResource(R.string.trailer_label), style = labelStyle) },
-                textStyle = textStyle,
-                    modifier = Modifier.weight(1f),
+                    textStyle = textStyle,
+                    modifier = Modifier
+                        .weight(1f)
+                        .defaultMinSize(minWidth = 0.dp),
                     singleLine = true,
                     keyboardOptions = CapsKeyboard,
                     visualTransformation = if (autoSpaceVehicles) {
@@ -400,63 +418,72 @@ fun UnloadReceptionFields(
             }
         }
 
-        if (!hasWarehouse && !hasWagon && !hasRoad) {
-            OutlinedTextField(
-                value = transport.sealNumber,
-                onValueChange = { v ->
-                    onTransportChange(
-                        if (v.isNotBlank()) Transport(sealNumber = v.uppercase()) else transport.copy(sealNumber = "")
-                    )
-                    if (v.isNotBlank()) onWarehouseChange("")
-                },
-                label = { Text(stringResource(R.string.seal_label), style = labelStyle) },
-                textStyle = textStyle,
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                keyboardOptions = CapsKeyboard
-            )
-        } else if (!hasWarehouse && !hasWagon) {
-            OutlinedTextField(
-                value = transport.sealNumber,
-                onValueChange = { v ->
-                    onTransportChange(transport.copy(sealNumber = v.uppercase()))
-                },
-                label = { Text(stringResource(R.string.seal_label), style = labelStyle) },
-                textStyle = textStyle,
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                keyboardOptions = CapsKeyboard
-            )
-        }
+        OutlinedTextField(
+            value = transport.sealNumber,
+            onValueChange = { v ->
+                onTransportChange(transport.copy(sealNumber = v.uppercase()))
+            },
+            label = { Text(stringResource(R.string.seal_label), style = labelStyle) },
+            textStyle = textStyle,
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            keyboardOptions = CapsKeyboard
+        )
     }
 }
 
 @Composable
-fun transportTitle(transport: Transport): String {
+fun transportTitle(
+    transport: Transport,
+    autoSpaceContainers: Boolean = false,
+    autoSpaceVehicles: Boolean = false
+): String {
+    val wagon = transport.wagonNumber.trim()
+    if (wagon.isNotEmpty()) {
+        return stringResource(R.string.wagon_prefix, wagon)
+    }
+    val container = NumberFormatters.formatContainerForDisplay(
+        transport.containerNumber.trim(),
+        autoSpaceContainers
+    )
+    val truck = NumberFormatters.formatVehicleForDisplay(
+        transport.truckNumber.trim(),
+        autoSpaceVehicles
+    )
+    val trailer = NumberFormatters.formatTrailerForDisplay(
+        transport.trailerNumber.trim(),
+        autoSpaceVehicles
+    )
     val parts = mutableListOf<String>()
-    if (transport.wagonNumber.isNotEmpty()) {
-        parts += stringResource(R.string.wagon_prefix, transport.wagonNumber)
-    } else {
-        if (transport.containerNumber.isNotEmpty()) {
-            parts += stringResource(R.string.container_prefix, transport.containerNumber)
-        }
-        if (transport.truckNumber.isNotEmpty()) {
-            parts += stringResource(R.string.truck_prefix, transport.truckNumber)
-        }
-        if (transport.trailerNumber.isNotEmpty() && transport.containerNumber.isEmpty()) {
-            parts += stringResource(R.string.trailer_prefix, transport.trailerNumber)
-        }
-        if (transport.sealNumber.isNotEmpty() && parts.isEmpty()) {
-            parts += stringResource(R.string.seal_prefix, transport.sealNumber)
-        }
+    if (container.isNotEmpty()) {
+        parts += stringResource(R.string.container_prefix, container)
     }
-    return if (parts.isEmpty()) stringResource(R.string.new_transport) else parts.joinToString(" • ")
+    if (truck.isNotEmpty()) {
+        parts += stringResource(R.string.truck_prefix, truck)
+    }
+    if (trailer.isNotEmpty() && transport.containerNumber.trim().isEmpty()) {
+        parts += stringResource(R.string.trailer_prefix, trailer)
+    }
+    return if (parts.isEmpty()) {
+        stringResource(R.string.new_transport)
+    } else {
+        parts.joinToString(" ")
+    }
 }
 
 @Composable
-fun unloadReceptionTitle(warehouse: String, transport: Transport): String {
-    if (warehouse.isNotBlank()) return warehouse
-    val label = transportTitle(transport)
-    return if (label != stringResource(R.string.new_transport)) label
-    else stringResource(R.string.reception_point)
+fun unloadReceptionTitle(
+    warehouse: String,
+    transport: Transport,
+    autoSpaceContainers: Boolean = false,
+    autoSpaceVehicles: Boolean = false
+): String {
+    val transportLabel = transportTitle(transport, autoSpaceContainers, autoSpaceVehicles)
+    val hasTransport = transportLabel != stringResource(R.string.new_transport)
+    return when {
+        warehouse.isNotBlank() && hasTransport -> "$warehouse — $transportLabel"
+        warehouse.isNotBlank() -> warehouse
+        hasTransport -> transportLabel
+        else -> stringResource(R.string.reception_point)
+    }
 }

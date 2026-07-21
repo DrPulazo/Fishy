@@ -96,11 +96,24 @@ interface ScheduledShipmentDao {
 
 @Dao
 interface DictionaryDao {
-    @Query("SELECT * FROM dictionary_items WHERE type = :type ORDER BY value COLLATE NOCASE ASC")
+    @Query(
+        """
+        SELECT * FROM dictionary_items WHERE type = :type
+        ORDER BY lastUsedAtMillis DESC, value COLLATE NOCASE ASC
+        """
+    )
     fun observeByType(type: String): Flow<List<DictionaryEntity>>
 
-    @Query("SELECT * FROM dictionary_items WHERE type = :type ORDER BY value COLLATE NOCASE ASC")
+    @Query(
+        """
+        SELECT * FROM dictionary_items WHERE type = :type
+        ORDER BY lastUsedAtMillis DESC, value COLLATE NOCASE ASC
+        """
+    )
     suspend fun getByType(type: String): List<DictionaryEntity>
+
+    @Query("SELECT * FROM dictionary_items WHERE type = :type AND value = :value LIMIT 1")
+    suspend fun findByTypeAndValue(type: String, value: String): DictionaryEntity?
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(item: DictionaryEntity): Long

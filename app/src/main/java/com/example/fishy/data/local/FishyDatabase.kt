@@ -27,7 +27,7 @@ import com.example.fishy.data.local.entity.ShipmentEventEntity
         ShipmentEventEntity::class,
         ReportTemplateEntity::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 abstract class FishyDatabase : RoomDatabase() {
@@ -49,6 +49,14 @@ abstract class FishyDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "ALTER TABLE dictionary_items ADD COLUMN lastUsedAtMillis INTEGER NOT NULL DEFAULT 0"
+                )
+            }
+        }
+
         fun get(context: Context): FishyDatabase {
             return instance ?: synchronized(this) {
                 instance ?: Room.databaseBuilder(
@@ -56,7 +64,7 @@ abstract class FishyDatabase : RoomDatabase() {
                     FishyDatabase::class.java,
                     "fishy_v2.db"
                 )
-                    .addMigrations(MIGRATION_1_2)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                     .build()
                     .also { instance = it }
             }

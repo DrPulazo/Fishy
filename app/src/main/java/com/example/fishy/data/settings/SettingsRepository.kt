@@ -36,14 +36,19 @@ data class FishySettings(
     val autoSpacesEnabled: Boolean = false,
     val autoSpaceContainers: Boolean = false,
     val autoSpaceVehicles: Boolean = false,
+    /** Group places/weight with a space between thousands (27 000). Off by default. */
+    val thousandsSeparatorEnabled: Boolean = false,
     /** Floating smart «+» on shipment screens. */
     val floatingFabEnabled: Boolean = true,
     val defaultBatchWarnThreshold: Int = 5,
     /** How many About opens while Russian UI is active before the next visit (0..11). Resets after 12. */
-    val aboutOpenCount: Int = 0
+    val aboutOpenCount: Int = 0,
+    /** App versionCode for which the user agreement was accepted; 0 = never. */
+    val eulaAcceptedVersion: Int = 0
 ) {
     val effectiveAutoSpaceContainers: Boolean get() = autoSpacesEnabled && autoSpaceContainers
     val effectiveAutoSpaceVehicles: Boolean get() = autoSpacesEnabled && autoSpaceVehicles
+    val effectiveThousandsSeparator: Boolean get() = autoSpacesEnabled && thousandsSeparatorEnabled
 }
 
 class SettingsRepository(private val context: Context) {
@@ -57,9 +62,11 @@ class SettingsRepository(private val context: Context) {
         val spaceEnabled = booleanPreferencesKey("space_enabled")
         val spaceContainers = booleanPreferencesKey("space_containers")
         val spaceVehicles = booleanPreferencesKey("space_vehicles")
+        val thousandsSeparator = booleanPreferencesKey("thousands_separator")
         val floatingFab = booleanPreferencesKey("floating_fab")
         val batchWarn = intPreferencesKey("batch_warn")
         val aboutOpenCount = intPreferencesKey("about_open_count")
+        val eulaAcceptedVersion = intPreferencesKey("eula_accepted_version")
     }
 
     val settings: Flow<FishySettings> = context.dataStore.data.map { prefs ->
@@ -78,9 +85,11 @@ class SettingsRepository(private val context: Context) {
             prefs[Keys.spaceEnabled] = next.autoSpacesEnabled
             prefs[Keys.spaceContainers] = next.autoSpaceContainers
             prefs[Keys.spaceVehicles] = next.autoSpaceVehicles
+            prefs[Keys.thousandsSeparator] = next.thousandsSeparatorEnabled
             prefs[Keys.floatingFab] = next.floatingFabEnabled
             prefs[Keys.batchWarn] = next.defaultBatchWarnThreshold
             prefs[Keys.aboutOpenCount] = next.aboutOpenCount
+            prefs[Keys.eulaAcceptedVersion] = next.eulaAcceptedVersion
         }
     }
 
@@ -112,9 +121,11 @@ class SettingsRepository(private val context: Context) {
             autoSpacesEnabled = spaceEnabled,
             autoSpaceContainers = spaceContainers,
             autoSpaceVehicles = spaceVehicles,
+            thousandsSeparatorEnabled = this[Keys.thousandsSeparator] ?: false,
             floatingFabEnabled = this[Keys.floatingFab] ?: true,
             defaultBatchWarnThreshold = this[Keys.batchWarn] ?: 5,
-            aboutOpenCount = this[Keys.aboutOpenCount] ?: 0
+            aboutOpenCount = this[Keys.aboutOpenCount] ?: 0,
+            eulaAcceptedVersion = this[Keys.eulaAcceptedVersion] ?: 0
         )
     }
 }

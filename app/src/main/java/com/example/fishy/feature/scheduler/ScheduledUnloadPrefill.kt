@@ -39,6 +39,7 @@ fun ScheduledUnloadPrefill(
     manufacturers: List<DictionaryEntity>,
     autoSpaceContainers: Boolean,
     autoSpaceVehicles: Boolean,
+    thousandsSeparator: Boolean = false,
     onAddToDictionary: (DictionaryType, String) -> Unit,
     onRequestDelete: SchedulerDeleteRequest
 ) {
@@ -47,7 +48,12 @@ fun ScheduledUnloadPrefill(
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         payload.unloadReceptions.forEach { reception ->
-            val receptionTitle = unloadReceptionTitle(reception.name, reception.transport)
+            val receptionTitle = unloadReceptionTitle(
+                reception.name,
+                reception.transport,
+                autoSpaceContainers,
+                autoSpaceVehicles
+            )
             AccordionCard(
                 title = receptionTitle,
                 trailing = {
@@ -95,12 +101,18 @@ fun ScheduledUnloadPrefill(
                                 )
                             }
                         },
+                        ports = ports,
+                        onAddToDictionary = onAddToDictionary,
                         autoSpaceContainers = autoSpaceContainers,
                         autoSpaceVehicles = autoSpaceVehicles
                     )
                 }
                 reception.inbounds.forEach { inbound ->
-                    val inboundTitle = transportTitle(inbound.transport).let { t ->
+                    val inboundTitle = transportTitle(
+                        inbound.transport,
+                        autoSpaceContainers,
+                        autoSpaceVehicles
+                    ).let { t ->
                         if (t != stringResource(R.string.new_transport)) t
                         else stringResource(R.string.unload_source)
                     }
@@ -159,25 +171,6 @@ fun ScheduledUnloadPrefill(
                             dictionaryType = DictionaryType.PORT,
                             onAddToDictionary = onAddToDictionary
                         )
-                        TransportFields(
-                            transport = inbound.transport,
-                            onChange = { t ->
-                                update { p ->
-                                    p.copy(
-                                        unloadReceptions = p.unloadReceptions.map { r ->
-                                            if (r.id != reception.id) r
-                                            else r.copy(
-                                                inbounds = r.inbounds.map {
-                                                    if (it.id == inbound.id) it.copy(transport = t) else it
-                                                }
-                                            )
-                                        }
-                                    )
-                                }
-                            },
-                            autoSpaceContainers = autoSpaceContainers,
-                            autoSpaceVehicles = autoSpaceVehicles
-                        )
                         DictionaryAutocomplete(
                             label = stringResource(R.string.vessel),
                             value = inbound.vessel,
@@ -198,6 +191,25 @@ fun ScheduledUnloadPrefill(
                             },
                             dictionaryType = DictionaryType.VESSEL,
                             onAddToDictionary = onAddToDictionary
+                        )
+                        TransportFields(
+                            transport = inbound.transport,
+                            onChange = { t ->
+                                update { p ->
+                                    p.copy(
+                                        unloadReceptions = p.unloadReceptions.map { r ->
+                                            if (r.id != reception.id) r
+                                            else r.copy(
+                                                inbounds = r.inbounds.map {
+                                                    if (it.id == inbound.id) it.copy(transport = t) else it
+                                                }
+                                            )
+                                        }
+                                    )
+                                }
+                            },
+                            autoSpaceContainers = autoSpaceContainers,
+                            autoSpaceVehicles = autoSpaceVehicles
                         )
                         inbound.products.forEach { product ->
                             ProductPrefillFields(
@@ -251,7 +263,9 @@ fun ScheduledUnloadPrefill(
                                         }
                                     }
                                 },
-                                onAddToDictionary = onAddToDictionary
+                                onAddToDictionary = onAddToDictionary,
+                                grossWeightEnabled = payload.grossWeightEnabled,
+                                thousandsSeparator = thousandsSeparator
                             )
                         }
                         TextButton(

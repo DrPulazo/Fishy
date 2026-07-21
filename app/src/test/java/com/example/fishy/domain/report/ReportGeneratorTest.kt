@@ -5,6 +5,8 @@ import com.example.fishy.domain.model.Product
 import com.example.fishy.domain.model.ShipmentMode
 import com.example.fishy.domain.model.ShipmentPayload
 import com.example.fishy.domain.model.Transport
+import com.example.fishy.domain.model.UnloadInbound
+import com.example.fishy.domain.model.UnloadReception
 import com.example.fishy.domain.model.VehicleGroup
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -44,7 +46,7 @@ class ReportGeneratorTest {
     }
 
     @Test
-    fun vehicleWithoutContainerShowsTruckTrailerSeal() {
+    fun furaShowsTruckTrailerDriverPlaceholderAndSeal() {
         val line = ReportGenerator.formatTransportLine(
             Transport(
                 truckNumber = "A123BC77",
@@ -54,7 +56,47 @@ class ReportGeneratorTest {
             formatContainerSpaces = false,
             formatVehicleSpaces = true
         )
-        assertEquals("A 123 BC / 77, AB 1234 / 77, SEAL1", line)
+        assertEquals(
+            "A 123 BC / 77 – AB 1234 / 77\n" +
+                "Водитель: *Добавьте ФИО и контактный телефон водителя*\n" +
+                "Пломба: SEAL1",
+            line
+        )
+    }
+
+    @Test
+    fun furaTruckOnlyWithSealIncludesDriverPlaceholder() {
+        val line = ReportGenerator.formatTransportLine(
+            Transport(
+                truckNumber = "A123BC77",
+                sealNumber = "774206"
+            ),
+            formatContainerSpaces = false,
+            formatVehicleSpaces = true
+        )
+        assertEquals(
+            "A 123 BC / 77\n" +
+                "Водитель: *Добавьте ФИО и контактный телефон водителя*\n" +
+                "Пломба: 774206",
+            line
+        )
+    }
+
+    @Test
+    fun furaWithoutSealStillShowsDriverPlaceholder() {
+        val line = ReportGenerator.formatTransportLine(
+            Transport(
+                truckNumber = "A123BC77",
+                trailerNumber = "AB123477"
+            ),
+            formatContainerSpaces = false,
+            formatVehicleSpaces = true
+        )
+        assertEquals(
+            "A 123 BC / 77 – AB 1234 / 77\n" +
+                "Водитель: *Добавьте ФИО и контактный телефон водителя*",
+            line
+        )
     }
 
     @Test
@@ -65,7 +107,7 @@ class ReportGeneratorTest {
                 batch = "12",
                 manufacturer = "Океан",
                 packageWeight = 10.0,
-                pallets = listOf(Pallet(places = 1))
+                pallets = listOf(Pallet(places = 1.0))
             ),
             doubleControl = false
         )
@@ -80,7 +122,7 @@ class ReportGeneratorTest {
                 batch = "B",
                 manufacturer = "Завод",
                 packageWeight = 20.0,
-                pallets = listOf(Pallet(places = 2))
+                pallets = listOf(Pallet(places = 2.0))
             ),
             doubleControl = false
         )
@@ -102,7 +144,7 @@ class ReportGeneratorTest {
                     batch = "12",
                     manufacturer = "Океан",
                     packageWeight = 10.0,
-                    pallets = listOf(Pallet(places = 5))
+                    pallets = listOf(Pallet(places = 5.0))
                 )
             ),
             notes = "Проверить пломбу",
@@ -136,13 +178,13 @@ class ReportGeneratorTest {
                 VehicleGroup(
                     transport = Transport(wagonNumber = "11111111"),
                     products = listOf(
-                        Product(name = "A", batch = "1", manufacturer = "M", packageWeight = 1.0, pallets = listOf(Pallet(places = 1)))
+                        Product(name = "A", batch = "1", manufacturer = "M", packageWeight = 1.0, pallets = listOf(Pallet(places = 1.0)))
                     )
                 ),
                 VehicleGroup(
                     transport = Transport(truckNumber = "A123BC77"),
                     products = listOf(
-                        Product(name = "B", batch = "2", manufacturer = "M", packageWeight = 2.0, pallets = listOf(Pallet(places = 2)))
+                        Product(name = "B", batch = "2", manufacturer = "M", packageWeight = 2.0, pallets = listOf(Pallet(places = 2.0)))
                     )
                 )
             ),
@@ -157,6 +199,96 @@ class ReportGeneratorTest {
         assertTrue(report.contains("11111111"))
         assertTrue(report.contains("A 123 BC / 77"))
         assertTrue(report.indexOf("11111111") < report.indexOf("A 123 BC / 77"))
+    }
+
+    @Test
+    fun unloadMergesIdenticalProductsAcrossInbounds() {
+        val same = { places: Double ->
+            Product(
+                name = "Горбуша ПБГ",
+                batch = "П-19",
+                manufacturer = "ООО «Тымлатский РК»",
+                packageWeight = 24.0,
+                pallets = listOf(Pallet(places = places))
+            )
+        }
+        val payload = ShipmentPayload(
+            mode = ShipmentMode.UNLOAD,
+            unloadReceptions = listOf(
+                UnloadReception(
+                    transport = Transport(wagonNumber = "12345678"),
+                    inbounds = listOf(
+                        UnloadInbound(
+                            transport = Transport(truckNumber = "A111AA11"),
+                            products = listOf(same(833.0))
+                        ),
+                        UnloadInbound(
+                            transport = Transport(truckNumber = "A222AA22"),
+                            products = listOf(same(833.0))
+                        ),
+                        UnloadInbound(
+                            transport = Transport(truckNumber = "A333AA33"),
+                            products = listOf(same(800.0))
+                        )
+                    )
+                )
+            ),
+            createdAtMillis = 1_700_000_000_000L,
+            completedAtMillis = 1_700_000_000_000L
+        )
+        val report = ReportGenerator.generate(
+            payload = payload,
+            generatedAtMillis = 1_700_000_000_000L
+        )
+        assertTrue(report.contains("12345678"))
+        assertFalse(report.contains("A111"))
+        assertTrue(
+            report.contains(
+                "Горбуша ПБГ П-19 (1/24) – ООО «Тымлатский РК» - 2466 мест – 59184 кг"
+            )
+        )
+        assertEquals(1, report.lines().count { it.contains("Горбуша ПБГ П-19") })
+        assertTrue(report.contains("Общий тоннаж: 59184 кг"))
+    }
+
+    @Test
+    fun unloadDoesNotMergeWhenTareDiffers() {
+        val payload = ShipmentPayload(
+            mode = ShipmentMode.UNLOAD,
+            unloadReceptions = listOf(
+                UnloadReception(
+                    transport = Transport(wagonNumber = "99"),
+                    inbounds = listOf(
+                        UnloadInbound(
+                            products = listOf(
+                                Product(
+                                    name = "Кета",
+                                    batch = "B",
+                                    manufacturer = "M",
+                                    packageWeight = 24.0,
+                                    pallets = listOf(Pallet(places = 10.0))
+                                )
+                            )
+                        ),
+                        UnloadInbound(
+                            products = listOf(
+                                Product(
+                                    name = "Кета",
+                                    batch = "B",
+                                    manufacturer = "M",
+                                    packageWeight = 22.0,
+                                    pallets = listOf(Pallet(places = 10.0))
+                                )
+                            )
+                        )
+                    )
+                )
+            ),
+            createdAtMillis = 1_700_000_000_000L,
+            completedAtMillis = 1_700_000_000_000L
+        )
+        val report = ReportGenerator.generate(payload = payload, generatedAtMillis = 1_700_000_000_000L)
+        assertEquals(2, report.lines().count { it.startsWith("Кета B") })
     }
 
     @Test
