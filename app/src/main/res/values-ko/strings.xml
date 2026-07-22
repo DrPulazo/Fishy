@@ -14,8 +14,8 @@
     <string name="back">뒤쪽에</string>
     <string name="coming_soon">곧 출시 예정</string>
     <string name="about_title">에 대한</string>
-    <string name="about_version">버전 2.0.1</string>
-    <string name="about_body">생선 화물 수신기에 대한 배송 추적.\nFishy 2.0.1</string>
+    <string name="about_version">버전 2.1.0</string>
+    <string name="about_body">생선 화물 수신기에 대한 배송 추적.\nFishy 2.1.0</string>
     <string name="about_deepseek">\n DeepSeek AI 챗봇의 도움을 받아 구축되었습니다.</string>
     <string name="about_budget_title">개발 예산:</string>
     <string name="about_budget_beer">맥주 한 케이스</string>
@@ -106,6 +106,8 @@
     <string name="auto_spaces_vehicles">차량</string>
     <string name="thousands_separator">자릿수 구분</string>
     <string name="floating_fab">플로팅 버튼</string>
+    <string name="simplified_counter">간편 카운터</string>
+    <string name="quick_pallet_places_required">수량을 입력하세요</string>
     <string name="wipe_data">데이터 삭제</string>
     <string name="wipe_data_title">데이터를 삭제할까요?</string>
     <string name="wipe_data_message">저장된 모든 앱 데이터를 완전히 지우시겠습니까? 이 작업은 취소할 수 없습니다.</string>
@@ -199,6 +201,7 @@
     <string name="gross_mass">총 질량</string>
     <string name="pallet_number">#</string>
     <string name="places_count">장소</string>
+    <string name="places_per_pallet_short">수량/팔레트</string>
     <string name="imported_header">수입됨</string>
     <string name="add_pallet">팔레트 추가</string>
     <string name="add_product">제품 추가</string>
@@ -245,7 +248,8 @@
     <string name="overload">초과: %1$s</string>
     <string name="norm_ok">✓ 정상</string>
     <string name="loading_done">✓ 적재 완료</string>
-    <string name="exported_imported">내보낸 것: %1$d, 가져온 것: %2$d</string>
+    <string name="dc_exported_line">내보냄: %1$s (%2$s)</string>
+    <string name="dc_imported_line">반입: %1$s (%2$s)</string>
     <string name="product_types">제품 유형</string>
     <string name="product_types_count">제품 유형: %1$d</string>
     <string name="loaded_pallets">팔레트가 로드됨</string>

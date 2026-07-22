@@ -1,23 +1,36 @@
 package com.example.fishy.feature.shipment
 
 import android.widget.Toast
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.requiredHeight
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.LocalTextStyle
+import androidx.compose.ui.graphics.SolidColor
+import com.example.fishy.ui.theme.FishyCornerRadius
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
@@ -68,6 +81,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.fishy.FishyApp
 import com.example.fishy.R
 import com.example.fishy.domain.calc.BatchStatus
 import com.example.fishy.domain.calc.ShipmentCalculator
@@ -114,7 +128,7 @@ private enum class CompletePlacesMismatch {
     None, Over, Under
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun ShipmentScreen(
     mode: ShipmentMode?,
@@ -127,6 +141,7 @@ fun ShipmentScreen(
 ) {
     val payload by vm.payload.collectAsState()
     val settings by vm.settings.collectAsState()
+    val quickPlacesText by vm.quickPlacesText.collectAsState()
     val sessionKey by vm.sessionKey.collectAsState()
     val customers by vm.customers.collectAsState()
     val ports by vm.ports.collectAsState()
@@ -258,7 +273,6 @@ fun ShipmentScreen(
                                     onCheckedChange = { enabled ->
                                         vm.setBatchControl(enabled)
                                         if (enabled) {
-                                            showSettingsMenu = false
                                             batchPanelExpanded = true
                                         }
                                     }
@@ -267,6 +281,28 @@ fun ShipmentScreen(
                                     label = stringResource(R.string.gross_weight),
                                     checked = payload.grossWeightEnabled,
                                     onCheckedChange = vm::setGrossWeightEnabled
+                                )
+                                SettingsMenuSwitchRow(
+                                    label = stringResource(R.string.floating_fab),
+                                    checked = settings.floatingFabEnabled,
+                                    onCheckedChange = { enabled ->
+                                        scope.launch {
+                                            FishyApp.instance.settingsRepository.update {
+                                                it.copy(floatingFabEnabled = enabled)
+                                            }
+                                        }
+                                    }
+                                )
+                                SettingsMenuSwitchRow(
+                                    label = stringResource(R.string.simplified_counter),
+                                    checked = settings.simplifiedCounterEnabled,
+                                    onCheckedChange = { enabled ->
+                                        scope.launch {
+                                            FishyApp.instance.settingsRepository.update {
+                                                it.copy(simplifiedCounterEnabled = enabled)
+                                            }
+                                        }
+                                    }
                                 )
                             }
                         }
@@ -402,7 +438,10 @@ fun ShipmentScreen(
                             unload = false,
                             thousandsSeparator = settings.effectiveThousandsSeparator,
                             batchMismatch = ShipmentCalculator.isUnknownBatch(product, payload),
-                            grossWeightEnabled = payload.grossWeightEnabled
+                            grossWeightEnabled = payload.grossWeightEnabled,
+                            simplifiedCounterEnabled = settings.simplifiedCounterEnabled,
+                            quickPlacesText = quickPlacesText,
+                            onQuickPlacesChange = vm::setQuickPlacesText
                         )
                     }
                     item {
@@ -504,7 +543,10 @@ fun ShipmentScreen(
                                         unload = false,
                                         thousandsSeparator = settings.effectiveThousandsSeparator,
                                         batchMismatch = ShipmentCalculator.isUnknownBatch(product, payload),
-                                        grossWeightEnabled = payload.grossWeightEnabled
+                                        grossWeightEnabled = payload.grossWeightEnabled,
+                                        simplifiedCounterEnabled = settings.simplifiedCounterEnabled,
+                                        quickPlacesText = quickPlacesText,
+                                        onQuickPlacesChange = vm::setQuickPlacesText
                                     )
                                 }
                                 FishyButton(
@@ -640,7 +682,10 @@ fun ShipmentScreen(
                                         unload = false,
                                         thousandsSeparator = settings.effectiveThousandsSeparator,
                                         batchMismatch = ShipmentCalculator.isUnknownBatch(product, payload),
-                                        grossWeightEnabled = payload.grossWeightEnabled
+                                        grossWeightEnabled = payload.grossWeightEnabled,
+                                        simplifiedCounterEnabled = settings.simplifiedCounterEnabled,
+                                        quickPlacesText = quickPlacesText,
+                                        onQuickPlacesChange = vm::setQuickPlacesText
                                     )
                                 }
                                 FishyButton(
@@ -833,7 +878,10 @@ fun ShipmentScreen(
                                             unload = true,
                                             thousandsSeparator = settings.effectiveThousandsSeparator,
                                             batchMismatch = ShipmentCalculator.isUnknownBatch(product, payload),
-                                            grossWeightEnabled = payload.grossWeightEnabled
+                                            grossWeightEnabled = payload.grossWeightEnabled,
+                                            simplifiedCounterEnabled = settings.simplifiedCounterEnabled,
+                                            quickPlacesText = quickPlacesText,
+                                            onQuickPlacesChange = vm::setQuickPlacesText
                                         )
                                     }
                                     FishyButton(
@@ -1218,6 +1266,7 @@ private fun SettingsMenuSwitchRow(
     )
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun ProductCard(
     product: Product,
@@ -1239,7 +1288,10 @@ private fun ProductCard(
     unload: Boolean,
     thousandsSeparator: Boolean = false,
     batchMismatch: Boolean = false,
-    grossWeightEnabled: Boolean = false
+    grossWeightEnabled: Boolean = false,
+    simplifiedCounterEnabled: Boolean = false,
+    quickPlacesText: String = "",
+    onQuickPlacesChange: (String) -> Unit = {}
 ) {
     val rem = ShipmentCalculator.remainder(product, doubleControl, unload)
     val title = productAccordionTitle(product, stringResource(R.string.new_product))
@@ -1343,36 +1395,130 @@ private fun ProductCard(
                 )
             }
         }
-        FishyButton(onClick = onAddPallet, modifier = Modifier.fillMaxWidth()) {
-            Text(stringResource(R.string.add_pallet))
+
+        val footerBringIntoView = remember { BringIntoViewRequester() }
+        val realPalletCount = product.pallets.count { !it.isPlaceholder }
+        var prevRealPalletCount by remember { mutableStateOf(realPalletCount) }
+        LaunchedEffect(realPalletCount) {
+            if (realPalletCount > prevRealPalletCount && simplifiedCounterEnabled) {
+                footerBringIntoView.bringIntoView()
+            }
+            prevRealPalletCount = realPalletCount
         }
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(statusColor.copy(alpha = 0.12f))
-                .padding(8.dp)
-        ) {
-            val places = ShipmentCalculator.placesForProduct(product, doubleControl)
-            Text(
-                stringResource(
-                    R.string.places_progress,
-                    QuantityFormatters.formatCount(places, thousandsSeparator),
-                    QuantityFormatters.formatInteger(product.quantity, thousandsSeparator)
+
+        Column(modifier = Modifier.bringIntoViewRequester(footerBringIntoView)) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(statusColor.copy(alpha = 0.12f))
+                    .padding(8.dp)
+            ) {
+                val placesTotal = ShipmentCalculator.placesForProduct(product, doubleControl)
+                Text(
+                    stringResource(
+                        R.string.places_progress,
+                        QuantityFormatters.formatCount(placesTotal, thousandsSeparator),
+                        QuantityFormatters.formatInteger(product.quantity, thousandsSeparator)
+                    )
                 )
-            )
-            Text(
-                text = when {
-                    rem > 0 -> stringResource(R.string.underload, ShipmentCalculator.formatPlacesRu(rem, thousandsSeparator))
-                    rem < 0 -> stringResource(R.string.overload, ShipmentCalculator.formatPlacesRu(-rem, thousandsSeparator))
-                    else -> stringResource(R.string.norm_ok)
-                },
-                color = statusColor,
-                fontWeight = FontWeight.Bold
-            )
-            if (doubleControl) {
-                val exported = product.pallets.count { !it.isPlaceholder }
-                val imported = product.pallets.count { it.isImported }
-                Text(stringResource(R.string.exported_imported, exported, imported), style = MaterialTheme.typography.bodySmall)
+                Text(
+                    text = when {
+                        rem > 0 -> stringResource(R.string.underload, ShipmentCalculator.formatPlacesRu(rem, thousandsSeparator))
+                        rem < 0 -> stringResource(R.string.overload, ShipmentCalculator.formatPlacesRu(-rem, thousandsSeparator))
+                        else -> stringResource(R.string.norm_ok)
+                    },
+                    color = statusColor,
+                    fontWeight = FontWeight.Bold
+                )
+                if (doubleControl) {
+                    val real = ShipmentCalculator.realPallets(product)
+                    val exportedCount = real.size
+                    val importedPallets = real.filter { it.isImported }
+                    val exportedPlaces = real.sumOf { it.places }
+                    val importedPlaces = importedPallets.sumOf { it.places }
+                    Text(
+                        stringResource(
+                            R.string.dc_exported_line,
+                            ShipmentCalculator.formatPalletsRu(exportedCount),
+                            ShipmentCalculator.formatPlacesRu(exportedPlaces, thousandsSeparator)
+                        ),
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    Text(
+                        stringResource(
+                            R.string.dc_imported_line,
+                            ShipmentCalculator.formatPalletsRu(importedPallets.size),
+                            ShipmentCalculator.formatPlacesRu(importedPlaces, thousandsSeparator)
+                        ),
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            if (simplifiedCounterEnabled) {
+                val counterRowHeight = 56.dp
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .requiredHeight(counterRowHeight)
+                            .border(
+                                width = 1.dp,
+                                color = MaterialTheme.colorScheme.outline,
+                                shape = RoundedCornerShape(FishyCornerRadius)
+                            )
+                            .padding(horizontal = 12.dp),
+                        contentAlignment = Alignment.CenterStart
+                    ) {
+                        BasicTextField(
+                            value = quickPlacesText,
+                            onValueChange = onQuickPlacesChange,
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                            textStyle = LocalTextStyle.current.copy(
+                                color = MaterialTheme.colorScheme.onSurface
+                            ),
+                            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                            decorationBox = { inner ->
+                                Box(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    contentAlignment = Alignment.CenterStart
+                                ) {
+                                    if (quickPlacesText.isEmpty()) {
+                                        Text(
+                                            text = stringResource(R.string.places_per_pallet_short),
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                    inner()
+                                }
+                            }
+                        )
+                    }
+                    FishyButton(
+                        onClick = onAddPallet,
+                        modifier = Modifier
+                            .weight(1f)
+                            .requiredHeight(counterRowHeight)
+                            .defaultMinSize(minHeight = 0.dp),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp)
+                    ) {
+                        Text(
+                            text = stringResource(R.string.add_pallet),
+                            textAlign = TextAlign.Center,
+                            maxLines = 2
+                        )
+                    }
+                }
+            } else {
+                FishyButton(onClick = onAddPallet, modifier = Modifier.fillMaxWidth()) {
+                    Text(stringResource(R.string.add_pallet))
+                }
             }
         }
     }

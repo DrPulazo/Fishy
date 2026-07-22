@@ -205,8 +205,8 @@ object ShipmentCalculator {
     }
 
     private fun ruPallets(n: Int): String {
-        val mod100 = n % 100
-        val mod10 = n % 10
+        val mod100 = abs(n) % 100
+        val mod10 = abs(n) % 10
         val word = when {
             mod100 in 11..14 -> "поддонов"
             mod10 == 1 -> "поддон"
@@ -215,6 +215,9 @@ object ShipmentCalculator {
         }
         return "$n $word"
     }
+
+    /** «1 поддон», «2 поддона», «5 поддонов». */
+    fun formatPalletsRu(n: Int): String = ruPallets(n)
 
     /** «1 место», «2 места», «5 мест»; fractions → «1,5 мест». */
     fun formatPlacesRu(n: Int, thousandsSeparator: Boolean = false): String {

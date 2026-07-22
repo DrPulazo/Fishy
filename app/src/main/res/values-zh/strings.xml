@@ -14,8 +14,8 @@
     <string name="back">返回</string>
     <string name="coming_soon">即将推出</string>
     <string name="about_title">关于应用</string>
-    <string name="about_version">版本 2.0.1</string>
-    <string name="about_body">鱼类货物收货发货管理。\nFishy 2.0.1</string>
+    <string name="about_version">版本 2.1.0</string>
+    <string name="about_body">鱼类货物收货发货管理。\nFishy 2.1.0</string>
     <string name="about_deepseek">在 DeepSeek AI\n助手协助下开发。</string>
     <string name="about_budget_title">开发预算：</string>
     <string name="about_budget_beer">一箱啤酒</string>
@@ -106,6 +106,8 @@
     <string name="auto_spaces_vehicles">车辆</string>
     <string name="thousands_separator">数字分位</string>
     <string name="floating_fab">浮动按钮</string>
+    <string name="simplified_counter">简易计数</string>
+    <string name="quick_pallet_places_required">请输入件数</string>
     <string name="wipe_data">删除数据</string>
     <string name="wipe_data_title">删除数据？</string>
     <string name="wipe_data_message">确定要完全清除应用中所有已保存的数据吗？此操作无法撤销。</string>
@@ -199,6 +201,7 @@
     <string name="gross_mass">毛重合计</string>
     <string name="pallet_number">№</string>
     <string name="places_count">件数</string>
+    <string name="places_per_pallet_short">件/托</string>
     <string name="imported_header">已运入</string>
     <string name="add_pallet">添加托盘</string>
     <string name="add_product">添加产品</string>
@@ -245,7 +248,8 @@
     <string name="overload">超装：%1$s</string>
     <string name="norm_ok">✓ 正常</string>
     <string name="loading_done">✓ 装货完成</string>
-    <string name="exported_imported">运出：%1$d，运入：%2$d</string>
+    <string name="dc_exported_line">运出：%1$s（%2$s）</string>
+    <string name="dc_imported_line">运入：%1$s（%2$s）</string>
     <string name="product_types">产品种类</string>
     <string name="product_types_count">产品种类：%1$d</string>
     <string name="loaded_pallets">已装托盘</string>

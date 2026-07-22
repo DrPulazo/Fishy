@@ -14,8 +14,8 @@
     <string name="back">戻る</string>
     <string name="coming_soon">近日公開</string>
     <string name="about_title">について</string>
-    <string name="about_version">バージョン 2.0.1</string>
-    <string name="about_body">魚の貨物受信機の出荷追跡。\nFishy 2.0.1</string>
+    <string name="about_version">バージョン 2.1.0</string>
+    <string name="about_body">魚の貨物受信機の出荷追跡。\nFishy 2.1.0</string>
     <string name="about_deepseek">DeepSeek AI チャットボット \n の助けを借りて構築されました。</string>
     <string name="about_budget_title">開発予算:</string>
     <string name="about_budget_beer">ビール 1 ケース</string>
@@ -106,6 +106,8 @@
     <string name="auto_spaces_vehicles">乗り物</string>
     <string name="thousands_separator">桁区切り</string>
     <string name="floating_fab">フローティングボタン</string>
+    <string name="simplified_counter">簡易カウンター</string>
+    <string name="quick_pallet_places_required">数量を入力してください</string>
     <string name="wipe_data">データを削除</string>
     <string name="wipe_data_title">データを削除しますか？</string>
     <string name="wipe_data_message">保存されているすべてのアプリデータを完全に消去しますか？この操作は取り消せません。</string>
@@ -199,6 +201,7 @@
     <string name="gross_mass">総質量</string>
     <string name="pallet_number">#</string>
     <string name="places_count">場所</string>
+    <string name="places_per_pallet_short">数量/パレット</string>
     <string name="imported_header">輸入品</string>
     <string name="add_pallet">パレットの追加</string>
     <string name="add_product">製品を追加</string>
@@ -245,7 +248,8 @@
     <string name="overload">%1$s 超過</string>
     <string name="norm_ok">✓ 適正</string>
     <string name="loading_done">✓ 積み込み完了</string>
-    <string name="exported_imported">エクスポート: %1$d、インポート: %2$d</string>
+    <string name="dc_exported_line">搬出: %1$s（%2$s）</string>
+    <string name="dc_imported_line">搬入: %1$s（%2$s）</string>
     <string name="product_types">製品の種類</string>
     <string name="product_types_count">製品の種類：%1$d</string>
     <string name="loaded_pallets">パレットが積載されました</string>

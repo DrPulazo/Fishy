@@ -39,14 +39,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.example.fishy.R
 import com.example.fishy.domain.calc.ShipmentCalculator
@@ -60,21 +57,7 @@ import kotlinx.coroutines.delay
 private val PalletColGap = 12.dp
 
 @Composable
-private fun placesFieldWidth(): Dp {
-    val label = stringResource(R.string.places_count)
-    val style = MaterialTheme.typography.bodySmall
-    val measurer = rememberTextMeasurer()
-    val density = LocalDensity.current
-    return remember(label, style, density) {
-        with(density) {
-            measurer.measure(text = label, style = style).size.width.toDp()
-        }
-    }
-}
-
-@Composable
 fun PalletTableHeader(doubleControl: Boolean) {
-    val placesW = placesFieldWidth()
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -88,47 +71,31 @@ fun PalletTableHeader(doubleControl: Boolean) {
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1,
             softWrap = false,
-            overflow = TextOverflow.Visible,
+            overflow = TextOverflow.Ellipsis,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.weight(1f)
+        )
+        Text(
+            text = stringResource(R.string.places_count),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            softWrap = false,
+            overflow = TextOverflow.Ellipsis,
             textAlign = TextAlign.Center,
             modifier = Modifier.weight(1f)
         )
         if (doubleControl) {
-            Text(
-                text = stringResource(R.string.places_count),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                softWrap = false,
-                overflow = TextOverflow.Visible,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.width(placesW)
-            )
             Text(
                 text = stringResource(R.string.imported_header),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
                 softWrap = false,
-                overflow = TextOverflow.Visible,
+                overflow = TextOverflow.Ellipsis,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.weight(1f)
             )
-        } else {
-            Box(
-                modifier = Modifier.weight(2f),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = stringResource(R.string.places_count),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    softWrap = false,
-                    overflow = TextOverflow.Visible,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.width(placesW)
-                )
-            }
         }
         Box(modifier = Modifier.width(3.dp))
     }
@@ -247,51 +214,43 @@ fun PalletRow(
                 textAlign = TextAlign.Center,
                 modifier = Modifier.weight(1f)
             )
-            val placesW = placesFieldWidth()
-            val placesField: @Composable (Modifier: Modifier) -> Unit = { fieldModifier ->
-                OutlinedTextField(
-                    value = displayPlacesText,
-                    onValueChange = { value ->
-                        val sanitized = QuantityFormatters.sanitizeDecimalInput(value).take(8)
-                        if (pallet.isPlaceholder) {
+            OutlinedTextField(
+                value = displayPlacesText,
+                onValueChange = { value ->
+                    val sanitized = QuantityFormatters.sanitizeDecimalInput(value).take(8)
+                    if (pallet.isPlaceholder) {
+                        clearingPlaceholder = true
+                        draftPlaces = sanitized
+                    }
+                    placesText = sanitized
+                    val parsed = QuantityFormatters.parseDecimalInput(sanitized)
+                    if (parsed != null) onPlacesChange(parsed)
+                },
+                modifier = Modifier
+                    .weight(1f)
+                    .focusRequester(focusRequester)
+                    .onFocusChanged { state ->
+                        placesFocused = state.isFocused
+                        if (state.isFocused && pallet.isPlaceholder) {
                             clearingPlaceholder = true
-                            draftPlaces = sanitized
+                            draftPlaces = ""
+                            placesText = ""
                         }
-                        placesText = sanitized
-                        val parsed = QuantityFormatters.parseDecimalInput(sanitized)
-                        if (parsed != null) onPlacesChange(parsed)
                     },
-                    modifier = fieldModifier
-                        .focusRequester(focusRequester)
-                        .onFocusChanged { state ->
-                            placesFocused = state.isFocused
-                            if (state.isFocused && pallet.isPlaceholder) {
-                                clearingPlaceholder = true
-                                draftPlaces = ""
-                                placesText = ""
-                            }
-                        },
-                    interactionSource = interactionSource,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    singleLine = true,
-                    textStyle = MaterialTheme.typography.bodySmall.copy(
-                        textAlign = TextAlign.Center,
-                        color = placesTextColor
-                    ),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = placesTextColor,
-                        unfocusedTextColor = placesTextColor,
-                        disabledTextColor = placesTextColor
-                    )
+                interactionSource = interactionSource,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                singleLine = true,
+                textStyle = MaterialTheme.typography.bodySmall.copy(
+                    textAlign = TextAlign.Center,
+                    color = placesTextColor
+                ),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedTextColor = placesTextColor,
+                    unfocusedTextColor = placesTextColor,
+                    disabledTextColor = placesTextColor
                 )
-            }
+            )
             if (doubleControl) {
-                Box(
-                    modifier = Modifier.width(placesW),
-                    contentAlignment = Alignment.Center
-                ) {
-                    placesField(Modifier.fillMaxWidth())
-                }
                 Box(
                     modifier = Modifier.weight(1f),
                     contentAlignment = Alignment.Center
@@ -302,13 +261,6 @@ fun PalletRow(
                         enabled = !pallet.isPlaceholder,
                         colors = fishyCheckboxColors()
                     )
-                }
-            } else {
-                Box(
-                    modifier = Modifier.weight(2f),
-                    contentAlignment = Alignment.Center
-                ) {
-                    placesField(Modifier.width(placesW))
                 }
             }
             Box(

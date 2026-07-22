@@ -14,8 +14,8 @@
     <string name="back">Назад</string>
     <string name="coming_soon">Раздел в разработке</string>
     <string name="about_title">О приложении</string>
-    <string name="about_version">Версия 2.0.1</string>
-    <string name="about_body">Учёт и планирование отгрузок для приёмщиков рыбных грузов.\nFishy 2.0.1</string>
+    <string name="about_version">Версия 2.1.0</string>
+    <string name="about_body">Учёт и планирование отгрузок для приёмщиков рыбных грузов.\nFishy 2.1.0</string>
     <string name="about_deepseek">Разработано при содействии\nИИ чат-бота DeepSeek.</string>
     <string name="about_budget_title">Бюджет разработки:</string>
     <string name="about_budget_beer">Ящик пива</string>
@@ -106,6 +106,8 @@
     <string name="auto_spaces_vehicles">Автомобили</string>
     <string name="thousands_separator">Разряды чисел</string>
     <string name="floating_fab">Плавающая кнопка</string>
+    <string name="simplified_counter">Упрощённый счётчик</string>
+    <string name="quick_pallet_places_required">Укажите количество мест</string>
     <string name="wipe_data">УДАЛИТЬ ДАННЫЕ</string>
     <string name="wipe_data_title">Удалить данные?</string>
     <string name="wipe_data_message">Вы уверены, что хотите полностью очистить все сохранённые данные приложения? Действие невозможно будет отменить.</string>
@@ -199,6 +201,7 @@
     <string name="gross_mass">Масса брутто</string>
     <string name="pallet_number">№ поддона</string>
     <string name="places_count">Количество мест</string>
+    <string name="places_per_pallet_short">Кол-во/Поддон</string>
     <string name="imported_header">Завезён</string>
     <string name="add_pallet">Добавить поддон</string>
     <string name="add_product">Добавить продукцию</string>
@@ -245,7 +248,8 @@
     <string name="overload">Перегруз: %1$s</string>
     <string name="norm_ok">✓ Норма</string>
     <string name="loading_done">✓ Погрузка завершена</string>
-    <string name="exported_imported">Вывезено: %1$d, Завезено: %2$d</string>
+    <string name="dc_exported_line">Вывезено: %1$s (%2$s)</string>
+    <string name="dc_imported_line">Завезено: %1$s (%2$s)</string>
     <string name="product_types">Видов продукции</string>
     <string name="product_types_count">Видов продукции: %1$d</string>
     <string name="loaded_pallets">Загружено поддонов</string>

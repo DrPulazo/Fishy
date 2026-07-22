@@ -300,6 +300,17 @@ fun SettingsScreen(onBack: () -> Unit) {
                         colors = fishySwitchColors()
                     )
                 }
+
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                    Text(stringResource(R.string.simplified_counter), modifier = Modifier.weight(1f))
+                    Switch(
+                        checked = settings.simplifiedCounterEnabled,
+                        onCheckedChange = { v ->
+                            scope.launch { settingsRepo.update { it.copy(simplifiedCounterEnabled = v) } }
+                        },
+                        colors = fishySwitchColors()
+                    )
+                }
             }
 
             TextButton(

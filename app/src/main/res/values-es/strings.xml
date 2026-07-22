@@ -14,8 +14,8 @@
     <string name="back">Atrás</string>
     <string name="coming_soon">Sección en desarrollo</string>
     <string name="about_title">Acerca de la aplicación</string>
-    <string name="about_version">Versión 2.0.1</string>
-    <string name="about_body">Registro y planificación de envíos para receptores de cargas de pescado.\nFishy 2.0.1</string>
+    <string name="about_version">Versión 2.1.0</string>
+    <string name="about_body">Registro y planificación de envíos para receptores de cargas de pescado.\nFishy 2.1.0</string>
     <string name="about_deepseek">Desarrollado con la colaboración\ndel chatbot de IA DeepSeek.</string>
     <string name="about_budget_title">Presupuesto de desarrollo:</string>
     <string name="about_budget_beer">Una caja de cerveza</string>
@@ -106,6 +106,8 @@
     <string name="auto_spaces_vehicles">Vehículos</string>
     <string name="thousands_separator">Grupos de dígitos</string>
     <string name="floating_fab">Botón flotante</string>
+    <string name="simplified_counter">Contador simplificado</string>
+    <string name="quick_pallet_places_required">Indique el número de plazas</string>
     <string name="wipe_data">ELIMINAR DATOS</string>
     <string name="wipe_data_title">¿Eliminar datos?</string>
     <string name="wipe_data_message">¿Está seguro de que desea borrar completamente todos los datos guardados de la aplicación? Esta acción no se puede deshacer.</string>
@@ -199,6 +201,7 @@
     <string name="gross_mass">Masa bruta</string>
     <string name="pallet_number">N.º de palé</string>
     <string name="places_count">Número de plazas</string>
+    <string name="places_per_pallet_short">Cant./Palé</string>
     <string name="imported_header">Recibido</string>
     <string name="add_pallet">Añadir palé</string>
     <string name="add_product">Añadir producto</string>
@@ -245,7 +248,8 @@
     <string name="overload">Sobrecarga: %1$s</string>
     <string name="norm_ok">✓ Norma</string>
     <string name="loading_done">✓ Carga terminada</string>
-    <string name="exported_imported">Enviado: %1$d, recibido: %2$d</string>
+    <string name="dc_exported_line">Enviado: %1$s (%2$s)</string>
+    <string name="dc_imported_line">Recibido: %1$s (%2$s)</string>
     <string name="product_types">Tipos de producto</string>
     <string name="product_types_count">Tipos de producto: %1$d</string>
     <string name="loaded_pallets">Palés cargados</string>

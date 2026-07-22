@@ -40,6 +40,8 @@ data class FishySettings(
     val thousandsSeparatorEnabled: Boolean = false,
     /** Floating smart «+» on shipment screens. */
     val floatingFabEnabled: Boolean = true,
+    /** Prefill places when adding pallets (field above «Add pallet» + FAB). */
+    val simplifiedCounterEnabled: Boolean = false,
     val defaultBatchWarnThreshold: Int = 5,
     /** How many About opens while Russian UI is active before the next visit (0..11). Resets after 12. */
     val aboutOpenCount: Int = 0,
@@ -64,6 +66,7 @@ class SettingsRepository(private val context: Context) {
         val spaceVehicles = booleanPreferencesKey("space_vehicles")
         val thousandsSeparator = booleanPreferencesKey("thousands_separator")
         val floatingFab = booleanPreferencesKey("floating_fab")
+        val simplifiedCounter = booleanPreferencesKey("simplified_counter")
         val batchWarn = intPreferencesKey("batch_warn")
         val aboutOpenCount = intPreferencesKey("about_open_count")
         val eulaAcceptedVersion = intPreferencesKey("eula_accepted_version")
@@ -87,6 +90,7 @@ class SettingsRepository(private val context: Context) {
             prefs[Keys.spaceVehicles] = next.autoSpaceVehicles
             prefs[Keys.thousandsSeparator] = next.thousandsSeparatorEnabled
             prefs[Keys.floatingFab] = next.floatingFabEnabled
+            prefs[Keys.simplifiedCounter] = next.simplifiedCounterEnabled
             prefs[Keys.batchWarn] = next.defaultBatchWarnThreshold
             prefs[Keys.aboutOpenCount] = next.aboutOpenCount
             prefs[Keys.eulaAcceptedVersion] = next.eulaAcceptedVersion
@@ -123,6 +127,7 @@ class SettingsRepository(private val context: Context) {
             autoSpaceVehicles = spaceVehicles,
             thousandsSeparatorEnabled = this[Keys.thousandsSeparator] ?: false,
             floatingFabEnabled = this[Keys.floatingFab] ?: true,
+            simplifiedCounterEnabled = this[Keys.simplifiedCounter] ?: false,
             defaultBatchWarnThreshold = this[Keys.batchWarn] ?: 5,
             aboutOpenCount = this[Keys.aboutOpenCount] ?: 0,
             eulaAcceptedVersion = this[Keys.eulaAcceptedVersion] ?: 0

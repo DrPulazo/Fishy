@@ -550,35 +550,176 @@ class ShipmentViewModel(application: Application) : AndroidViewModel(application
         )
     }
 
-    fun addPallet(productId: Long, focusAfter: Boolean = false) {
-        flushPendingPlacesLog()
-        forecastAppliedSignature.remove(productId)
-        var newPalletId: Long? = null
-        var newPalletNumber = 0
-        val productName = findProduct(productId)?.name.orEmpty()
-        mutateProductPallet(productId) { product ->
-            val real = ShipmentCalculator.realPallets(product)
-            val nextNum = real.size + 1
-            val newPallet = Pallet(palletNumber = nextNum, places = 0.0)
-            newPalletId = newPallet.id
-            newPalletNumber = nextNum
-            // Manual add takes over — drop placeholders, do not auto-forecast.
-            product.copy(pallets = real + newPallet)
-        }
-        logEvent(
-            ShipmentEventType.PALLET_ADDED,
-            app.getString(
-                R.string.history_msg_pallet_added,
-                newPalletNumber,
-                productLabel(productName)
+    private val _quickPlacesText = MutableStateFlow("")
+    val quickPlacesText: StateFlow<String> = _quickPlacesText.asStateFlow()
+
+    fun setQuickPlacesText(raw: String) {
+        _quickPlacesText.value = QuantityFormatters.sanitizeDecimalInput(raw)
+    }
+
+    /** Parsed draft for simplified counter; null if empty/invalid/non-positive. */
+    private fun parseQuickPlacesDraft(): Double? {
+        val parsed = QuantityFormatters.parseDecimalInput(_quickPlacesText.value) ?: return null
+        return parsed.takeIf { it > 0.0 }
+    }
+
+    private fun rejectQuickPlacesRequired() {
+        vibrateShort()
+        viewModelScope.launch {
+            _events.emit(
+                ShipmentUiEvent.Toast(
+                    app.getString(R.string.quick_pallet_places_required),
+                    isError = true
+                )
             )
-        )
-        if (focusAfter) {
-            val palletId = newPalletId ?: return
-            viewModelScope.launch {
-                _events.emit(ShipmentUiEvent.FocusPalletPlaces(productId, palletId))
+        }
+    }
+
+    fun addPallet(productId: Long, focusAfter: Boolean = false) {
+        val s = settings.value
+        if (s.simplifiedCounterEnabled) {
+            stampNextPlaceholderOrAdd(productId)
+        } else {
+            addPalletWithPlaces(productId, places = 0.0, focusAfter = focusAfter)
+        }
+    }
+
+    /**
+     * Simplified counter: stamp next forecast placeholder with draft places, or add a new real
+     * pallet (first add with places triggers forecast like typing on the first row).
+     */
+    private fun stampNextPlaceholderOrAdd(productId: Long) {
+        val places = parseQuickPlacesDraft()
+        if (places == null) {
+            rejectQuickPlacesRequired()
+            return
+        }
+        val product = findProduct(productId) ?: return
+        if (_payload.value.palletForecastEnabled && product.pallets.any { it.isPlaceholder }) {
+            val lastRealIndex = product.pallets.indexOfLast { !it.isPlaceholder }
+            val next = product.pallets.getOrNull(lastRealIndex + 1)
+                ?: product.pallets.firstOrNull { it.isPlaceholder }
+            if (next != null) {
+                touchLastUsedProduct(productId)
+                updatePalletPlaces(productId, next.id, places)
+                return
             }
         }
+        touchLastUsedProduct(productId)
+        addPalletWithPlaces(productId, places, focusAfter = false)
+    }
+
+    private fun addPalletWithPlaces(productId: Long, places: Double, focusAfter: Boolean) {
+        flushPendingPlacesLog()
+        val s = settings.value
+        val product = findProduct(productId) ?: return
+
+        if (places > 0.0 && !ShipmentCalculator.canAddPlaces(_payload.value, product, places)) {
+            viewModelScope.launch {
+                val key = ShipmentCalculator.batchKey(product)
+                val limit = _payload.value.batchLimits.find {
+                    ShipmentCalculator.batchKey(it) == key
+                }
+                val used = ShipmentCalculator.placesForProduct(product, _payload.value.doubleControlEnabled)
+                val avail = (limit?.plannedPlaces ?: 0.0) - used
+                _events.emit(
+                    ShipmentUiEvent.Toast(
+                        app.getString(
+                            R.string.batch_limit_exceeded,
+                            product.batch.ifBlank { product.name }.ifBlank { "—" },
+                            QuantityFormatters.formatCount(avail.coerceAtLeast(0.0))
+                        ),
+                        isError = true
+                    )
+                )
+            }
+            return
+        }
+
+        fun apply() {
+            forecastAppliedSignature.remove(productId)
+            var newPalletId: Long? = null
+            var newPalletNumber = 0
+            val productName = findProduct(productId)?.name.orEmpty()
+            var realCountAfter = 0
+            mutateProductPallet(productId) { p ->
+                val real = ShipmentCalculator.realPallets(p)
+                val nextNum = real.size + 1
+                val newPallet = Pallet(palletNumber = nextNum, places = places)
+                newPalletId = newPallet.id
+                newPalletNumber = nextNum
+                // Drop current placeholders; first pallet with places may re-forecast below.
+                val next = p.copy(pallets = real + newPallet)
+                realCountAfter = ShipmentCalculator.realPallets(next).size
+                next
+            }
+            logEvent(
+                ShipmentEventType.PALLET_ADDED,
+                app.getString(
+                    R.string.history_msg_pallet_added,
+                    newPalletNumber,
+                    productLabel(productName)
+                )
+            )
+            if (places > 0.0) {
+                newPalletId?.let { palletId ->
+                    schedulePlacesLog(
+                        productId = productId,
+                        palletId = palletId,
+                        palletNumber = newPalletNumber,
+                        productName = productName,
+                        oldPlaces = 0.0,
+                        newPlaces = places
+                    )
+                }
+            }
+            if (_payload.value.batchControlEnabled &&
+                ShipmentCalculator.batchStatuses(_payload.value, _payload.value.batchWarnThreshold)
+                    .any { it.key == ShipmentCalculator.batchKey(product) && it.exhausted }
+            ) {
+                vibrateShort()
+            }
+            if (places > 0.0 &&
+                _payload.value.palletForecastEnabled &&
+                realCountAfter == 1
+            ) {
+                scheduleForecastIfEligible(productId)
+            }
+            if (focusAfter && places == 0.0) {
+                val palletId = newPalletId ?: return
+                viewModelScope.launch {
+                    _events.emit(ShipmentUiEvent.FocusPalletPlaces(productId, palletId))
+                }
+            }
+        }
+
+        if (places > 0.0 &&
+            s.inputGuardEnabled &&
+            s.maxPlacesPerPallet > 0 &&
+            places > s.maxPlacesPerPallet &&
+            guardKey("places", "new:$productId") !in confirmedGuards
+        ) {
+            viewModelScope.launch {
+                _events.emit(
+                    ShipmentUiEvent.GuardConfirm("places", QuantityFormatters.formatCount(places)) {
+                        confirmedGuards += guardKey("places", "new:$productId")
+                        viewModelScope.launch {
+                            repo.log(
+                                _sessionKey.value,
+                                ShipmentEventType.INPUT_GUARD_CONFIRMED,
+                                app.getString(
+                                    R.string.history_msg_guard_places,
+                                    QuantityFormatters.formatCount(places)
+                                )
+                            )
+                        }
+                        apply()
+                    }
+                )
+            }
+            return
+        }
+        apply()
     }
 
     fun updatePalletPlaces(productId: Long, palletId: Long, places: Double) {
@@ -996,10 +1137,16 @@ class ShipmentViewModel(application: Application) : AndroidViewModel(application
     /**
      * FAB: if forecast placeholders exist, focus the next pallet after the last real one
      * (keep placeholders). Otherwise add a new real pallet and focus it.
+     * With simplified counter: stamp draft places onto next placeholder or add first + forecast.
      */
     private fun focusOrAddPallet(productId: Long) {
         val product = ShipmentCalculator.allProducts(_payload.value).find { it.id == productId }
             ?: return
+        val s = settings.value
+        if (s.simplifiedCounterEnabled) {
+            stampNextPlaceholderOrAdd(productId)
+            return
+        }
         if (_payload.value.palletForecastEnabled && product.pallets.any { it.isPlaceholder }) {
             val lastRealIndex = product.pallets.indexOfLast { !it.isPlaceholder }
             val next = product.pallets.getOrNull(lastRealIndex + 1)

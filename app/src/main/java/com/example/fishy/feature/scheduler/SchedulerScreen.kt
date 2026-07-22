@@ -690,7 +690,6 @@ private fun ScheduledEditorDialog(
                                         onCheckedChange = { enabled ->
                                             payload = payload.copy(batchControlEnabled = enabled)
                                             if (enabled) {
-                                                showSettingsMenu = false
                                                 batchForceExpandToken = System.currentTimeMillis()
                                             }
                                         },
@@ -702,7 +701,6 @@ private fun ScheduledEditorDialog(
                                 val enabled = !payload.batchControlEnabled
                                 payload = payload.copy(batchControlEnabled = enabled)
                                 if (enabled) {
-                                    showSettingsMenu = false
                                     batchForceExpandToken = System.currentTimeMillis()
                                 }
                             }

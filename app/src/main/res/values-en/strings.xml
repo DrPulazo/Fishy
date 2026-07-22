@@ -14,8 +14,8 @@
     <string name="back">Back</string>
     <string name="coming_soon">Coming soon</string>
     <string name="about_title">About</string>
-    <string name="about_version">Version 2.0.1</string>
-    <string name="about_body">Shipment tracking for fish cargo receivers.\nFishy 2.0.1</string>
+    <string name="about_version">Version 2.1.0</string>
+    <string name="about_body">Shipment tracking for fish cargo receivers.\nFishy 2.1.0</string>
     <string name="about_deepseek">Built with help from\nthe DeepSeek AI chatbot.</string>
     <string name="about_budget_title">Development budget:</string>
     <string name="about_budget_beer">A case of beer</string>
@@ -106,6 +106,8 @@
     <string name="auto_spaces_vehicles">Vehicles</string>
     <string name="thousands_separator">Number grouping</string>
     <string name="floating_fab">Floating button</string>
+    <string name="simplified_counter">Simplified counter</string>
+    <string name="quick_pallet_places_required">Enter places count</string>
     <string name="wipe_data">DELETE DATA</string>
     <string name="wipe_data_title">Delete all data?</string>
     <string name="wipe_data_message">Are you sure you want to permanently erase all saved app data? This cannot be undone.</string>
@@ -199,6 +201,7 @@
     <string name="gross_mass">Gross mass</string>
     <string name="pallet_number">Pallet No.</string>
     <string name="places_count">Places count</string>
+    <string name="places_per_pallet_short">Qty/Pallet</string>
     <string name="imported_header">Imported</string>
     <string name="add_pallet">Add pallet</string>
     <string name="add_product">Add product</string>
@@ -245,7 +248,8 @@
     <string name="overload">Over by %1$s</string>
     <string name="norm_ok">✓ OK</string>
     <string name="loading_done">✓ Loading complete</string>
-    <string name="exported_imported">Exported: %1$d, Imported: %2$d</string>
+    <string name="dc_exported_line">Exported: %1$s (%2$s)</string>
+    <string name="dc_imported_line">Imported: %1$s (%2$s)</string>
     <string name="product_types">Product types</string>
     <string name="product_types_count">Product types: %1$d</string>
     <string name="loaded_pallets">Pallets loaded</string>
