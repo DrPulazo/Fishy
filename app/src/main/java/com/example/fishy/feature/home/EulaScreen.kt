@@ -18,6 +18,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
@@ -48,6 +49,12 @@ fun EulaScreen(
             .bufferedReader(StandardCharsets.UTF_8)
             .use { it.readText() }
     }
+    val scrollState = rememberScrollState()
+    val reachedEnd by remember {
+        derivedStateOf {
+            scrollState.maxValue == 0 || scrollState.value >= scrollState.maxValue
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -66,6 +73,7 @@ fun EulaScreen(
             if (requireAccept) {
                 FishyButton(
                     onClick = { onAccepted?.invoke() ?: onBack() },
+                    enabled = reachedEnd,
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(16.dp)
@@ -79,7 +87,7 @@ fun EulaScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .verticalScroll(rememberScrollState())
+                .verticalScroll(scrollState)
                 .padding(horizontal = 20.dp, vertical = 12.dp)
         ) {
             Text(

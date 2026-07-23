@@ -28,7 +28,7 @@ enum class AppLanguage(val tag: String) {
 }
 
 data class FishySettings(
-    val themeMode: ThemeMode = ThemeMode.DARK,
+    val themeMode: ThemeMode = ThemeMode.SYSTEM,
     val language: AppLanguage = AppLanguage.RU,
     val inputGuardEnabled: Boolean = false,
     val maxPlaceWeightKg: Double = 0.0,
@@ -134,8 +134,7 @@ class SettingsRepository(private val context: Context) {
         val spaceEnabled = this[Keys.spaceEnabled] ?: (spaceContainers || spaceVehicles)
         return FishySettings(
             themeMode = this[Keys.theme]?.let { runCatching { ThemeMode.valueOf(it) }.getOrNull() }
-                ?.let { if (it == ThemeMode.SYSTEM) ThemeMode.DARK else it }
-                ?: ThemeMode.DARK,
+                ?: ThemeMode.SYSTEM,
             language = language,
             inputGuardEnabled = this[Keys.inputGuard] ?: false,
             maxPlaceWeightKg = this[Keys.maxWeight] ?: 0.0,

@@ -1,7 +1,10 @@
 package com.example.fishy.ui.components
 
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.DropdownMenuItem
@@ -17,7 +20,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import com.example.fishy.data.local.entity.DictionaryEntity
 import com.example.fishy.domain.model.DictionaryType
 
@@ -73,7 +78,10 @@ fun DictionaryAutocomplete(
             keyboardOptions = FishySentenceKeyboardOptions,
             isError = isError,
             trailingIcon = {
-                Row {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(end = 8.dp)
+                ) {
                     if (showAddButton) {
                         IconButton(
                             onClick = {
@@ -83,6 +91,8 @@ fun DictionaryAutocomplete(
                         ) {
                             Icon(Icons.Default.Add, contentDescription = null)
                         }
+                    } else {
+                        Spacer(modifier = Modifier.size(48.dp))
                     }
                     ExposedDropdownMenuDefaults.TrailingIcon(menuExpanded)
                 }

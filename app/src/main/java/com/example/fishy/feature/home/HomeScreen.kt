@@ -3,8 +3,13 @@ package com.example.fishy.feature.home
 import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
@@ -14,17 +19,23 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.outlined.DarkMode
 import androidx.compose.material.icons.outlined.Help
@@ -73,6 +84,11 @@ import com.example.fishy.ui.theme.isLightTheme
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
+private val HomeButtonHeight = 50.dp
+private val HomeTopBarIconSize = 56.dp
+/** Small breathing room under the last home button (above system nav). */
+private val HomeBottomBreathing = 14.dp
+
 @Composable
 fun HomeScreen(
     onOpenShipment: (ShipmentMode) -> Unit,
@@ -89,6 +105,7 @@ fun HomeScreen(
 ) {
     var showInfoDialog by remember { mutableStateOf(false) }
     var showModePicker by remember { mutableStateOf(false) }
+    var menuExpanded by remember { mutableStateOf(false) }
     var easterEggClickCount by remember { mutableIntStateOf(0) }
     var aboutBeerVisit by remember { mutableIntStateOf(0) }
     var lastClickTime by remember { mutableLongStateOf(0L) }
@@ -101,11 +118,11 @@ fun HomeScreen(
     fun openAboutDialog() {
         if (isRussianLanguageActive(settings.language)) {
             val current = settings.aboutOpenCount.coerceIn(0, 11)
-            // Progressive chance to advance: 0→1 and 1→2 = 100%; 2→3 = 10% … 10→11 = 90%; 11→12 = 100%.
+            // 0→1 always; 1→2 at 10%; from 2 onward always.
             val advanceChance = when (current) {
-                0, 1 -> 1f
-                in 2..10 -> (current - 1) * 0.1f
-                else -> 1f // 11 → dozen
+                0 -> 1f
+                1 -> 0.1f
+                else -> 1f
             }
             if (kotlin.random.Random.nextFloat() < advanceChance) {
                 val next = current + 1
@@ -139,185 +156,253 @@ fun HomeScreen(
         lastDraftId = drafts.maxByOrNull { it.completedAtMillis }?.id
     }
 
+    val menuIconTint = if (isLightTheme()) {
+        MaterialTheme.colorScheme.onSurfaceVariant
+    } else {
+        MaterialTheme.colorScheme.onSurface
+    }
+    val darkThemeOn = !isLightTheme()
+    val titleText = if (isRussianLanguageActive(settings.language)) {
+        stringResource(R.string.home_title_ru)
+    } else {
+        stringResource(R.string.home_title)
+    }
     Box(modifier = Modifier.fillMaxSize()) {
-        BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-            val availableHeight = maxHeight
-            val buttonCount = if (lastDraftId != null) 7 else 6
-            val layout = remember(availableHeight, buttonCount) {
-                computeHomeLayoutMetrics(availableHeight, buttonCount)
-            }
-            val titleStyle = if (layout.useTightTitle) {
-                MaterialTheme.typography.headlineLarge
-            } else {
-                MaterialTheme.typography.displayLarge
-            }
-
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(16.dp)
-            ) {
-                val homeHeader: @Composable () -> Unit = {
-                    Text(
-                        text = if (isRussianLanguageActive(settings.language)) {
-                            stringResource(R.string.home_title_ru)
-                        } else {
-                            stringResource(R.string.home_title)
-                        },
-                        style = titleStyle,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        fontWeight = FontWeight.Bold,
-                        textAlign = TextAlign.Center
-                    )
-                    Image(
-                        painter = painterResource(id = R.drawable.fishylogo),
-                        contentDescription = null,
-                        modifier = Modifier
-                            .size(layout.logoSize)
-                            .clickable {
-                                if (!isRussianLanguageActive(settings.language)) return@clickable
-                                val currentTime = System.currentTimeMillis()
-                                if (currentTime - lastClickTime < 500) {
-                                    easterEggClickCount++
-                                    if (easterEggClickCount >= 10) {
-                                        easterEggClickCount = 0
-                                        ErrorFeedback.vibrate(context)
-                                        Toast.makeText(
-                                            context,
-                                            LOGO_EASTER_MESSAGES.random(),
-                                            Toast.LENGTH_LONG
-                                        ).show()
-                                    }
-                                }
-                                lastClickTime = currentTime
-                            }
-                            .padding(vertical = layout.logoVerticalPadding)
-                    )
+        Column(modifier = Modifier.fillMaxSize()) {
+            BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+                // Always size as if "Continue" is present so logo/title don't jump when a draft appears.
+                val layoutButtonCount = 7
+                val topBarReserve = 80.dp
+                val contentMaxHeight = (maxHeight - topBarReserve).coerceAtLeast(0.dp)
+                val layout = remember(contentMaxHeight) {
+                    computeHomeLayoutMetrics(contentMaxHeight, layoutButtonCount)
                 }
-                val homeButtons: @Composable () -> Unit = {
-                    Column(
-                        verticalArrangement = Arrangement.spacedBy(layout.buttonGap),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        HomeButton(stringResource(R.string.nav_new_shipment)) { showModePicker = true }
-                        if (lastDraftId != null) {
-                            HomeButton(stringResource(R.string.nav_continue)) {
-                                onContinueDraft(lastDraftId!!)
-                            }
-                        }
-                        HomeButton(stringResource(R.string.nav_scheduler), onNavigateScheduler)
-                        HomeButton(stringResource(R.string.nav_archive), onNavigateArchive)
-                        HomeButton(stringResource(R.string.nav_drafts), onNavigateDrafts)
-                        HomeButton(stringResource(R.string.nav_templates), onNavigateTemplates)
-                        HomeButton(stringResource(R.string.nav_statistics), onNavigateStatistics)
-                    }
-                }
-
-                if (layout.contentFits) {
-                    Spacer(modifier = Modifier.weight(1f))
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        homeHeader()
-                        homeButtons()
-                    }
-                    Spacer(modifier = Modifier.weight(1f))
+                val titleStyle = if (layout.useTightTitle) {
+                    MaterialTheme.typography.headlineLarge
                 } else {
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        homeHeader()
-                    }
-                    Spacer(modifier = Modifier.weight(1f))
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        homeButtons()
-                    }
-                    Spacer(modifier = Modifier.height(8.dp))
+                    MaterialTheme.typography.displayLarge
                 }
-            }
-        }
+                val hasContinue = lastDraftId != null
 
-        val cornerIconTint = if (isLightTheme()) {
-            MaterialTheme.colorScheme.onSurfaceVariant
-        } else {
-            MaterialTheme.colorScheme.onSurface
-        }
-        val darkThemeOn = settings.themeMode != ThemeMode.LIGHT
+                Column(modifier = Modifier.fillMaxSize()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .statusBarsPadding()
+                            .heightIn(min = if (layout.useTightTitle) 56.dp else 72.dp)
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        Text(
+                            text = titleText,
+                            style = titleStyle,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            fontWeight = FontWeight.Bold,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier
+                                .align(Alignment.Center)
+                                .padding(horizontal = HomeTopBarIconSize)
+                        )
+                    }
 
-        Column(
-            modifier = Modifier
-                .align(Alignment.BottomStart)
-                .navigationBarsPadding()
-                .padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            IconButton(
-                onClick = onNavigateFaq,
-                modifier = Modifier.size(56.dp)
-            ) {
-                Icon(
-                    Icons.Outlined.Help,
-                    contentDescription = stringResource(R.string.faq_cd),
-                    modifier = Modifier.size(32.dp),
-                    tint = cornerIconTint
-                )
-            }
-            IconButton(
-                onClick = { openAboutDialog() },
-                modifier = Modifier.size(56.dp)
-            ) {
-                Icon(
-                    Icons.Default.Info,
-                    contentDescription = null,
-                    modifier = Modifier.size(32.dp),
-                    tint = cornerIconTint
-                )
-            }
-        }
+                    BoxWithConstraints(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp)
+                    ) {
+                        val innerLayout = remember(maxHeight) {
+                            computeHomeLayoutMetrics(maxHeight, layoutButtonCount)
+                        }
 
-        Column(
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .navigationBarsPadding()
-                .padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            IconButton(
-                onClick = {
-                    scope.launch {
-                        settingsRepo.update {
-                            it.copy(
-                                themeMode = if (darkThemeOn) ThemeMode.LIGHT else ThemeMode.DARK
+                        val logo: @Composable () -> Unit = {
+                            Image(
+                                painter = painterResource(id = R.drawable.fishylogo),
+                                contentDescription = null,
+                                modifier = Modifier
+                                    .size(innerLayout.logoSize)
+                                    .clickable {
+                                        if (!isRussianLanguageActive(settings.language)) {
+                                            return@clickable
+                                        }
+                                        val currentTime = System.currentTimeMillis()
+                                        if (currentTime - lastClickTime < 500) {
+                                            easterEggClickCount++
+                                            if (easterEggClickCount >= 10) {
+                                                easterEggClickCount = 0
+                                                ErrorFeedback.vibrate(context)
+                                                Toast.makeText(
+                                                    context,
+                                                    LOGO_EASTER_MESSAGES.random(),
+                                                    Toast.LENGTH_LONG
+                                                ).show()
+                                            }
+                                        }
+                                        lastClickTime = currentTime
+                                    }
                             )
                         }
+
+                        val buttons: @Composable () -> Unit = {
+                            Column(
+                                verticalArrangement = Arrangement.spacedBy(innerLayout.buttonGap),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                HomeButton(stringResource(R.string.nav_new_shipment)) {
+                                    showModePicker = true
+                                }
+                                if (hasContinue) {
+                                    HomeButton(stringResource(R.string.nav_continue)) {
+                                        onContinueDraft(lastDraftId!!)
+                                    }
+                                }
+                                HomeButton(stringResource(R.string.nav_scheduler), onNavigateScheduler)
+                                HomeButton(stringResource(R.string.nav_archive), onNavigateArchive)
+                                HomeButton(stringResource(R.string.nav_drafts), onNavigateDrafts)
+                                HomeButton(stringResource(R.string.nav_templates), onNavigateTemplates)
+                                HomeButton(stringResource(R.string.nav_statistics), onNavigateStatistics)
+                                // Keep "Новая отгрузка" Y fixed: reserve Continue height at the bottom
+                                // (spacedBy already adds one gap before this spacer).
+                                if (!hasContinue) {
+                                    Spacer(modifier = Modifier.height(HomeButtonHeight))
+                                }
+                            }
+                        }
+
+                        if (innerLayout.contentFits) {
+                            // Free space split: most between ФИШКА and buttons (logo), a bit under buttons
+                            // so the button block sits a little closer to the logo.
+                            Column(
+                                modifier = Modifier.fillMaxSize(),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Column(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .fillMaxWidth(),
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    Spacer(modifier = Modifier.weight(0.40f))
+                                    logo()
+                                    Spacer(modifier = Modifier.weight(0.60f))
+                                }
+                                buttons()
+                                Spacer(modifier = Modifier.height(HomeBottomBreathing))
+                                Spacer(modifier = Modifier.weight(0.08f))
+                            }
+                        } else {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .verticalScroll(rememberScrollState())
+                                    .padding(bottom = HomeBottomBreathing),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = innerLayout.logoVerticalPadding),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    logo()
+                                }
+                                buttons()
+                            }
+                        }
                     }
-                },
-                modifier = Modifier.size(56.dp)
+                }
+            }
+        }
+
+        Column(
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .statusBarsPadding()
+                .padding(end = 8.dp, top = 4.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            IconButton(
+                onClick = { menuExpanded = !menuExpanded },
+                modifier = Modifier.size(HomeTopBarIconSize)
             ) {
                 Icon(
-                    imageVector = if (darkThemeOn) Icons.Outlined.DarkMode else Icons.Outlined.LightMode,
-                    contentDescription = stringResource(R.string.theme_toggle_cd),
+                    imageVector = if (menuExpanded) Icons.Default.Close else Icons.Default.Menu,
+                    contentDescription = null,
                     modifier = Modifier.size(32.dp),
-                    tint = cornerIconTint
+                    tint = menuIconTint
                 )
             }
-            IconButton(
-                onClick = onNavigateSettings,
-                modifier = Modifier.size(56.dp)
+            AnimatedVisibility(
+                visible = menuExpanded,
+                enter = expandVertically(animationSpec = tween(200)) + fadeIn(animationSpec = tween(200)),
+                exit = shrinkVertically(animationSpec = tween(200)) + fadeOut(animationSpec = tween(150))
             ) {
-                Icon(
-                    Icons.Default.Settings,
-                    contentDescription = stringResource(R.string.nav_settings),
-                    modifier = Modifier.size(32.dp),
-                    tint = cornerIconTint
-                )
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    IconButton(
+                        onClick = {
+                            menuExpanded = false
+                            onNavigateSettings()
+                        },
+                        modifier = Modifier.size(HomeTopBarIconSize)
+                    ) {
+                        Icon(
+                            Icons.Default.Settings,
+                            contentDescription = stringResource(R.string.nav_settings),
+                            modifier = Modifier.size(32.dp),
+                            tint = menuIconTint
+                        )
+                    }
+                    IconButton(
+                        onClick = {
+                            scope.launch {
+                                settingsRepo.update {
+                                    it.copy(
+                                        themeMode = if (darkThemeOn) ThemeMode.LIGHT else ThemeMode.DARK
+                                    )
+                                }
+                            }
+                        },
+                        modifier = Modifier.size(HomeTopBarIconSize)
+                    ) {
+                        Icon(
+                            imageVector = if (darkThemeOn) Icons.Outlined.DarkMode else Icons.Outlined.LightMode,
+                            contentDescription = stringResource(R.string.theme_toggle_cd),
+                            modifier = Modifier.size(32.dp),
+                            tint = menuIconTint
+                        )
+                    }
+                    IconButton(
+                        onClick = {
+                            menuExpanded = false
+                            onNavigateFaq()
+                        },
+                        modifier = Modifier.size(HomeTopBarIconSize)
+                    ) {
+                        Icon(
+                            Icons.Outlined.Help,
+                            contentDescription = stringResource(R.string.faq_cd),
+                            modifier = Modifier.size(32.dp),
+                            tint = menuIconTint
+                        )
+                    }
+                    IconButton(
+                        onClick = {
+                            menuExpanded = false
+                            openAboutDialog()
+                        },
+                        modifier = Modifier.size(HomeTopBarIconSize)
+                    ) {
+                        Icon(
+                            Icons.Default.Info,
+                            contentDescription = null,
+                            modifier = Modifier.size(32.dp),
+                            tint = menuIconTint
+                        )
+                    }
+                }
             }
         }
     }
@@ -510,7 +595,7 @@ private fun HomeButton(text: String, onClick: () -> Unit) {
         modifier = Modifier
             .width(250.dp)
             .defaultMinSize(minWidth = 250.dp, minHeight = 50.dp)
-            .height(50.dp)
+            .height(HomeButtonHeight)
             .graphicsLayer {
                 scaleX = scale
                 scaleY = scale
@@ -534,23 +619,24 @@ private data class HomeLayoutMetrics(
     val contentFits: Boolean
 )
 
+/**
+ * Prefer a large logo and normal button gap; shrink logo first, then gap, on short screens.
+ * [maxHeight] is the area below the top bar (logo + buttons only).
+ */
 private fun computeHomeLayoutMetrics(maxHeight: Dp, buttonCount: Int): HomeLayoutMetrics {
-    val verticalPadding = 16.dp * 2
-    val buttonHeight = 50.dp
-    val titleHeight = 57.dp
-    val logoPadding = 10.dp
-    val maxLogo = 300.dp
-    val minLogo = 48.dp
-    val normalGap = 20.dp
-    val reducedGap = 12.dp
+    val buttonHeight = HomeButtonHeight
+    val logoPadding = 8.dp
+    val maxLogo = 280.dp
+    val minLogo = 80.dp
+    val normalGap = 16.dp
+    val reducedGap = 10.dp
 
     fun fixedReserve(
         buttonGap: Dp,
-        titleH: Dp = titleHeight,
         logoPad: Dp = logoPadding
     ): Dp {
         val buttonsBlock = buttonHeight * buttonCount + buttonGap * (buttonCount - 1).coerceAtLeast(0)
-        return verticalPadding + titleH + buttonsBlock + logoPad * 2
+        return buttonsBlock + logoPad * 2 + HomeBottomBreathing
     }
 
     fun result(
@@ -559,8 +645,7 @@ private fun computeHomeLayoutMetrics(maxHeight: Dp, buttonCount: Int): HomeLayou
         useTightTitle: Boolean = false,
         logoPad: Dp = logoPadding
     ): HomeLayoutMetrics {
-        val titleH = if (useTightTitle) 45.dp else titleHeight
-        val fixed = fixedReserve(buttonGap, titleH, logoPad)
+        val fixed = fixedReserve(buttonGap, logoPad)
         return HomeLayoutMetrics(
             logoSize = logoSize,
             logoVerticalPadding = logoPad,
@@ -582,14 +667,13 @@ private fun computeHomeLayoutMetrics(maxHeight: Dp, buttonCount: Int): HomeLayou
     }
 
     // 3) Logo at minimum, reduced gap
-    val reducedFixed = fixedReserve(reducedGap)
-    if (maxHeight - reducedFixed >= minLogo) {
-        return result(reducedGap, minLogo)
+    if (maxHeight - fixedReserve(reducedGap) >= minLogo) {
+        return result(reducedGap, minLogo, useTightTitle = true)
     }
 
-    // 4) Last resort: tighter title + logo padding
-    val tightFixed = fixedReserve(reducedGap, titleH = 45.dp, logoPad = 4.dp)
-    val tightLogo = (maxHeight - tightFixed).coerceIn(minLogo, maxLogo)
+    // 4) Last resort: tighter logo padding + reduced gap
+    val tightFixed = fixedReserve(reducedGap, logoPad = 4.dp)
+    val tightLogo = (maxHeight - tightFixed).coerceIn(48.dp, maxLogo)
     return result(reducedGap, tightLogo, useTightTitle = true, logoPad = 4.dp)
 }
 

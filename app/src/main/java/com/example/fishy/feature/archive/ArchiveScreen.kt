@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -221,23 +222,6 @@ fun ArchiveScreen(
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null)
                     }
-                },
-                actions = {
-                    // Temporary debug — remove after scrollbar check.
-                    TextButton(
-                        onClick = {
-                            scope.launch {
-                                repeat(30) { i ->
-                                    repo.completeShipment(
-                                        null,
-                                        ShipmentPayload(customer = "Debug ${i + 1}")
-                                    )
-                                }
-                            }
-                        }
-                    ) {
-                        Text("DBG +30")
-                    }
                 }
             )
         }
@@ -431,18 +415,17 @@ fun ArchiveScreen(
                     }
                 }
             } else {
-                val scrollbarGutter = 24.dp
-                val scrollbarWidth = 16.dp
-                Box(
+                Row(
                     modifier = Modifier
                         .weight(1f)
-                        .fillMaxWidth()
+                        .fillMaxWidth(),
+                    verticalAlignment = Alignment.Top
                 ) {
                     LazyColumn(
                         state = listState,
                         modifier = Modifier
-                            .fillMaxSize()
-                            .padding(end = scrollbarGutter),
+                            .weight(1f)
+                            .fillMaxSize(),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         items(filtered, key = { it.id }) { item ->
@@ -459,16 +442,13 @@ fun ArchiveScreen(
                             )
                         }
                     }
+                    Spacer(modifier = Modifier.width(4.dp))
                     LazyListScrollbar(
                         listState = listState,
-                        width = scrollbarWidth,
+                        width = 16.dp,
                         modifier = Modifier
-                            .align(Alignment.CenterEnd)
-                            .padding(
-                                end = 2.dp,
-                                top = 4.dp,
-                                bottom = 4.dp
-                            )
+                            .fillMaxHeight()
+                            .padding(vertical = 4.dp)
                     )
                 }
             }

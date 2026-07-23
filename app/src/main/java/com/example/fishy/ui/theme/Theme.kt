@@ -4,6 +4,7 @@ import android.app.Activity
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.AnimationSpec
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
@@ -207,12 +208,13 @@ private fun animateColorSchemeAsState(
 
 @Composable
 fun FishyTheme(
-    themeMode: ThemeMode = ThemeMode.DARK,
+    themeMode: ThemeMode = ThemeMode.SYSTEM,
     content: @Composable () -> Unit
 ) {
     val dark = when (themeMode) {
-        ThemeMode.DARK, ThemeMode.SYSTEM -> true
+        ThemeMode.DARK -> true
         ThemeMode.LIGHT -> false
+        ThemeMode.SYSTEM -> isSystemInDarkTheme()
     }
     val targetScheme = if (dark) DarkColorScheme else LightColorScheme
     val colorScheme = animateColorSchemeAsState(targetScheme)
