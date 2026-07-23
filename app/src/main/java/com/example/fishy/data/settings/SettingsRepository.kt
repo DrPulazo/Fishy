@@ -6,6 +6,7 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.doublePreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
@@ -46,7 +47,16 @@ data class FishySettings(
     /** How many About opens while Russian UI is active before the next visit (0..11). Resets after 12. */
     val aboutOpenCount: Int = 0,
     /** App versionCode for which the user agreement was accepted; 0 = never. */
-    val eulaAcceptedVersion: Int = 0
+    val eulaAcceptedVersion: Int = 0,
+    /** One-time tip: long-press FAB to drag (shown when FAB is visible). */
+    val fabDragTipSeen: Boolean = false,
+    /** One-time tip: swipe pallet row to delete (shown after first pallet appears). */
+    val palletSwipeTipSeen: Boolean = false,
+    /**
+     * Last FAB position as fraction of drag range (0..1). Negative = never moved → use default.
+     */
+    val fabPosXFraction: Float = -1f,
+    val fabPosYFraction: Float = -1f
 ) {
     val effectiveAutoSpaceContainers: Boolean get() = autoSpacesEnabled && autoSpaceContainers
     val effectiveAutoSpaceVehicles: Boolean get() = autoSpacesEnabled && autoSpaceVehicles
@@ -70,6 +80,10 @@ class SettingsRepository(private val context: Context) {
         val batchWarn = intPreferencesKey("batch_warn")
         val aboutOpenCount = intPreferencesKey("about_open_count")
         val eulaAcceptedVersion = intPreferencesKey("eula_accepted_version")
+        val fabDragTipSeen = booleanPreferencesKey("fab_drag_tip_seen")
+        val palletSwipeTipSeen = booleanPreferencesKey("pallet_swipe_tip_seen")
+        val fabPosXFraction = floatPreferencesKey("fab_pos_x_frac")
+        val fabPosYFraction = floatPreferencesKey("fab_pos_y_frac")
     }
 
     val settings: Flow<FishySettings> = context.dataStore.data.map { prefs ->
@@ -94,6 +108,10 @@ class SettingsRepository(private val context: Context) {
             prefs[Keys.batchWarn] = next.defaultBatchWarnThreshold
             prefs[Keys.aboutOpenCount] = next.aboutOpenCount
             prefs[Keys.eulaAcceptedVersion] = next.eulaAcceptedVersion
+            prefs[Keys.fabDragTipSeen] = next.fabDragTipSeen
+            prefs[Keys.palletSwipeTipSeen] = next.palletSwipeTipSeen
+            prefs[Keys.fabPosXFraction] = next.fabPosXFraction
+            prefs[Keys.fabPosYFraction] = next.fabPosYFraction
         }
     }
 
@@ -130,7 +148,11 @@ class SettingsRepository(private val context: Context) {
             simplifiedCounterEnabled = this[Keys.simplifiedCounter] ?: false,
             defaultBatchWarnThreshold = this[Keys.batchWarn] ?: 5,
             aboutOpenCount = this[Keys.aboutOpenCount] ?: 0,
-            eulaAcceptedVersion = this[Keys.eulaAcceptedVersion] ?: 0
+            eulaAcceptedVersion = this[Keys.eulaAcceptedVersion] ?: 0,
+            fabDragTipSeen = this[Keys.fabDragTipSeen] ?: false,
+            palletSwipeTipSeen = this[Keys.palletSwipeTipSeen] ?: false,
+            fabPosXFraction = this[Keys.fabPosXFraction] ?: -1f,
+            fabPosYFraction = this[Keys.fabPosYFraction] ?: -1f
         )
     }
 }

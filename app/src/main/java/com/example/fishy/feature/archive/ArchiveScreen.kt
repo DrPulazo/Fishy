@@ -2,6 +2,7 @@ package com.example.fishy.feature.archive
 
 import android.widget.Toast
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,6 +16,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
@@ -69,6 +71,7 @@ import com.example.fishy.ui.components.DatePickerField
 import com.example.fishy.ui.components.EmptyListPlaceholder
 import com.example.fishy.ui.components.FilterDropdown
 import com.example.fishy.ui.components.FishyButton
+import com.example.fishy.ui.components.LazyListScrollbar
 import com.example.fishy.ui.components.ListCardActionRow
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
@@ -76,7 +79,7 @@ import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun ArchiveScreen(
     onBack: () -> Unit,
@@ -100,6 +103,7 @@ fun ArchiveScreen(
     val products by repo.observeDictionary(DictionaryType.PRODUCT).collectAsState(initial = emptyList())
     val manufacturers by repo.observeDictionary(DictionaryType.MANUFACTURER).collectAsState(initial = emptyList())
     val scope = rememberCoroutineScope()
+    val listState = rememberLazyListState()
     val fmt = remember { SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.getDefault()) }
     val dateFmt = remember { SimpleDateFormat("dd.MM.yyyy", Locale.getDefault()) }
 
@@ -216,6 +220,23 @@ fun ArchiveScreen(
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null)
+                    }
+                },
+                actions = {
+                    // Temporary debug — remove after scrollbar check.
+                    TextButton(
+                        onClick = {
+                            scope.launch {
+                                repeat(30) { i ->
+                                    repo.completeShipment(
+                                        null,
+                                        ShipmentPayload(customer = "Debug ${i + 1}")
+                                    )
+                                }
+                            }
+                        }
+                    ) {
+                        Text("DBG +30")
                     }
                 }
             )
@@ -410,19 +431,45 @@ fun ArchiveScreen(
                     }
                 }
             } else {
-                LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items(filtered, key = { it.id }) { item ->
-                        ArchiveShipmentCard(
-                            item = item,
-                            displayNumber = archiveNumbers[item.id] ?: 0,
-                            dateLabel = fmt.format(Date(item.completedAtMillis)),
-                            thousandsSeparator = settings.effectiveThousandsSeparator,
-                            onOpen = { onOpen(item.id) },
-                            onOpenReport = { onOpenReport(item.id) },
-                            onDuplicate = { duplicateItem(item) },
-                            onDelete = { pendingDelete = item }
-                        )
+                val scrollbarGutter = 24.dp
+                val scrollbarWidth = 16.dp
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                ) {
+                    LazyColumn(
+                        state = listState,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(end = scrollbarGutter),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(filtered, key = { it.id }) { item ->
+                            ArchiveShipmentCard(
+                                item = item,
+                                displayNumber = archiveNumbers[item.id] ?: 0,
+                                dateLabel = fmt.format(Date(item.completedAtMillis)),
+                                thousandsSeparator = settings.effectiveThousandsSeparator,
+                                onOpen = { onOpen(item.id) },
+                                onOpenReport = { onOpenReport(item.id) },
+                                onDuplicate = { duplicateItem(item) },
+                                onDelete = { pendingDelete = item },
+                                modifier = Modifier.animateItem()
+                            )
+                        }
                     }
+                    LazyListScrollbar(
+                        listState = listState,
+                        width = scrollbarWidth,
+                        modifier = Modifier
+                            .align(Alignment.CenterEnd)
+                            .padding(
+                                end = 2.dp,
+                                top = 4.dp,
+                                bottom = 4.dp
+                            )
+                    )
                 }
             }
         }
@@ -455,7 +502,8 @@ private fun ArchiveShipmentCard(
     onOpen: () -> Unit,
     onOpenReport: () -> Unit,
     onDuplicate: () -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     val payload = remember(item.payloadJson) {
         FishyJson.decodePayloadOrNull(item.payloadJson)
@@ -486,7 +534,7 @@ private fun ArchiveShipmentCard(
     }
 
     Card(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .clickable(onClick = onOpen)
     ) {

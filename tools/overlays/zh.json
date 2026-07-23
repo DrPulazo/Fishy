@@ -1,6 +1,9 @@
 {
   "home_title_ru": "ФИШКА",
   "about_version": "版本 2.1.0",
+  "coach_tip_fab_drag": "长按「+」可移动添加托盘按钮。",
+  "coach_tip_pallet_swipe": "在行上向左滑动可删除托盘。",
+  "coach_tip_dismiss": "关闭",
   "about_link_telegram": "Telegram",
   "about_link_max": "Max",
   "about_link_github": "GitHub",

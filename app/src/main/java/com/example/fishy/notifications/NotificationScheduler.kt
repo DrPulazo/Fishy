@@ -7,6 +7,7 @@ import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.res.Configuration
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import com.example.fishy.FishyApp
@@ -312,11 +313,14 @@ class NotificationAlarmReceiver : BroadcastReceiver() {
         val portText = resolvePortText(context, shipment, payload)
         val customer = shipment.customer.ifBlank { payload?.customer.orEmpty() }
         val checklistStatus = checklistStatus(checklist)
+        val systemNight =
+            (context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) ==
+                Configuration.UI_MODE_NIGHT_YES
         val checklistEmoji = when (checklistStatus) {
             ChecklistStatus.COMPLETED -> "🟢"
             ChecklistStatus.PARTIAL -> "🟡"
             ChecklistStatus.NONE -> "🔴"
-            ChecklistStatus.EMPTY -> "⚪"
+            ChecklistStatus.EMPTY -> if (systemNight) "⚪" else "⚫"
         }
         val checklistText = when (checklistStatus) {
             ChecklistStatus.COMPLETED -> context.getString(R.string.notif_checklist_done)

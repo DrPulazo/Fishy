@@ -46,7 +46,6 @@ import androidx.compose.ui.unit.dp
 import com.example.fishy.FishyApp
 import com.example.fishy.R
 import com.example.fishy.data.settings.AppLanguage
-import com.example.fishy.data.settings.ThemeMode
 import com.example.fishy.domain.format.QuantityFormatters
 import com.example.fishy.ui.components.CenteredDialogMessage
 import com.example.fishy.ui.components.CenteredDialogTitle
@@ -83,7 +82,6 @@ fun SettingsScreen(onBack: () -> Unit) {
     var maxPlacesText by remember { mutableStateOf("") }
     var maxWeightFocused by remember { mutableStateOf(false) }
     var maxPlacesFocused by remember { mutableStateOf(false) }
-    val darkThemeOn = settings.themeMode != ThemeMode.LIGHT
     val languages = remember {
         AppLanguage.entries.filter { it != AppLanguage.SYSTEM }
     }
@@ -158,15 +156,34 @@ fun SettingsScreen(onBack: () -> Unit) {
                 }
 
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                    Text(stringResource(R.string.theme_dark), modifier = Modifier.weight(1f))
+                    Text(stringResource(R.string.floating_fab), modifier = Modifier.weight(1f))
                     Switch(
-                        checked = darkThemeOn,
-                        onCheckedChange = { enabled ->
+                        checked = settings.floatingFabEnabled,
+                        onCheckedChange = { v ->
                             scope.launch {
                                 settingsRepo.update {
-                                    it.copy(themeMode = if (enabled) ThemeMode.DARK else ThemeMode.LIGHT)
+                                    if (v) {
+                                        it.copy(floatingFabEnabled = true)
+                                    } else {
+                                        it.copy(
+                                            floatingFabEnabled = false,
+                                            fabPosXFraction = -1f,
+                                            fabPosYFraction = -1f
+                                        )
+                                    }
                                 }
                             }
+                        },
+                        colors = fishySwitchColors()
+                    )
+                }
+
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                    Text(stringResource(R.string.simplified_counter), modifier = Modifier.weight(1f))
+                    Switch(
+                        checked = settings.simplifiedCounterEnabled,
+                        onCheckedChange = { v ->
+                            scope.launch { settingsRepo.update { it.copy(simplifiedCounterEnabled = v) } }
                         },
                         colors = fishySwitchColors()
                     )
@@ -288,28 +305,6 @@ fun SettingsScreen(onBack: () -> Unit) {
                             modifier = Modifier.padding(start = 4.dp)
                         )
                     }
-                }
-
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                    Text(stringResource(R.string.floating_fab), modifier = Modifier.weight(1f))
-                    Switch(
-                        checked = settings.floatingFabEnabled,
-                        onCheckedChange = { v ->
-                            scope.launch { settingsRepo.update { it.copy(floatingFabEnabled = v) } }
-                        },
-                        colors = fishySwitchColors()
-                    )
-                }
-
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                    Text(stringResource(R.string.simplified_counter), modifier = Modifier.weight(1f))
-                    Switch(
-                        checked = settings.simplifiedCounterEnabled,
-                        onCheckedChange = { v ->
-                            scope.launch { settingsRepo.update { it.copy(simplifiedCounterEnabled = v) } }
-                        },
-                        colors = fishySwitchColors()
-                    )
                 }
             }
 

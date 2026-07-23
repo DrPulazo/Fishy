@@ -1,5 +1,11 @@
 package com.example.fishy.ui.components
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -37,6 +43,10 @@ private val LocalAccordionNesting = compositionLocalOf { 0 }
 
 /** Optional title style override (e.g. compact scheduler forms). */
 val LocalAccordionTitleStyle = compositionLocalOf<TextStyle?> { null }
+
+private const val AccordionAnimMs = 200
+private const val AccordionFadeInMs = 150
+private const val AccordionFadeOutMs = 120
 
 @Composable
 fun AccordionCard(
@@ -122,7 +132,13 @@ fun AccordionCard(
                     )
                 }
             }
-            if (expanded) {
+            AnimatedVisibility(
+                visible = expanded,
+                enter = expandVertically(animationSpec = tween(AccordionAnimMs)) +
+                    fadeIn(animationSpec = tween(AccordionFadeInMs)),
+                exit = shrinkVertically(animationSpec = tween(AccordionAnimMs)) +
+                    fadeOut(animationSpec = tween(AccordionFadeOutMs))
+            ) {
                 CompositionLocalProvider(LocalAccordionNesting provides nesting + 1) {
                     Column(
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),

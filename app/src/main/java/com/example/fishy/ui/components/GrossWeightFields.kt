@@ -1,17 +1,27 @@
 package com.example.fishy.ui.components
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Calculate
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.KeyboardType
@@ -26,6 +36,8 @@ import com.example.fishy.domain.model.Product
  * Without gross: one row — tare / qty / mass (0.33 / 0.33 / 0.33).
  * With gross: three rows of two equal fields —
  * qty | coeff, net tare | gross tare, net mass | gross mass.
+ *
+ * @param showCalculatedIcon decorative calculator behind mass value (shipments only).
  */
 @Composable
 fun ProductWeightQuantityFields(
@@ -38,7 +50,8 @@ fun ProductWeightQuantityFields(
     labelStyle: TextStyle = MaterialTheme.typography.bodySmall,
     textStyle: TextStyle = MaterialTheme.typography.bodySmall,
     thousandsSeparator: Boolean = false,
-    tareError: Boolean = false
+    tareError: Boolean = false,
+    showCalculatedIcon: Boolean = false
 ) {
     val onGrossTareChange: (Double) -> Unit = { grossTare ->
         val k = GrossWeightMath.coefficientFromGrossTare(product.packageWeight, grossTare)
@@ -80,16 +93,14 @@ fun ProductWeightQuantityFields(
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 singleLine = true
             )
-            OutlinedTextField(
+            ComputedMassField(
                 value = QuantityFormatters.formatWeight(product.totalWeight, thousandsSeparator),
-                onValueChange = {},
                 label = { Text(stringResource(R.string.mass), style = labelStyle) },
                 modifier = Modifier
                     .weight(0.34f)
                     .defaultMinSize(minWidth = 0.dp),
                 textStyle = textStyle,
-                readOnly = true,
-                singleLine = true
+                showCalculatedIcon = showCalculatedIcon
             )
         }
         return
@@ -154,29 +165,80 @@ fun ProductWeightQuantityFields(
             )
         }
         TwoEqualFieldsRow {
-            OutlinedTextField(
+            ComputedMassField(
                 value = QuantityFormatters.formatWeight(product.totalWeight, thousandsSeparator),
-                onValueChange = {},
                 label = { Text(stringResource(R.string.mass_net), style = labelStyle) },
                 modifier = Modifier
                     .weight(1f)
                     .defaultMinSize(minWidth = 0.dp),
                 textStyle = textStyle,
-                readOnly = true,
-                singleLine = true
+                showCalculatedIcon = showCalculatedIcon
             )
-            OutlinedTextField(
+            ComputedMassField(
                 value = QuantityFormatters.formatWeight(product.totalGrossWeight, thousandsSeparator),
-                onValueChange = {},
                 label = { Text(stringResource(R.string.gross_mass), style = labelStyle) },
                 modifier = Modifier
                     .weight(1f)
                     .defaultMinSize(minWidth = 0.dp),
                 textStyle = textStyle,
-                readOnly = true,
-                singleLine = true
+                showCalculatedIcon = showCalculatedIcon
             )
         }
+    }
+}
+
+/**
+ * Read-only mass. Optional calculator sits under the value so long numbers cover it
+ * without reserving trailing space or measuring widths.
+ */
+@Composable
+private fun ComputedMassField(
+    value: String,
+    label: @Composable () -> Unit,
+    modifier: Modifier = Modifier,
+    textStyle: TextStyle,
+    showCalculatedIcon: Boolean
+) {
+    if (!showCalculatedIcon) {
+        OutlinedTextField(
+            value = value,
+            onValueChange = {},
+            label = label,
+            modifier = modifier.fillMaxWidth(),
+            textStyle = textStyle,
+            readOnly = true,
+            singleLine = true
+        )
+        return
+    }
+
+    Box(modifier = modifier) {
+        Icon(
+            imageVector = Icons.Outlined.Calculate,
+            contentDescription = null,
+            modifier = Modifier
+                .align(Alignment.CenterEnd)
+                // OutlinedTextField label lifts visual text center below geometric center.
+                .offset(y = 3.dp)
+                .padding(end = 12.dp)
+                .size(26.dp),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f)
+        )
+        OutlinedTextField(
+            value = value,
+            onValueChange = {},
+            label = label,
+            modifier = Modifier.fillMaxWidth(),
+            textStyle = textStyle,
+            readOnly = true,
+            singleLine = true,
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedContainerColor = Color.Transparent,
+                unfocusedContainerColor = Color.Transparent,
+                disabledContainerColor = Color.Transparent,
+                errorContainerColor = Color.Transparent
+            )
+        )
     }
 }
 

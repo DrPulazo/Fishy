@@ -37,6 +37,9 @@
     <string name="about_city_name">블라디보스토크</string>
     <string name="about_city_year">2025</string>
     <string name="about_ok">갑시다!</string>
+    <string name="coach_tip_fab_drag">«+»를 길게 눌러 팔레트 추가 버튼을 이동하세요.</string>
+    <string name="coach_tip_pallet_swipe">행을 왼쪽으로 밀어 팔레트를 삭제하세요.</string>
+    <string name="coach_tip_dismiss">닫기</string>
     <string name="telegram_link">텔레그램의 메시지</string>
     <string name="mode_picker_title">배송 모드</string>
     <string name="mode_mono">단일 출하</string>
@@ -75,7 +78,7 @@
     <string name="action_finish">완료</string>
     <string name="checklist_open">✓ 체크리스트</string>
     <string name="checklist_open_btn">✓ 체크리스트 열기 (%1$d/%2$d)</string>
-    <string name="checklist_done_progress">%1$d/%2$d 완료됨</string>
+    <string name="checklist_done_progress">완료: %1$d/%2$d</string>
     <string name="checklist_empty">체크리스트 항목 없음</string>
     <string name="checklist_add_item">항목 추가</string>
     <string name="checklist_item">목</string>
@@ -463,4 +466,38 @@
     <string name="history_msg_guard_places">수량: %1$s</string>
     <string name="history_msg_guard_weight">중량: %1$.3f kg</string>
     <string name="history_msg_batch_limit">배치 한도</string>
+
+    <string name="faq_title">FAQ</string>
+    <string name="faq_cd">도움말</string>
+    <string name="theme_toggle_cd">테마 전환</string>
+    <string name="faq_transport_title">Why is the container/wagon number “incorrect”?</string>
+    <string name="faq_transport_body">Wagon number format: 8 digits. Container number format: 4 Latin letters + 7 digits. Numbers are also checked with a check digit. If a transport number is marked incorrect, verify the data.</string>
+    <string name="faq_delete_pallets_title">Deleting pallets</string>
+    <string name="faq_delete_pallets_body">Swipe left on the pallet row you want to delete. A confirmation dialog will appear.</string>
+    <string name="faq_double_control_title">Double control</string>
+    <string name="faq_double_control_body">Each pallet shows an “Imported” mark. Actual loaded places are counted only for pallets marked as imported.</string>
+    <string name="faq_forecast_title">Pallet forecast</string>
+    <string name="faq_forecast_body">After you enter places on the first pallet, the app estimates how many pallets you need and the remainder.</string>
+    <string name="faq_batch_title">Batch control</string>
+    <string name="faq_batch_body">You can set limits per product. When loaded places for a product exceed the limit, a notification appears.</string>
+    <string name="faq_gross_title">Gross weight</string>
+    <string name="faq_gross_body">Includes a coefficient (default 1.05) and the “Gross tare” and “Gross weight” fields.</string>
+    <string name="faq_fab_title">Floating “+” button</string>
+    <string name="faq_fab_body">Quickly adds a pallet for the last used product. You can drag it by holding, or turn it off in Settings.</string>
+    <string name="faq_simple_counter_title">Simplified counter</string>
+    <string name="faq_simple_counter_body">Shows a “Places per pallet” field next to “Add pallet”: the value is applied immediately when adding (from the button or from “+”).</string>
+    <string name="faq_input_guard_title">Input check</string>
+    <string name="faq_input_guard_body">If tare or places per pallet exceed the set threshold, a confirmation appears. This helps catch typos.</string>
+    <string name="faq_autospacing_title">Auto-spacing</string>
+    <string name="faq_autospacing_body">Container numbers: XXXX1234567 → XXXX 1234567\nVehicle plates: X123XX456 → X 123 XX / 456\nNumber grouping: 10000 → 10 000</string>
+    <string name="faq_prep_checklist_title">“Preparation” checklist (in schedule)</string>
+    <string name="faq_prep_checklist_body">Things to do before work starts. Status is shown on the scheduled shipment card and in the notification. When work starts, unfinished preparation items are moved into the shipment checklist.</string>
+    <string name="faq_shipment_checklist_title">“Shipment checklist” (in shipment)</string>
+    <string name="faq_shipment_checklist_body">Things to do during work. If the checklist is incomplete, a warning appears before finishing the shipment.</string>
+    <string name="faq_start_schedule_title">Start from schedule</string>
+    <string name="faq_start_schedule_body">The “Start” button in the notification creates a shipment from the schedule template — with all pre-filled data.</string>
+    <string name="faq_drafts_title">Drafts and duplicates</string>
+    <string name="faq_drafts_body">A draft is saved automatically 3 seconds after the last action. You can also save a draft with the button. Drafts can be duplicated, like archive entries — for similar shipments.</string>
+    <string name="faq_history_title">History</string>
+    <string name="faq_history_body">A session action log with timestamps. Saved in the archive with the completed shipment.</string>
 </resources>

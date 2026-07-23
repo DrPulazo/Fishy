@@ -2,6 +2,7 @@ package com.example.fishy.feature.drafts
 
 import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -58,7 +59,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun DraftsScreen(
     onBack: () -> Unit,
@@ -131,7 +132,8 @@ fun DraftsScreen(
                         modifiedLabel = fmt.format(Date(item.completedAtMillis)),
                         onContinue = { onOpen(item.id) },
                         onDuplicate = { duplicateDraft(item) },
-                        onDelete = { pendingDelete = item }
+                        onDelete = { pendingDelete = item },
+                        modifier = Modifier.animateItem()
                     )
                 }
             }
@@ -163,7 +165,8 @@ private fun DraftCard(
     modifiedLabel: String,
     onContinue: () -> Unit,
     onDuplicate: () -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     val payload = remember(item.payloadJson) {
         FishyJson.decodePayloadOrNull(item.payloadJson)
@@ -175,7 +178,7 @@ private fun DraftCard(
         .ifEmpty { listOfNotNull(item.transportSummary.takeIf { it.isNotBlank() }) }
     val receptions = payload?.let { ShipmentSummaries.receptionPoints(it) }.orEmpty()
 
-    Card(modifier = Modifier.fillMaxWidth()) {
+    Card(modifier = modifier.fillMaxWidth()) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()

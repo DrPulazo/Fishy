@@ -1,6 +1,7 @@
 package com.example.fishy.ui.components
 
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -49,7 +50,11 @@ fun FillProgressBar(
 ) {
     val overloaded = progress > 1f
     val targetFill = if (overloaded) 1f else progress.coerceIn(0f, 1f)
-    val animated by animateFloatAsState(targetValue = targetFill, label = "fill")
+    val animated by animateFloatAsState(
+        targetValue = targetFill,
+        animationSpec = tween(200),
+        label = "fill"
+    )
     val color = remember(progress, animated) {
         if (overloaded) ProgressRed else progressFillColor(animated)
     }

@@ -1,6 +1,9 @@
 {
   "home_title_ru": "ФИШКА",
   "about_version": "バージョン 2.1.0",
+  "coach_tip_fab_drag": "「+」を長押しでパレット追加ボタンを移動。",
+  "coach_tip_pallet_swipe": "行を左にスワイプしてパレットを削除。",
+  "coach_tip_dismiss": "閉じる",
   "about_link_telegram": "Telegram",
   "about_link_max": "Max",
   "about_link_github": "GitHub",

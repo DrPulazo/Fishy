@@ -35,6 +35,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -110,6 +111,10 @@ class ShipmentViewModel(application: Application) : AndroidViewModel(application
     val settings: StateFlow<FishySettings> = settingsRepo.settings.stateIn(
         viewModelScope, SharingStarted.WhileSubscribed(5000), FishySettings()
     )
+
+    val settingsReady: StateFlow<Boolean> = settingsRepo.settings
+        .map { true }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
     private val _events = MutableSharedFlow<ShipmentUiEvent>()
     val events = _events.asSharedFlow()

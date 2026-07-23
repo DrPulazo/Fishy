@@ -37,6 +37,9 @@
     <string name="about_city_name">Владивосток</string>
     <string name="about_city_year">2025</string>
     <string name="about_ok">Работаем!</string>
+    <string name="coach_tip_fab_drag">Удерживайте «+», чтобы переместить кнопку добавления поддонов.</string>
+    <string name="coach_tip_pallet_swipe">Проведите влево по строке, чтобы удалить поддон.</string>
+    <string name="coach_tip_dismiss">Закрыть</string>
     <string name="telegram_link">Написать в Telegram</string>
     <string name="mode_picker_title">Режим отгрузки</string>
     <string name="mode_mono">Моноотгрузка</string>
@@ -75,7 +78,7 @@
     <string name="action_finish">Завершить</string>
     <string name="checklist_open">✓ Чек-лист</string>
     <string name="checklist_open_btn">✓ Открыть чек-лист (%1$d/%2$d)</string>
-    <string name="checklist_done_progress">Выполнено %1$d/%2$d</string>
+    <string name="checklist_done_progress">Выполнено: %1$d/%2$d</string>
     <string name="checklist_empty">Нет пунктов чек-листа</string>
     <string name="checklist_add_item">Добавить пункт</string>
     <string name="checklist_item">Пункт</string>
@@ -463,4 +466,38 @@
     <string name="history_msg_guard_places">Места: %1$s</string>
     <string name="history_msg_guard_weight">Масса: %1$.3f кг</string>
     <string name="history_msg_batch_limit">Лимит партии</string>
+
+    <string name="faq_title">FAQ</string>
+    <string name="faq_cd">Справка</string>
+    <string name="theme_toggle_cd">Сменить тему</string>
+    <string name="faq_transport_title">Почему «номер контейнера/вагона некорректный»?</string>
+    <string name="faq_transport_body">Формат номера вагона: 8 цифр. Формат номера контейнера: 4 латинские буквы + 7 цифр. Кроме того, номера проверяются по контрольной цифре. Если введённый номер транспорта отмечен как некорректный, проверьте достоверность данных.</string>
+    <string name="faq_delete_pallets_title">Удаление поддонов</string>
+    <string name="faq_delete_pallets_body">Проведите по строке поддона, который необходимо удалить, влево. Появится окно подтверждения.</string>
+    <string name="faq_double_control_title">Двойной контроль</string>
+    <string name="faq_double_control_body">Напротив каждого поддона появляется отметка «Завезён». Фактическое загруженное количество мест считается только по поддонам, отмеченным как завезённые.</string>
+    <string name="faq_forecast_title">Предрасчёт поддонов</string>
+    <string name="faq_forecast_body">После ввода количества мест на первом поддоне приложение высчитывает ориентировочное количество поддонов и остаток.</string>
+    <string name="faq_batch_title">Контроль партий</string>
+    <string name="faq_batch_body">Можно ввести лимиты по каждой позиции. Когда количество загруженных мест какой-либо позиции превышает лимит, появляется оповещение.</string>
+    <string name="faq_gross_title">Масса брутто</string>
+    <string name="faq_gross_body">Включает коэффициент (по умолчанию 1,05) и поля «Тара брутто» и «Масса брутто».</string>
+    <string name="faq_fab_title">Плавающая кнопка «+»</string>
+    <string name="faq_fab_body">Оперативно добавляет поддон к последней использованной продукции. Можно переместить, удерживая, или отключить в настройках.</string>
+    <string name="faq_simple_counter_title">Упрощённый счётчик</string>
+    <string name="faq_simple_counter_body">Появляется поле ввода «Количество мест на поддон» рядом с кнопкой «Добавить поддон»: число подставляется сразу при добавлении (и с кнопки, и с «+»).</string>
+    <string name="faq_input_guard_title">Проверка ввода</string>
+    <string name="faq_input_guard_body">Если тара или количество мест на поддоне выше заданного порога — появится подтверждение. Предотвращает опечатки.</string>
+    <string name="faq_autospacing_title">Автопробел</string>
+    <string name="faq_autospacing_body">Номера контейнеров: ХХХХ1234567 → ХХХХ 1234567\nНомера автомобилей: Х123ХХ456 → Х 123 ХХ / 456\nРазряды чисел: 10000 → 10 000</string>
+    <string name="faq_prep_checklist_title">Чек-лист «Подготовка» (в расписании)</string>
+    <string name="faq_prep_checklist_body">Список того, что надо сделать до начала работы. Статус виден на карточке запланированной отгрузки и в уведомлении. При начале работы невыполненные пункты чек-листа подготовки переносятся в чек-лист отгрузки.</string>
+    <string name="faq_shipment_checklist_title">«Чек-лист отгрузки» (в отгрузке)</string>
+    <string name="faq_shipment_checklist_body">Список того, что надо сделать во время работы. Если чек-лист не выполнен, перед завершением отгрузки появится предупреждение.</string>
+    <string name="faq_start_schedule_title">Старт из расписания</string>
+    <string name="faq_start_schedule_body">Кнопка «Начать» в уведомлении создаёт отгрузку по заготовке из расписания – со всеми заранее заполненными данными.</string>
+    <string name="faq_drafts_title">Черновики и дубликаты</string>
+    <string name="faq_drafts_body">Черновик сохраняется автоматически через 3 секунды после последнего действия. Также можно сохранить черновик по кнопке. Черновики можно дублировать, как и записи из архива – для одинаковых отгрузок.</string>
+    <string name="faq_history_title">История</string>
+    <string name="faq_history_body">Журнал действий сессии с временными метками. Сохраняется в архиве вместе с завершённой отгрузкой.</string>
 </resources>

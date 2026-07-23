@@ -16,6 +16,7 @@ sealed class FishyRoute(val route: String) {
     data object Settings : FishyRoute("settings")
     data object EasterEgg : FishyRoute("easter_egg")
     data object Eula : FishyRoute("eula")
+    data object Faq : FishyRoute("faq")
     data object ShipmentDetail : FishyRoute("shipment_detail/{id}") {
         fun create(id: Long) = "shipment_detail/$id"
     }

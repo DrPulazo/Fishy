@@ -3,9 +3,13 @@ package com.example.fishy.feature.home
 import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -15,12 +19,16 @@ import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.outlined.DarkMode
+import androidx.compose.material.icons.outlined.Help
+import androidx.compose.material.icons.outlined.LightMode
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -38,6 +46,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -51,6 +60,7 @@ import com.example.fishy.FishyApp
 import com.example.fishy.R
 import com.example.fishy.data.settings.AppLanguage
 import com.example.fishy.data.settings.FishySettings
+import com.example.fishy.data.settings.ThemeMode
 import com.example.fishy.domain.model.ShipmentMode
 import com.example.fishy.feature.shipment.ModePickerDialog
 import com.example.fishy.ui.ErrorFeedback
@@ -74,7 +84,8 @@ fun HomeScreen(
     onNavigateStatistics: () -> Unit,
     onNavigateSettings: () -> Unit,
     onNavigateEasterEgg: () -> Unit,
-    onNavigateEula: () -> Unit
+    onNavigateEula: () -> Unit,
+    onNavigateFaq: () -> Unit
 ) {
     var showInfoDialog by remember { mutableStateOf(false) }
     var showModePicker by remember { mutableStateOf(false) }
@@ -89,15 +100,26 @@ fun HomeScreen(
 
     fun openAboutDialog() {
         if (isRussianLanguageActive(settings.language)) {
-            val next = settings.aboutOpenCount + 1
-            aboutBeerVisit = next.coerceAtMost(12)
-            // After the 12th visit (clickable dozen), cycle resets to 0.
-            val stored = if (next >= 12) 0 else next
-            scope.launch {
-                settingsRepo.update { it.copy(aboutOpenCount = stored) }
+            val current = settings.aboutOpenCount.coerceIn(0, 11)
+            // Progressive chance to advance: 0→1 and 1→2 = 100%; 2→3 = 10% … 10→11 = 90%; 11→12 = 100%.
+            val advanceChance = when (current) {
+                0, 1 -> 1f
+                in 2..10 -> (current - 1) * 0.1f
+                else -> 1f // 11 → dozen
             }
-            if (aboutBeerVisit >= 12) {
-                ErrorFeedback.vibrate(context)
+            if (kotlin.random.Random.nextFloat() < advanceChance) {
+                val next = current + 1
+                aboutBeerVisit = next.coerceAtMost(12)
+                // After the 12th visit (clickable dozen), cycle resets to 0.
+                val stored = if (next >= 12) 0 else next
+                scope.launch {
+                    settingsRepo.update { it.copy(aboutOpenCount = stored) }
+                }
+                if (aboutBeerVisit >= 12) {
+                    ErrorFeedback.vibrate(context)
+                }
+            } else {
+                aboutBeerVisit = current
             }
         } else {
             aboutBeerVisit = 0
@@ -220,40 +242,83 @@ fun HomeScreen(
             }
         }
 
-        IconButton(
-            onClick = { openAboutDialog() },
+        val cornerIconTint = if (isLightTheme()) {
+            MaterialTheme.colorScheme.onSurfaceVariant
+        } else {
+            MaterialTheme.colorScheme.onSurface
+        }
+        val darkThemeOn = settings.themeMode != ThemeMode.LIGHT
+
+        Column(
             modifier = Modifier
                 .align(Alignment.BottomStart)
-                .padding(16.dp)
-                .size(48.dp)
+                .navigationBarsPadding()
+                .padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Icon(
-                Icons.Default.Info,
-                contentDescription = null,
-                tint = if (isLightTheme()) {
-                    MaterialTheme.colorScheme.onSurfaceVariant
-                } else {
-                    MaterialTheme.colorScheme.onSurface
-                }
-            )
+            IconButton(
+                onClick = onNavigateFaq,
+                modifier = Modifier.size(56.dp)
+            ) {
+                Icon(
+                    Icons.Outlined.Help,
+                    contentDescription = stringResource(R.string.faq_cd),
+                    modifier = Modifier.size(32.dp),
+                    tint = cornerIconTint
+                )
+            }
+            IconButton(
+                onClick = { openAboutDialog() },
+                modifier = Modifier.size(56.dp)
+            ) {
+                Icon(
+                    Icons.Default.Info,
+                    contentDescription = null,
+                    modifier = Modifier.size(32.dp),
+                    tint = cornerIconTint
+                )
+            }
         }
 
-        IconButton(
-            onClick = onNavigateSettings,
+        Column(
             modifier = Modifier
                 .align(Alignment.BottomEnd)
-                .padding(16.dp)
-                .size(48.dp)
+                .navigationBarsPadding()
+                .padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Icon(
-                Icons.Default.Settings,
-                contentDescription = stringResource(R.string.nav_settings),
-                tint = if (isLightTheme()) {
-                    MaterialTheme.colorScheme.onSurfaceVariant
-                } else {
-                    MaterialTheme.colorScheme.onSurface
-                }
-            )
+            IconButton(
+                onClick = {
+                    scope.launch {
+                        settingsRepo.update {
+                            it.copy(
+                                themeMode = if (darkThemeOn) ThemeMode.LIGHT else ThemeMode.DARK
+                            )
+                        }
+                    }
+                },
+                modifier = Modifier.size(56.dp)
+            ) {
+                Icon(
+                    imageVector = if (darkThemeOn) Icons.Outlined.DarkMode else Icons.Outlined.LightMode,
+                    contentDescription = stringResource(R.string.theme_toggle_cd),
+                    modifier = Modifier.size(32.dp),
+                    tint = cornerIconTint
+                )
+            }
+            IconButton(
+                onClick = onNavigateSettings,
+                modifier = Modifier.size(56.dp)
+            ) {
+                Icon(
+                    Icons.Default.Settings,
+                    contentDescription = stringResource(R.string.nav_settings),
+                    modifier = Modifier.size(32.dp),
+                    tint = cornerIconTint
+                )
+            }
         }
     }
 
@@ -433,13 +498,25 @@ private fun AboutLink(
 
 @Composable
 private fun HomeButton(text: String, onClick: () -> Unit) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val pressed by interactionSource.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (pressed) 0.97f else 1f,
+        animationSpec = tween(100),
+        label = "homeButtonScale"
+    )
     FishyOutlinedButton(
         onClick = onClick,
         modifier = Modifier
             .width(250.dp)
             .defaultMinSize(minWidth = 250.dp, minHeight = 50.dp)
-            .height(50.dp),
-        border = BorderStroke(2.dp, MaterialTheme.colorScheme.onSurface)
+            .height(50.dp)
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            },
+        border = BorderStroke(2.dp, MaterialTheme.colorScheme.onSurface),
+        interactionSource = interactionSource
     ) {
         Text(
             text = text,

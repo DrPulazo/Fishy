@@ -37,6 +37,9 @@
     <string name="about_city_name">Vladivostok</string>
     <string name="about_city_year">2025</string>
     <string name="about_ok">¡A trabajar!</string>
+    <string name="coach_tip_fab_drag">Mantén pulsado «+» para mover el botón de añadir palés.</string>
+    <string name="coach_tip_pallet_swipe">Desliza a la izquierda en una fila para eliminar un palé.</string>
+    <string name="coach_tip_dismiss">Cerrar</string>
     <string name="telegram_link">Escribir en Telegram</string>
     <string name="mode_picker_title">Modo de envío</string>
     <string name="mode_mono">Monoenvío</string>
@@ -75,7 +78,7 @@
     <string name="action_finish">Finalizar</string>
     <string name="checklist_open">✓ Lista de verificación</string>
     <string name="checklist_open_btn">✓ Abrir lista de verificación (%1$d/%2$d)</string>
-    <string name="checklist_done_progress">Completado %1$d/%2$d</string>
+    <string name="checklist_done_progress">Completado: %1$d/%2$d</string>
     <string name="checklist_empty">No hay elementos en la lista</string>
     <string name="checklist_add_item">Añadir elemento</string>
     <string name="checklist_item">Elemento</string>
@@ -463,4 +466,38 @@
     <string name="history_msg_guard_places">Plazas: %1$s</string>
     <string name="history_msg_guard_weight">Masa: %1$.3f kg</string>
     <string name="history_msg_batch_limit">Límite de lote</string>
+
+    <string name="faq_title">FAQ</string>
+    <string name="faq_cd">Ayuda</string>
+    <string name="theme_toggle_cd">Cambiar tema</string>
+    <string name="faq_transport_title">¿Por qué el número de contenedor/vagón es «incorrecto»?</string>
+    <string name="faq_transport_body">Formato del número de vagón: 8 dígitos. Formato del número de contenedor: 4 letras latinas + 7 dígitos. Además, los números se comprueban con un dígito de control. Si el número de transporte aparece como incorrecto, verifique los datos.</string>
+    <string name="faq_delete_pallets_title">Eliminar palés</string>
+    <string name="faq_delete_pallets_body">Deslice a la izquierda la fila del palé que desea eliminar. Aparecerá una ventana de confirmación.</string>
+    <string name="faq_double_control_title">Doble control</string>
+    <string name="faq_double_control_body">Junto a cada palé aparece la marca «Importado». La cantidad real de plazas cargadas se cuenta solo en los palés marcados como importados.</string>
+    <string name="faq_forecast_title">Cálculo previo de palés</string>
+    <string name="faq_forecast_body">Tras introducir las plazas del primer palé, la aplicación calcula el número orientativo de palés y el resto.</string>
+    <string name="faq_batch_title">Control de lotes</string>
+    <string name="faq_batch_body">Puede introducir límites por cada posición. Cuando las plazas cargadas de una posición superan el límite, aparece un aviso.</string>
+    <string name="faq_gross_title">Masa bruta</string>
+    <string name="faq_gross_body">Incluye un coeficiente (por defecto 1,05) y los campos «Tara bruta» y «Masa bruta».</string>
+    <string name="faq_fab_title">Botón flotante «+»</string>
+    <string name="faq_fab_body">Añade rápidamente un palé al último producto usado. Se puede mover manteniendo pulsado, o desactivar en ajustes.</string>
+    <string name="faq_simple_counter_title">Contador simplificado</string>
+    <string name="faq_simple_counter_body">Aparece el campo «Plazas por palé» junto al botón «Añadir palé»: el número se aplica al añadir (desde el botón y desde «+»).</string>
+    <string name="faq_input_guard_title">Comprobación de entrada</string>
+    <string name="faq_input_guard_body">Si la tara o las plazas por palé superan el umbral definido, aparecerá una confirmación. Evita errores tipográficos.</string>
+    <string name="faq_autospacing_title">Espaciado automático</string>
+    <string name="faq_autospacing_body">Números de contenedor: XXXX1234567 → XXXX 1234567\nMatrículas: X123XX456 → X 123 XX / 456\nGrupos numéricos: 10000 → 10 000</string>
+    <string name="faq_prep_checklist_title">Lista «Preparación» (en el horario)</string>
+    <string name="faq_prep_checklist_body">Lo que hay que hacer antes de empezar. El estado se ve en la tarjeta del envío planificado y en la notificación. Al empezar, los puntos de preparación no hechos pasan a la lista del envío.</string>
+    <string name="faq_shipment_checklist_title">«Lista del envío» (en el envío)</string>
+    <string name="faq_shipment_checklist_body">Lo que hay que hacer durante el trabajo. Si la lista no está completa, aparecerá un aviso antes de finalizar el envío.</string>
+    <string name="faq_start_schedule_title">Inicio desde el horario</string>
+    <string name="faq_start_schedule_body">El botón «Empezar» en la notificación crea un envío a partir de la plantilla del horario, con todos los datos ya rellenados.</string>
+    <string name="faq_drafts_title">Borradores y duplicados</string>
+    <string name="faq_drafts_body">El borrador se guarda automáticamente 3 segundos después de la última acción. También se puede guardar con el botón. Los borradores se pueden duplicar, igual que las entradas del archivo, para envíos similares.</string>
+    <string name="faq_history_title">Historial</string>
+    <string name="faq_history_body">Registro de acciones de la sesión con marcas de tiempo. Se guarda en el archivo junto con el envío finalizado.</string>
 </resources>

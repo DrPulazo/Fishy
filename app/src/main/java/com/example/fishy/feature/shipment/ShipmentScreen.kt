@@ -1,6 +1,13 @@
 package com.example.fishy.feature.shipment
 
 import android.widget.Toast
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
@@ -46,6 +53,7 @@ import androidx.compose.material3.AlertDialog
 import com.example.fishy.ui.components.FishyButton
 import com.example.fishy.ui.components.DraggableAddPalletFab
 import com.example.fishy.ui.components.FishyOutlinedButton
+import com.example.fishy.ui.components.ShipmentCoachOverlay
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -100,6 +108,7 @@ import com.example.fishy.ui.components.ConfirmDeleteDialog
 import com.example.fishy.ui.components.ConfirmSaveDialog
 import com.example.fishy.ui.components.CenteredDialogMessage
 import com.example.fishy.ui.components.CenteredDialogTitle
+import com.example.fishy.ui.components.ChecklistStatusBanner
 import com.example.fishy.ui.components.DecimalNumberField
 import com.example.fishy.ui.components.DialogCancelConfirmActions
 import com.example.fishy.ui.components.DialogCenteredAction
@@ -141,6 +150,7 @@ fun ShipmentScreen(
 ) {
     val payload by vm.payload.collectAsState()
     val settings by vm.settings.collectAsState()
+    val settingsReady by vm.settingsReady.collectAsState()
     val quickPlacesText by vm.quickPlacesText.collectAsState()
     val sessionKey by vm.sessionKey.collectAsState()
     val customers by vm.customers.collectAsState()
@@ -218,6 +228,17 @@ fun ShipmentScreen(
         payload.checklist.all { it.isCompleted } -> Success
         else -> Warning
     }
+    val animatedChecklistColor by animateColorAsState(
+        targetValue = checklistIconColor,
+        animationSpec = tween(200),
+        label = "checklistIcon"
+    )
+    val hasAnyPallet = remember(payload) {
+        ShipmentCalculator.allProducts(payload).any { it.pallets.isNotEmpty() }
+    }
+    val showFabCoachTip = settingsReady && settings.floatingFabEnabled && !settings.fabDragTipSeen
+    val showSwipeCoachTip = hasAnyPallet && !settings.palletSwipeTipSeen && !showFabCoachTip
+    val settingsRepo = FishyApp.instance.settingsRepository
 
     Scaffold(
         topBar = {
@@ -234,7 +255,7 @@ fun ShipmentScreen(
                             Icon(
                                 Icons.Default.CheckBox,
                                 contentDescription = stringResource(R.string.checklist),
-                                tint = checklistIconColor
+                                tint = animatedChecklistColor
                             )
                         }
                         IconButton(onClick = {
@@ -288,7 +309,15 @@ fun ShipmentScreen(
                                     onCheckedChange = { enabled ->
                                         scope.launch {
                                             FishyApp.instance.settingsRepository.update {
-                                                it.copy(floatingFabEnabled = enabled)
+                                                if (enabled) {
+                                                    it.copy(floatingFabEnabled = true)
+                                                } else {
+                                                    it.copy(
+                                                        floatingFabEnabled = false,
+                                                        fabPosXFraction = -1f,
+                                                        fabPosYFraction = -1f
+                                                    )
+                                                }
                                             }
                                         }
                                     }
@@ -1006,9 +1035,35 @@ fun ShipmentScreen(
             }
             }
 
-            if (settings.floatingFabEnabled) {
+            AnimatedVisibility(
+                visible = settingsReady && settings.floatingFabEnabled,
+                modifier = Modifier.fillMaxSize(),
+                enter = fadeIn(animationSpec = tween(150)) + scaleIn(
+                    initialScale = 0.85f,
+                    animationSpec = tween(150)
+                ),
+                exit = fadeOut(animationSpec = tween(150)) + scaleOut(
+                    targetScale = 0.85f,
+                    animationSpec = tween(150)
+                )
+            ) {
                 DraggableAddPalletFab(onClick = { vm.smartAddPallet() })
             }
+            ShipmentCoachOverlay(
+                showFabTip = showFabCoachTip,
+                showSwipeTip = showSwipeCoachTip,
+                onDismissFabTip = {
+                    scope.launch {
+                        settingsRepo.update { it.copy(fabDragTipSeen = true) }
+                    }
+                },
+                onDismissSwipeTip = {
+                    scope.launch {
+                        settingsRepo.update { it.copy(palletSwipeTipSeen = true) }
+                    }
+                },
+                modifier = Modifier.fillMaxSize()
+            )
         }
     }
 
@@ -1318,6 +1373,11 @@ private fun ProductCard(
         rem < 0 -> Warning
         else -> Success
     }
+    val animatedStatusColor by animateColorAsState(
+        targetValue = statusColor,
+        animationSpec = tween(200),
+        label = "productStatus"
+    )
 
     AccordionCard(
         title = title,
@@ -1378,7 +1438,8 @@ private fun ProductCard(
             onQuantityChange = { qty -> onUpdate { p -> p.copy(quantity = qty) } },
             onCoefficientChange = { k -> onUpdate { p -> p.copy(grossCoefficient = k) } },
             thousandsSeparator = thousandsSeparator,
-            tareError = batchMismatch
+            tareError = batchMismatch,
+            showCalculatedIcon = true
         )
         if (product.pallets.isNotEmpty()) {
             PalletTableHeader(doubleControl = doubleControl)
@@ -1410,7 +1471,7 @@ private fun ProductCard(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(statusColor.copy(alpha = 0.12f))
+                    .background(animatedStatusColor.copy(alpha = 0.12f))
                     .padding(8.dp)
             ) {
                 val placesTotal = ShipmentCalculator.placesForProduct(product, doubleControl)
@@ -1427,7 +1488,7 @@ private fun ProductCard(
                         rem < 0 -> stringResource(R.string.overload, ShipmentCalculator.formatPlacesRu(-rem, thousandsSeparator))
                         else -> stringResource(R.string.norm_ok)
                     },
-                    color = statusColor,
+                    color = animatedStatusColor,
                     fontWeight = FontWeight.Bold
                 )
                 if (doubleControl) {
@@ -1531,13 +1592,6 @@ private fun ChecklistDialog(vm: ShipmentViewModel, onDismiss: () -> Unit) {
     var showAdd by remember { mutableStateOf(false) }
     val completed = payload.checklist.count { it.isCompleted }
     val total = payload.checklist.size
-    val percent = if (total > 0) completed * 100 / total else 0
-    val percentColor = when {
-        total > 0 && completed == total -> Success
-        completed > 0 -> Warning
-        total > 0 -> Error
-        else -> PlaceholderGrey
-    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -1545,47 +1599,9 @@ private fun ChecklistDialog(vm: ShipmentViewModel, onDismiss: () -> Unit) {
         title = { CenteredDialogTitle(stringResource(R.string.checklist_shipment)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surface
-                    )
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text(stringResource(R.string.checklist_done_progress, completed, total))
-                        Text(
-                            "$percent%",
-                            color = percentColor,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                }
+                ChecklistStatusBanner(completed = completed, total = total)
 
-                if (payload.checklist.isEmpty()) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Icon(
-                            Icons.Default.Checklist,
-                            contentDescription = null,
-                            modifier = Modifier.size(48.dp),
-                            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
-                        )
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Text(
-                            stringResource(R.string.checklist_empty),
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                        )
-                    }
-                } else {
+                if (payload.checklist.isNotEmpty()) {
                     payload.checklist.forEach { task ->
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Checkbox(

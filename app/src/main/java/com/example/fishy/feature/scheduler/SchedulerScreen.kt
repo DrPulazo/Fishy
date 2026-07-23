@@ -6,6 +6,7 @@ import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -88,6 +89,7 @@ import com.example.fishy.ui.components.BatchEntryDialog
 import com.example.fishy.ui.components.ConfirmDeleteDialog
 import com.example.fishy.ui.components.CenteredDialogMessage
 import com.example.fishy.ui.components.CenteredDialogTitle
+import com.example.fishy.ui.components.ChecklistStatusBanner
 import com.example.fishy.ui.components.DatePickerField
 import com.example.fishy.ui.components.DialogCancelConfirmActions
 import com.example.fishy.ui.components.DialogCenteredFishyButton
@@ -105,6 +107,7 @@ import com.example.fishy.ui.theme.Error
 import com.example.fishy.ui.theme.PlaceholderGrey
 import com.example.fishy.ui.theme.Success
 import com.example.fishy.ui.theme.Warning
+import com.example.fishy.ui.theme.isLightTheme
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -134,7 +137,7 @@ private fun modeLabel(mode: String): String = when (mode) {
     else -> mode
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun SchedulerScreen(
     onBack: () -> Unit,
@@ -295,7 +298,8 @@ fun SchedulerScreen(
                         onOpenChecklist = { checklistFor = item.id },
                         onStart = { pendingStart = item },
                         onDuplicate = { duplicate(item) },
-                        onDelete = { pendingDelete = item }
+                        onDelete = { pendingDelete = item },
+                        modifier = Modifier.animateItem()
                     )
                 }
             }
@@ -397,7 +401,8 @@ private fun ScheduledShipmentCard(
     onOpenChecklist: () -> Unit,
     onStart: () -> Unit,
     onDuplicate: () -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     val repo = FishyApp.instance.repository
     val checklist by repo.observeChecklist(item.id).collectAsState(initial = emptyList())
@@ -406,7 +411,7 @@ private fun ScheduledShipmentCard(
     val productName = remember(item.payloadJson) { productLabelFromPayloadJson(item.payloadJson) }
 
     Card(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .padding(vertical = 6.dp)
     ) {
@@ -535,7 +540,7 @@ private fun ScheduledShipmentCard(
                             ChecklistStatus.COMPLETED -> "🟢"
                             ChecklistStatus.PARTIAL -> "🟡"
                             ChecklistStatus.NONE -> "🔴"
-                            ChecklistStatus.EMPTY -> "⚪"
+                            ChecklistStatus.EMPTY -> if (isLightTheme()) "⚫" else "⚪"
                         },
                         style = MaterialTheme.typography.labelSmall
                     )
@@ -1009,13 +1014,6 @@ private fun ScheduledChecklistDialog(scheduledId: Long, onDismiss: () -> Unit) {
     var newTitle by remember { mutableStateOf("") }
     val completed = items.count { it.isCompleted }
     val total = items.size
-    val percent = if (total > 0) completed * 100 / total else 0
-    val percentColor = when {
-        total > 0 && completed == total -> Success
-        completed > 0 -> Warning
-        total > 0 -> Error
-        else -> PlaceholderGrey
-    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -1026,47 +1024,9 @@ private fun ScheduledChecklistDialog(scheduledId: Long, onDismiss: () -> Unit) {
                 modifier = Modifier.heightIn(max = 480.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surface
-                    )
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text(stringResource(R.string.checklist_done_progress, completed, total))
-                        Text(
-                            "$percent%",
-                            color = percentColor,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                }
+                ChecklistStatusBanner(completed = completed, total = total)
 
-                if (items.isEmpty()) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Icon(
-                            Icons.Default.Checklist,
-                            contentDescription = null,
-                            modifier = Modifier.size(48.dp),
-                            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
-                        )
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Text(
-                            stringResource(R.string.checklist_empty),
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                        )
-                    }
-                } else {
+                if (items.isNotEmpty()) {
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         items.forEach { item ->
                             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1157,13 +1117,6 @@ private fun PayloadChecklistDialog(
     var newTitle by remember { mutableStateOf("") }
     val completed = checklist.count { it.isCompleted }
     val total = checklist.size
-    val percent = if (total > 0) completed * 100 / total else 0
-    val percentColor = when {
-        total > 0 && completed == total -> Success
-        completed > 0 -> Warning
-        total > 0 -> Error
-        else -> PlaceholderGrey
-    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -1174,47 +1127,9 @@ private fun PayloadChecklistDialog(
                 modifier = Modifier.heightIn(max = 480.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surface
-                    )
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text(stringResource(R.string.checklist_done_progress, completed, total))
-                        Text(
-                            "$percent%",
-                            color = percentColor,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                }
+                ChecklistStatusBanner(completed = completed, total = total)
 
-                if (checklist.isEmpty()) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Icon(
-                            Icons.Default.Checklist,
-                            contentDescription = null,
-                            modifier = Modifier.size(48.dp),
-                            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
-                        )
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Text(
-                            stringResource(R.string.checklist_empty),
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                        )
-                    }
-                } else {
+                if (checklist.isNotEmpty()) {
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         checklist.forEach { task ->
                             Row(verticalAlignment = Alignment.CenterVertically) {

@@ -23,6 +23,7 @@ import com.example.fishy.feature.drafts.DraftsScreen
 import com.example.fishy.feature.history.HistoryScreen
 import com.example.fishy.feature.home.EasterEggScreen
 import com.example.fishy.feature.home.EulaScreen
+import com.example.fishy.feature.home.FaqScreen
 import com.example.fishy.feature.home.HomeScreen
 import com.example.fishy.feature.report.ReportScreen
 import com.example.fishy.feature.scheduler.SchedulerScreen
@@ -108,7 +109,8 @@ fun FishyNavHost(
                     onNavigateStatistics = { navController.navigate(FishyRoute.Statistics.route) },
                     onNavigateSettings = { navController.navigate(FishyRoute.Settings.route) },
                     onNavigateEasterEgg = { navController.navigate(FishyRoute.EasterEgg.route) },
-                    onNavigateEula = { navController.navigate(FishyRoute.Eula.route) }
+                    onNavigateEula = { navController.navigate(FishyRoute.Eula.route) },
+                    onNavigateFaq = { navController.navigate(FishyRoute.Faq.route) }
                 )
             }
         }
@@ -243,6 +245,12 @@ fun FishyNavHost(
         composable(FishyRoute.Eula.route) { entry ->
             NavBackStackEntryGuard(entry, navController) {
                 EulaScreen(onBack = { navController.popBackStackWhenResumed() })
+            }
+        }
+
+        composable(FishyRoute.Faq.route) { entry ->
+            NavBackStackEntryGuard(entry, navController) {
+                FaqScreen(onBack = { navController.popBackStackWhenResumed() })
             }
         }
 
