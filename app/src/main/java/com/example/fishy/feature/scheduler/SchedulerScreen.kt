@@ -21,6 +21,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -31,6 +33,8 @@ import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.NotificationsActive
+import androidx.compose.material.icons.filled.NotificationsOff
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Settings
@@ -68,6 +72,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
 import androidx.core.content.ContextCompat
@@ -108,6 +113,7 @@ import com.example.fishy.ui.theme.PlaceholderGrey
 import com.example.fishy.ui.theme.Success
 import com.example.fishy.ui.theme.Warning
 import com.example.fishy.ui.theme.isLightTheme
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -152,6 +158,7 @@ fun SchedulerScreen(
     val context = LocalContext.current
     var showEditor by remember { mutableStateOf(false) }
     var editing by remember { mutableStateOf<ScheduledShipmentEntity?>(null) }
+    var editorScrollToNotifications by remember { mutableStateOf(false) }
     var checklistFor by remember { mutableStateOf<Long?>(null) }
     var pendingDelete by remember { mutableStateOf<ScheduledShipmentEntity?>(null) }
     var pendingStart by remember { mutableStateOf<ScheduledShipmentEntity?>(null) }
@@ -193,6 +200,7 @@ fun SchedulerScreen(
             notificationEnabled = true,
             notificationAtMillis = notifyDefault.timeInMillis
         )
+        editorScrollToNotifications = false
         showEditor = true
     }
 
@@ -286,12 +294,18 @@ fun SchedulerScreen(
                         if (ch.isLowerCase()) ch.titlecase(Locale.getDefault()) else ch.toString()
                     }
                     val dateLabel =
-                        "${dateFmt.format(whenDate)} — $weekday, ${item.scheduledTime}"
+                        "${dateFmt.format(whenDate)} — $weekday — ${item.scheduledTime}"
                     ScheduledShipmentCard(
                         item = item,
                         dateLabel = dateLabel,
                         isDuplicated = "sched_${item.id}" in duplicatedKeys,
                         onEdit = {
+                            editorScrollToNotifications = false
+                            editing = item
+                            showEditor = true
+                        },
+                        onEditNotifications = {
+                            editorScrollToNotifications = true
                             editing = item
                             showEditor = true
                         },
@@ -309,13 +323,18 @@ fun SchedulerScreen(
     if (showEditor && editing != null) {
         ScheduledEditorDialog(
             initial = editing!!,
-            onDismiss = { showEditor = false },
+            scrollToNotifications = editorScrollToNotifications,
+            onDismiss = {
+                showEditor = false
+                editorScrollToNotifications = false
+            },
             onSave = { entity ->
                 scope.launch {
                     val id = repo.upsertScheduled(entity)
                     val saved = entity.copy(id = if (entity.id == 0L) id else entity.id)
                     scheduler.schedule(saved)
                     showEditor = false
+                    editorScrollToNotifications = false
                 }
             }
         )
@@ -345,7 +364,7 @@ fun SchedulerScreen(
         val weekday = weekdayFmt.format(whenDate).replaceFirstChar { ch ->
             if (ch.isLowerCase()) ch.titlecase(Locale.getDefault()) else ch.toString()
         }
-        val dateTimeLine = "${dateFmt.format(whenDate)} — $weekday, ${item.scheduledTime}"
+        val dateTimeLine = "${dateFmt.format(whenDate)} — $weekday — ${item.scheduledTime}"
         val customerLine = item.customer.ifBlank {
             stringResource(R.string.customer_not_specified)
         }
@@ -398,6 +417,7 @@ private fun ScheduledShipmentCard(
     dateLabel: String,
     isDuplicated: Boolean,
     onEdit: () -> Unit,
+    onEditNotifications: () -> Unit,
     onOpenChecklist: () -> Unit,
     onStart: () -> Unit,
     onDuplicate: () -> Unit,
@@ -418,7 +438,6 @@ private fun ScheduledShipmentCard(
         Column(modifier = Modifier.padding(12.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column(modifier = Modifier.weight(1f)) {
@@ -426,8 +445,18 @@ private fun ScheduledShipmentCard(
                         dateLabel,
                         style = MaterialTheme.typography.titleSmall,
                         color = MaterialTheme.colorScheme.primary,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
+                    if (isDuplicated) {
+                        Text(
+                            stringResource(R.string.draft_duplicated_badge),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f),
+                            modifier = Modifier.padding(top = 2.dp)
+                        )
+                    }
                     Text(
                         if (item.customer.isBlank()) {
                             stringResource(R.string.customer_not_specified)
@@ -439,12 +468,21 @@ private fun ScheduledShipmentCard(
                         modifier = Modifier.padding(top = 4.dp)
                     )
                 }
-                if (isDuplicated) {
-                    Text(
-                        stringResource(R.string.draft_duplicated_badge),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f),
-                        modifier = Modifier.padding(end = 4.dp)
+                IconButton(onClick = onEditNotifications) {
+                    Icon(
+                        imageVector = if (item.notificationEnabled) {
+                            Icons.Default.NotificationsActive
+                        } else {
+                            Icons.Default.NotificationsOff
+                        },
+                        contentDescription = stringResource(
+                            if (item.notificationEnabled) R.string.notify_cd else R.string.notify_off_cd
+                        ),
+                        tint = if (item.notificationEnabled) {
+                            MaterialTheme.colorScheme.onSurface
+                        } else {
+                            PlaceholderGrey
+                        }
                     )
                 }
                 Box {
@@ -569,10 +607,11 @@ private fun ScheduledShipmentCard(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 private fun ScheduledEditorDialog(
     initial: ScheduledShipmentEntity,
+    scrollToNotifications: Boolean = false,
     onDismiss: () -> Unit,
     onSave: (ScheduledShipmentEntity) -> Unit
 ) {
@@ -633,6 +672,14 @@ private fun ScheduledEditorDialog(
     var batchForceExpandToken by remember { mutableStateOf<Any?>(null) }
     var batchEditor by remember { mutableStateOf<BatchLimit?>(null) }
     var showShipmentChecklist by remember { mutableStateOf(false) }
+    val notificationsBringIntoView = remember { BringIntoViewRequester() }
+
+    LaunchedEffect(scrollToNotifications) {
+        if (scrollToNotifications) {
+            delay(100)
+            notificationsBringIntoView.bringIntoView()
+        }
+    }
 
     val isDirty =
         FishyJson.encodePayload(payload) != baselinePayloadJson ||
@@ -836,61 +883,66 @@ private fun ScheduledEditorDialog(
                 }
 
                 HorizontalDivider()
-                Text(
-                    stringResource(R.string.notifications),
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold
-                )
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                Column(
+                    modifier = Modifier.bringIntoViewRequester(notificationsBringIntoView),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Text(stringResource(R.string.notify_enable))
-                    Switch(checked = notify, onCheckedChange = { notify = it }, colors = fishySwitchColors())
-                }
-                if (notify) {
-                    val notifyTime = remember(notifyAt) {
-                        val c = Calendar.getInstance().apply { timeInMillis = notifyAt }
-                        "%02d:%02d".format(c.get(Calendar.HOUR_OF_DAY), c.get(Calendar.MINUTE))
-                    }
-                    DatePickerField(
-                        selectedDateMillis = notifyAt,
-                        onDateSelected = { newDate ->
-                            val c = Calendar.getInstance().apply { timeInMillis = notifyAt }
-                            val h = c.get(Calendar.HOUR_OF_DAY)
-                            val m = c.get(Calendar.MINUTE)
-                            notifyAt = Calendar.getInstance().apply {
-                                timeInMillis = newDate
-                                set(Calendar.HOUR_OF_DAY, h)
-                                set(Calendar.MINUTE, m)
-                                set(Calendar.SECOND, 0)
-                                set(Calendar.MILLISECOND, 0)
-                            }.timeInMillis
-                        },
-                        label = stringResource(R.string.notify_date_field)
-                    )
-                    TimePickerField(
-                        time = notifyTime,
-                        onTimeChange = { newTime ->
-                            val parts = newTime.split(":")
-                            val h = parts.getOrNull(0)?.toIntOrNull() ?: 9
-                            val m = parts.getOrNull(1)?.toIntOrNull() ?: 0
-                            notifyAt = Calendar.getInstance().apply {
-                                timeInMillis = notifyAt
-                                set(Calendar.HOUR_OF_DAY, h)
-                                set(Calendar.MINUTE, m)
-                                set(Calendar.SECOND, 0)
-                                set(Calendar.MILLISECOND, 0)
-                            }.timeInMillis
-                        },
-                        label = stringResource(R.string.notify_time_field)
-                    )
                     Text(
-                        stringResource(R.string.notify_preview, notifyFmt.format(Date(notifyAt))),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                        stringResource(R.string.notifications),
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold
                     )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(stringResource(R.string.notify_enable))
+                        Switch(checked = notify, onCheckedChange = { notify = it }, colors = fishySwitchColors())
+                    }
+                    if (notify) {
+                        val notifyTime = remember(notifyAt) {
+                            val c = Calendar.getInstance().apply { timeInMillis = notifyAt }
+                            "%02d:%02d".format(c.get(Calendar.HOUR_OF_DAY), c.get(Calendar.MINUTE))
+                        }
+                        DatePickerField(
+                            selectedDateMillis = notifyAt,
+                            onDateSelected = { newDate ->
+                                val c = Calendar.getInstance().apply { timeInMillis = notifyAt }
+                                val h = c.get(Calendar.HOUR_OF_DAY)
+                                val m = c.get(Calendar.MINUTE)
+                                notifyAt = Calendar.getInstance().apply {
+                                    timeInMillis = newDate
+                                    set(Calendar.HOUR_OF_DAY, h)
+                                    set(Calendar.MINUTE, m)
+                                    set(Calendar.SECOND, 0)
+                                    set(Calendar.MILLISECOND, 0)
+                                }.timeInMillis
+                            },
+                            label = stringResource(R.string.notify_date_field)
+                        )
+                        TimePickerField(
+                            time = notifyTime,
+                            onTimeChange = { newTime ->
+                                val parts = newTime.split(":")
+                                val h = parts.getOrNull(0)?.toIntOrNull() ?: 9
+                                val m = parts.getOrNull(1)?.toIntOrNull() ?: 0
+                                notifyAt = Calendar.getInstance().apply {
+                                    timeInMillis = notifyAt
+                                    set(Calendar.HOUR_OF_DAY, h)
+                                    set(Calendar.MINUTE, m)
+                                    set(Calendar.SECOND, 0)
+                                    set(Calendar.MILLISECOND, 0)
+                                }.timeInMillis
+                            },
+                            label = stringResource(R.string.notify_time_field)
+                        )
+                        Text(
+                            stringResource(R.string.notify_preview, notifyFmt.format(Date(notifyAt))),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                        )
+                    }
                 }
             }
             }

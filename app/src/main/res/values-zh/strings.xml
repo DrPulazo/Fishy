@@ -14,8 +14,8 @@
     <string name="back">返回</string>
     <string name="coming_soon">即将推出</string>
     <string name="about_title">关于应用</string>
-    <string name="about_version">版本 2.1.0</string>
-    <string name="about_body">鱼类货物收货发货管理。\nFishy 2.1.0</string>
+    <string name="about_version">版本 2.1.1</string>
+    <string name="about_body">鱼类货物收货发货管理。\nFishy 2.1.1</string>
     <string name="about_deepseek">在 DeepSeek AI\n助手协助下开发。</string>
     <string name="about_budget_title">开发预算：</string>
     <string name="about_budget_beer">一箱啤酒</string>
@@ -290,6 +290,8 @@
     <string name="copy_default">副本</string>
     <string name="notifications">通知</string>
     <string name="notify_enable">启用通知</string>
+    <string name="notify_cd">通知已开启</string>
+    <string name="notify_off_cd">通知已关闭</string>
     <string name="notify_datetime">日期时间：%1$s</string>
     <string name="notify_preview">将于：%1$s 通知</string>
     <string name="date_label">日期：%1$s</string>
@@ -344,6 +346,11 @@
     <string name="dict_vessels">船舶</string>
     <string name="dict_products">产品</string>
     <string name="dict_manufacturers">厂家</string>
+    <string name="templates_empty_customers">没有已保存的客户</string>
+    <string name="templates_empty_ports">没有已保存的港口</string>
+    <string name="templates_empty_vessels">没有已保存的船舶</string>
+    <string name="templates_empty_products">没有已保存的产品</string>
+    <string name="templates_empty_manufacturers">没有已保存的厂家</string>
     <string name="new_value">值</string>
     <string name="report_templates_title">报告模板</string>
     <string name="new_template">新模板</string>
@@ -405,6 +412,8 @@
     <string name="stats_chart_by_customers">按客户吨位</string>
     <string name="stats_chart_by_ports">按港口吨位</string>
     <string name="stats_chart_by_products">按产品吨位</string>
+    <string name="stats_empty_title">暂无数据</string>
+    <string name="stats_empty_hint">完成首次发货后将显示统计</string>
     <string name="stats_period_from">从</string>
     <string name="stats_period_to">至</string>
     <string name="stats_month_kg">%1$s：%2$s kg</string>

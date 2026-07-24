@@ -127,7 +127,6 @@ import com.example.fishy.ui.components.transportTitle
 import com.example.fishy.ui.components.unloadReceptionTitle
 import com.example.fishy.ui.theme.Error
 import com.example.fishy.ui.theme.FishyAccent
-import com.example.fishy.ui.theme.PlaceholderGrey
 import com.example.fishy.ui.theme.ProgressGreen
 import com.example.fishy.ui.theme.Success
 import com.example.fishy.ui.theme.Warning
@@ -223,7 +222,7 @@ fun ShipmentScreen(
     val activeReceptionId = payload.lastUsedUnloadReceptionId ?: payload.unloadReceptions.lastOrNull()?.id
     val batchStatuses = ShipmentCalculator.batchStatuses(payload, payload.batchWarnThreshold)
     val checklistIconColor = when {
-        payload.checklist.isEmpty() -> PlaceholderGrey
+        payload.checklist.isEmpty() -> MaterialTheme.colorScheme.onSurfaceVariant
         payload.checklist.none { it.isCompleted } -> Error
         payload.checklist.all { it.isCompleted } -> Success
         else -> Warning
@@ -1271,6 +1270,7 @@ private fun TotalsBlock(
         )
     }
     when {
+        totals.quantity <= 0 -> Unit
         totals.remainder > 0 -> Text(
             stringResource(R.string.underload, ShipmentCalculator.formatPlacesRu(totals.remainder, thousandsSeparator)),
             color = Error,
@@ -1368,7 +1368,9 @@ private fun ProductCard(
         product.quantity > 0 -> Success
         else -> MaterialTheme.colorScheme.onSurfaceVariant
     }
+    val hasTargetPlaces = product.quantity > 0
     val statusColor = when {
+        !hasTargetPlaces -> MaterialTheme.colorScheme.onSurfaceVariant
         rem > 0 -> Error
         rem < 0 -> Warning
         else -> Success
@@ -1482,15 +1484,17 @@ private fun ProductCard(
                         QuantityFormatters.formatInteger(product.quantity, thousandsSeparator)
                     )
                 )
-                Text(
-                    text = when {
-                        rem > 0 -> stringResource(R.string.underload, ShipmentCalculator.formatPlacesRu(rem, thousandsSeparator))
-                        rem < 0 -> stringResource(R.string.overload, ShipmentCalculator.formatPlacesRu(-rem, thousandsSeparator))
-                        else -> stringResource(R.string.norm_ok)
-                    },
-                    color = animatedStatusColor,
-                    fontWeight = FontWeight.Bold
-                )
+                if (hasTargetPlaces) {
+                    Text(
+                        text = when {
+                            rem > 0 -> stringResource(R.string.underload, ShipmentCalculator.formatPlacesRu(rem, thousandsSeparator))
+                            rem < 0 -> stringResource(R.string.overload, ShipmentCalculator.formatPlacesRu(-rem, thousandsSeparator))
+                            else -> stringResource(R.string.norm_ok)
+                        },
+                        color = animatedStatusColor,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
                 if (doubleControl) {
                     val real = ShipmentCalculator.realPallets(product)
                     val exportedCount = real.size

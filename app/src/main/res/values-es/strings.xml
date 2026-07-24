@@ -14,8 +14,8 @@
     <string name="back">Atrás</string>
     <string name="coming_soon">Sección en desarrollo</string>
     <string name="about_title">Acerca de la aplicación</string>
-    <string name="about_version">Versión 2.1.0</string>
-    <string name="about_body">Registro y planificación de envíos para receptores de cargas de pescado.\nFishy 2.1.0</string>
+    <string name="about_version">Versión 2.1.1</string>
+    <string name="about_body">Registro y planificación de envíos para receptores de cargas de pescado.\nFishy 2.1.1</string>
     <string name="about_deepseek">Desarrollado con la colaboración\ndel chatbot de IA DeepSeek.</string>
     <string name="about_budget_title">Presupuesto de desarrollo:</string>
     <string name="about_budget_beer">Una caja de cerveza</string>
@@ -290,6 +290,8 @@
     <string name="copy_default">Copia</string>
     <string name="notifications">Notificaciones</string>
     <string name="notify_enable">Activar notificación</string>
+    <string name="notify_cd">Notificación activada</string>
+    <string name="notify_off_cd">Notificación desactivada</string>
     <string name="notify_datetime">Fecha y hora: %1$s</string>
     <string name="notify_preview">La notificación llegará: %1$s</string>
     <string name="date_label">Fecha: %1$s</string>
@@ -344,6 +346,11 @@
     <string name="dict_vessels">Buques</string>
     <string name="dict_products">Productos</string>
     <string name="dict_manufacturers">Fabricantes</string>
+    <string name="templates_empty_customers">No hay clientes guardados</string>
+    <string name="templates_empty_ports">No hay puertos guardados</string>
+    <string name="templates_empty_vessels">No hay buques guardados</string>
+    <string name="templates_empty_products">No hay productos guardados</string>
+    <string name="templates_empty_manufacturers">No hay fabricantes guardados</string>
     <string name="new_value">Valor</string>
     <string name="report_templates_title">Plantillas de informes</string>
     <string name="new_template">Nueva plantilla</string>
@@ -405,6 +412,8 @@
     <string name="stats_chart_by_customers">Tonelaje por cliente</string>
     <string name="stats_chart_by_ports">Tonelaje por puerto</string>
     <string name="stats_chart_by_products">Tonelaje por producto</string>
+    <string name="stats_empty_title">Sin datos</string>
+    <string name="stats_empty_hint">La estadística aparecerá tras el primer envío completado</string>
     <string name="stats_period_from">Desde</string>
     <string name="stats_period_to">Hasta</string>
     <string name="stats_month_kg">%1$s: %2$s kg</string>

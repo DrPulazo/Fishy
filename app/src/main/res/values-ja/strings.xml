@@ -14,8 +14,8 @@
     <string name="back">戻る</string>
     <string name="coming_soon">近日公開</string>
     <string name="about_title">について</string>
-    <string name="about_version">バージョン 2.1.0</string>
-    <string name="about_body">魚の貨物受信機の出荷追跡。\nFishy 2.1.0</string>
+    <string name="about_version">バージョン 2.1.1</string>
+    <string name="about_body">魚の貨物受信機の出荷追跡。\nFishy 2.1.1</string>
     <string name="about_deepseek">DeepSeek AI チャットボット \n の助けを借りて構築されました。</string>
     <string name="about_budget_title">開発予算:</string>
     <string name="about_budget_beer">ビール 1 ケース</string>
@@ -290,6 +290,8 @@
     <string name="copy_default">コピー</string>
     <string name="notifications">通知</string>
     <string name="notify_enable">通知を有効にする</string>
+    <string name="notify_cd">通知オン</string>
+    <string name="notify_off_cd">通知オフ</string>
     <string name="notify_datetime">日付と時刻: %1$s</string>
     <string name="notify_preview">通知先: %1$s</string>
     <string name="date_label">日付: %1$s</string>
@@ -344,6 +346,11 @@
     <string name="dict_vessels">船舶</string>
     <string name="dict_products">製品</string>
     <string name="dict_manufacturers">メーカー</string>
+    <string name="templates_empty_customers">保存された顧客がありません</string>
+    <string name="templates_empty_ports">保存された港がありません</string>
+    <string name="templates_empty_vessels">保存された船舶がありません</string>
+    <string name="templates_empty_products">保存された製品がありません</string>
+    <string name="templates_empty_manufacturers">保存されたメーカーがありません</string>
     <string name="new_value">価値</string>
     <string name="report_templates_title">レポートテンプレート</string>
     <string name="new_template">新しいテンプレート</string>
@@ -405,6 +412,8 @@
     <string name="stats_chart_by_customers">荷主別トン数</string>
     <string name="stats_chart_by_ports">港別トン数</string>
     <string name="stats_chart_by_products">製品別トン数</string>
+    <string name="stats_empty_title">データなし</string>
+    <string name="stats_empty_hint">最初の出荷完了後に統計が表示されます</string>
     <string name="stats_period_from">開始</string>
     <string name="stats_period_to">終了</string>
     <string name="stats_month_kg">%1$s：%2$s kg</string>

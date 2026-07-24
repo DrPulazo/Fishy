@@ -269,8 +269,7 @@ fun HomeScreen(
                         }
 
                         if (innerLayout.contentFits) {
-                            // Free space split: most between ФИШКА and buttons (logo), a bit under buttons
-                            // so the button block sits a little closer to the logo.
+                            // Logo in flexible zone; logo→button gap is never less than buttonGap.
                             Column(
                                 modifier = Modifier.fillMaxSize(),
                                 horizontalAlignment = Alignment.CenterHorizontally
@@ -285,9 +284,9 @@ fun HomeScreen(
                                     logo()
                                     Spacer(modifier = Modifier.weight(0.60f))
                                 }
+                                Spacer(modifier = Modifier.height(innerLayout.buttonGap))
                                 buttons()
                                 Spacer(modifier = Modifier.height(HomeBottomBreathing))
-                                Spacer(modifier = Modifier.weight(0.08f))
                             }
                         } else {
                             Column(
@@ -297,14 +296,8 @@ fun HomeScreen(
                                     .padding(bottom = HomeBottomBreathing),
                                 horizontalAlignment = Alignment.CenterHorizontally
                             ) {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(vertical = innerLayout.logoVerticalPadding),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    logo()
-                                }
+                                logo()
+                                Spacer(modifier = Modifier.height(innerLayout.buttonGap))
                                 buttons()
                             }
                         }
@@ -621,60 +614,61 @@ private data class HomeLayoutMetrics(
 
 /**
  * Prefer a large logo and normal button gap; shrink logo first, then gap, on short screens.
- * [maxHeight] is the area below the top bar (logo + buttons only).
+ * Logo→first-button distance is always at least [HomeLayoutMetrics.buttonGap] (same as button-to-button).
+ * [maxHeight] is the area below the top bar (logo + gaps + buttons).
  */
 private fun computeHomeLayoutMetrics(maxHeight: Dp, buttonCount: Int): HomeLayoutMetrics {
     val buttonHeight = HomeButtonHeight
-    val logoPadding = 8.dp
     val maxLogo = 280.dp
     val minLogo = 80.dp
     val normalGap = 16.dp
     val reducedGap = 10.dp
 
-    fun fixedReserve(
-        buttonGap: Dp,
-        logoPad: Dp = logoPadding
-    ): Dp {
-        val buttonsBlock = buttonHeight * buttonCount + buttonGap * (buttonCount - 1).coerceAtLeast(0)
-        return buttonsBlock + logoPad * 2 + HomeBottomBreathing
-    }
+    fun buttonsBlock(buttonGap: Dp): Dp =
+        buttonHeight * buttonCount + buttonGap * (buttonCount - 1).coerceAtLeast(0)
+
+    // Fixed stack under the logo: logo→button gap (>= button gap) + buttons + bottom breathing.
+    fun fixedUnderLogo(buttonGap: Dp): Dp =
+        buttonGap + buttonsBlock(buttonGap) + HomeBottomBreathing
 
     fun result(
         buttonGap: Dp,
         logoSize: Dp,
         useTightTitle: Boolean = false,
-        logoPad: Dp = logoPadding
-    ): HomeLayoutMetrics {
-        val fixed = fixedReserve(buttonGap, logoPad)
-        return HomeLayoutMetrics(
-            logoSize = logoSize,
-            logoVerticalPadding = logoPad,
-            buttonGap = buttonGap,
-            useTightTitle = useTightTitle,
-            contentFits = fixed + logoSize <= maxHeight
-        )
-    }
+        contentFits: Boolean = true
+    ): HomeLayoutMetrics = HomeLayoutMetrics(
+        logoSize = logoSize,
+        logoVerticalPadding = 0.dp,
+        buttonGap = buttonGap,
+        useTightTitle = useTightTitle,
+        contentFits = contentFits
+    )
 
-    // 1) Normal gap, full logo
-    if (maxHeight - fixedReserve(normalGap) >= maxLogo) {
+    // 1) Normal gap, full logo if it fits above the fixed under-logo stack
+    val availNormal = maxHeight - fixedUnderLogo(normalGap)
+    if (availNormal >= maxLogo) {
         return result(normalGap, maxLogo)
     }
 
-    // 2) Normal gap, shrink logo
-    val shrunkLogo = (maxHeight - fixedReserve(normalGap)).coerceIn(minLogo, maxLogo)
-    if (fixedReserve(normalGap) + minLogo <= maxHeight) {
-        return result(normalGap, shrunkLogo)
+    // 2) Normal gap, shrink logo until the min logo→button gap still fits
+    if (availNormal >= minLogo) {
+        return result(normalGap, availNormal)
     }
 
-    // 3) Logo at minimum, reduced gap
-    if (maxHeight - fixedReserve(reducedGap) >= minLogo) {
-        return result(reducedGap, minLogo, useTightTitle = true)
+    // 3) Reduced gap, shrink logo as needed
+    val availReduced = maxHeight - fixedUnderLogo(reducedGap)
+    if (availReduced >= minLogo) {
+        return result(reducedGap, minLogo.coerceAtMost(availReduced), useTightTitle = true)
     }
 
-    // 4) Last resort: tighter logo padding + reduced gap
-    val tightFixed = fixedReserve(reducedGap, logoPad = 4.dp)
-    val tightLogo = (maxHeight - tightFixed).coerceIn(48.dp, maxLogo)
-    return result(reducedGap, tightLogo, useTightTitle = true, logoPad = 4.dp)
+    // 4) Last resort: as small as possible; may need scroll
+    val tightLogo = availReduced.coerceAtLeast(48.dp)
+    return result(
+        buttonGap = reducedGap,
+        logoSize = tightLogo,
+        useTightTitle = true,
+        contentFits = tightLogo + fixedUnderLogo(reducedGap) <= maxHeight
+    )
 }
 
 /** Explicit RU, or SYSTEM when the device locale is Russian. */

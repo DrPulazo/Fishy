@@ -14,8 +14,8 @@
     <string name="back">뒤쪽에</string>
     <string name="coming_soon">곧 출시 예정</string>
     <string name="about_title">에 대한</string>
-    <string name="about_version">버전 2.1.0</string>
-    <string name="about_body">생선 화물 수신기에 대한 배송 추적.\nFishy 2.1.0</string>
+    <string name="about_version">버전 2.1.1</string>
+    <string name="about_body">생선 화물 수신기에 대한 배송 추적.\nFishy 2.1.1</string>
     <string name="about_deepseek">\n DeepSeek AI 챗봇의 도움을 받아 구축되었습니다.</string>
     <string name="about_budget_title">개발 예산:</string>
     <string name="about_budget_beer">맥주 한 케이스</string>
@@ -290,6 +290,8 @@
     <string name="copy_default">복사</string>
     <string name="notifications">알림</string>
     <string name="notify_enable">알림 활성화</string>
+    <string name="notify_cd">알림 켜짐</string>
+    <string name="notify_off_cd">알림 꺼짐</string>
     <string name="notify_datetime">날짜 및 시간: %1$s</string>
     <string name="notify_preview">알림 주소: %1$s</string>
     <string name="date_label">날짜: %1$s</string>
@@ -344,6 +346,11 @@
     <string name="dict_vessels">선박</string>
     <string name="dict_products">제품</string>
     <string name="dict_manufacturers">제조사</string>
+    <string name="templates_empty_customers">저장된 고객이 없습니다</string>
+    <string name="templates_empty_ports">저장된 항구가 없습니다</string>
+    <string name="templates_empty_vessels">저장된 선박이 없습니다</string>
+    <string name="templates_empty_products">저장된 제품이 없습니다</string>
+    <string name="templates_empty_manufacturers">저장된 제조사가 없습니다</string>
     <string name="new_value">값</string>
     <string name="report_templates_title">보고서 템플릿</string>
     <string name="new_template">새 템플릿</string>
@@ -405,6 +412,8 @@
     <string name="stats_chart_by_customers">거래처별 톤수</string>
     <string name="stats_chart_by_ports">항구별 톤수</string>
     <string name="stats_chart_by_products">제품별 톤수</string>
+    <string name="stats_empty_title">데이터 없음</string>
+    <string name="stats_empty_hint">첫 출하 완료 후 통계가 표시됩니다</string>
     <string name="stats_period_from">부터</string>
     <string name="stats_period_to">까지</string>
     <string name="stats_month_kg">%1$s: %2$s kg</string>

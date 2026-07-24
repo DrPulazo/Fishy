@@ -14,8 +14,8 @@
     <string name="back">Назад</string>
     <string name="coming_soon">Раздел в разработке</string>
     <string name="about_title">О приложении</string>
-    <string name="about_version">Версия 2.1.0</string>
-    <string name="about_body">Учёт и планирование отгрузок для приёмщиков рыбных грузов.\nFishy 2.1.0</string>
+    <string name="about_version">Версия 2.1.1</string>
+    <string name="about_body">Учёт и планирование отгрузок для приёмщиков рыбных грузов.\nFishy 2.1.1</string>
     <string name="about_deepseek">Разработано при содействии\nИИ чат-бота DeepSeek.</string>
     <string name="about_budget_title">Бюджет разработки:</string>
     <string name="about_budget_beer">Ящик пива</string>
@@ -290,6 +290,8 @@
     <string name="copy_default">Копия</string>
     <string name="notifications">Уведомления</string>
     <string name="notify_enable">Включить уведомление</string>
+    <string name="notify_cd">Уведомление включено</string>
+    <string name="notify_off_cd">Уведомление выключено</string>
     <string name="notify_datetime">Дата и время: %1$s</string>
     <string name="notify_preview">Уведомление придёт: %1$s</string>
     <string name="date_label">Дата: %1$s</string>
@@ -344,6 +346,11 @@
     <string name="dict_vessels">Суда</string>
     <string name="dict_products">Продукция</string>
     <string name="dict_manufacturers">Изготовители</string>
+    <string name="templates_empty_customers">Нет сохранённых заказчиков</string>
+    <string name="templates_empty_ports">Нет сохранённых портов</string>
+    <string name="templates_empty_vessels">Нет сохранённых суден</string>
+    <string name="templates_empty_products">Нет сохранённых продукций</string>
+    <string name="templates_empty_manufacturers">Нет сохранённых изготовителей</string>
     <string name="new_value">Значение</string>
     <string name="report_templates_title">Шаблоны отчётов</string>
     <string name="new_template">Новый шаблон</string>
@@ -405,6 +412,8 @@
     <string name="stats_chart_by_customers">Тоннаж по заказчикам</string>
     <string name="stats_chart_by_ports">Тоннаж по портам</string>
     <string name="stats_chart_by_products">Тоннаж по продукции</string>
+    <string name="stats_empty_title">Нет данных</string>
+    <string name="stats_empty_hint">Статистика появится после первой завершённой отгрузки</string>
     <string name="stats_period_from">С</string>
     <string name="stats_period_to">По</string>
     <string name="stats_month_kg">%1$s: %2$s кг</string>

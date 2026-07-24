@@ -1,6 +1,7 @@
 package com.example.fishy.feature.statistics
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -52,6 +53,7 @@ import com.example.fishy.domain.stats.StatisticsAggregator
 import com.example.fishy.domain.stats.StatisticsBreakdown
 import com.example.fishy.ui.components.AccordionCard
 import com.example.fishy.ui.components.ChartLegend
+import com.example.fishy.ui.components.EmptyListPlaceholder
 import com.example.fishy.ui.components.FilterDropdown
 import com.example.fishy.ui.components.HintedScrollableTabs
 import com.example.fishy.ui.components.StackedVerticalBarChart
@@ -75,6 +77,7 @@ fun StatisticsScreen(
     val customers by repo.observeDictionary(DictionaryType.CUSTOMER).collectAsState(initial = emptyList())
     val ports by repo.observeDictionary(DictionaryType.PORT).collectAsState(initial = emptyList())
     val products by repo.observeDictionary(DictionaryType.PRODUCT).collectAsState(initial = emptyList())
+    val archive by repo.observeArchive().collectAsState(initial = emptyList())
 
     val monthChoices = remember { StatisticsAggregator.monthChoices(count = 36) }
     val monthLabels = remember(monthChoices) { monthChoices.map { it.label } }
@@ -241,6 +244,26 @@ fun StatisticsScreen(
 
                 if (filtersExpanded) {
                     Spacer(modifier = Modifier.weight(1f))
+                } else if (filteredEntities.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (archive.isEmpty()) {
+                            EmptyListPlaceholder(
+                                emoji = "📊",
+                                title = stringResource(R.string.stats_empty_title),
+                                hint = stringResource(R.string.stats_empty_hint)
+                            )
+                        } else {
+                            EmptyListPlaceholder(
+                                emoji = "📊",
+                                title = stringResource(R.string.archive_no_filters_match)
+                            )
+                        }
+                    }
                 } else {
                     Column(
                         modifier = Modifier
@@ -299,19 +322,21 @@ fun StatisticsScreen(
                     }
                 }
 
-                val chartHeightDp = (LocalConfiguration.current.screenHeightDp / 3).coerceAtLeast(160)
-                StackedVerticalBarChart(
-                    title = chartTitleText,
-                    entries = chartResult.bars,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(chartHeightDp.dp),
-                    fillHeight = true,
-                    selectedIndex = selectedBarIndex.takeIf { it >= 0 },
-                    onBarClick = { _, index ->
-                        selectedBarIndex = if (selectedBarIndex == index) -1 else index
-                    }
-                )
+                if (!filteredEntities.isEmpty()) {
+                    val chartHeightDp = (LocalConfiguration.current.screenHeightDp / 3).coerceAtLeast(160)
+                    StackedVerticalBarChart(
+                        title = chartTitleText,
+                        entries = chartResult.bars,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(chartHeightDp.dp),
+                        fillHeight = true,
+                        selectedIndex = selectedBarIndex.takeIf { it >= 0 },
+                        onBarClick = { _, index ->
+                            selectedBarIndex = if (selectedBarIndex == index) -1 else index
+                        }
+                    )
+                }
             }
         }
     }

@@ -15,12 +15,12 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-/** Shared empty-state block: emoji → title → hint. */
+/** Shared empty-state block: emoji → title → optional hint. */
 @Composable
 fun EmptyListPlaceholder(
     emoji: String,
     title: String,
-    hint: String,
+    hint: String? = null,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -35,15 +35,17 @@ fun EmptyListPlaceholder(
             style = MaterialTheme.typography.titleLarge,
             textAlign = TextAlign.Center
         )
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(
-            text = hint,
-            modifier = Modifier.fillMaxWidth(),
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center,
-            style = MaterialTheme.typography.bodyLarge.copy(
-                fontSize = (MaterialTheme.typography.bodyLarge.fontSize.value - 5).sp
+        if (!hint.isNullOrBlank()) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = hint,
+                modifier = Modifier.fillMaxWidth(),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+                style = MaterialTheme.typography.bodyLarge.copy(
+                    fontSize = (MaterialTheme.typography.bodyLarge.fontSize.value - 5).sp
+                )
             )
-        )
+        }
     }
 }

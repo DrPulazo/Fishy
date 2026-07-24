@@ -2,6 +2,7 @@ package com.example.fishy.feature.templates
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -44,6 +45,7 @@ import com.example.fishy.domain.model.DictionaryType
 import com.example.fishy.ui.components.CenteredDialogTitle
 import com.example.fishy.ui.components.ConfirmDeleteDialog
 import com.example.fishy.ui.components.DialogCancelConfirmActions
+import com.example.fishy.ui.components.EmptyListPlaceholder
 import com.example.fishy.ui.components.FishyFloatingActionButton
 import com.example.fishy.ui.components.FishySentenceKeyboardOptions
 import com.example.fishy.ui.components.HintedScrollableTabs
@@ -67,6 +69,21 @@ fun TemplatesScreen(onBack: () -> Unit) {
     var editing by remember { mutableStateOf<DictionaryEntity?>(null) }
     var showEditor by remember { mutableStateOf(false) }
     var pendingDelete by remember { mutableStateOf<DictionaryEntity?>(null) }
+
+    val emptyEmoji = when (types[tab].first) {
+        DictionaryType.CUSTOMER -> "💼"
+        DictionaryType.PORT -> "⚓️"
+        DictionaryType.VESSEL -> "🛳️"
+        DictionaryType.PRODUCT -> "🐟"
+        DictionaryType.MANUFACTURER -> "🏭"
+    }
+    val emptyTitle = when (types[tab].first) {
+        DictionaryType.CUSTOMER -> stringResource(R.string.templates_empty_customers)
+        DictionaryType.PORT -> stringResource(R.string.templates_empty_ports)
+        DictionaryType.VESSEL -> stringResource(R.string.templates_empty_vessels)
+        DictionaryType.PRODUCT -> stringResource(R.string.templates_empty_products)
+        DictionaryType.MANUFACTURER -> stringResource(R.string.templates_empty_manufacturers)
+    }
 
     Scaffold(
         topBar = {
@@ -99,40 +116,49 @@ fun TemplatesScreen(onBack: () -> Unit) {
                 titles = types.map { it.second },
                 onSelect = { tab = it }
             )
-            LazyColumn(modifier = Modifier.padding(16.dp)) {
-                items(items, key = { it.id }) { item ->
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 4.dp)
-                            .clickable {
-                                editing = item
-                                dialogValue = item.value
-                                showEditor = true
-                            }
-                    ) {
-                        Row(
+            if (items.isEmpty()) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    EmptyListPlaceholder(emoji = emptyEmoji, title = emptyTitle)
+                }
+            } else {
+                LazyColumn(modifier = Modifier.padding(16.dp)) {
+                    items(items, key = { it.id }) { item ->
+                        Card(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .heightIn(min = 48.dp)
-                                .padding(12.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+                                .padding(vertical = 4.dp)
+                                .clickable {
+                                    editing = item
+                                    dialogValue = item.value
+                                    showEditor = true
+                                }
                         ) {
-                            Text(item.value, modifier = Modifier.weight(1f))
-                            IconButton(onClick = {
-                                editing = item
-                                dialogValue = item.value
-                                showEditor = true
-                            }) {
-                                Icon(Icons.Default.Edit, contentDescription = stringResource(R.string.edit))
-                            }
-                            IconButton(onClick = { pendingDelete = item }) {
-                                Icon(
-                                    Icons.Default.Delete,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.error
-                                )
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .heightIn(min = 48.dp)
+                                    .padding(12.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(item.value, modifier = Modifier.weight(1f))
+                                IconButton(onClick = {
+                                    editing = item
+                                    dialogValue = item.value
+                                    showEditor = true
+                                }) {
+                                    Icon(Icons.Default.Edit, contentDescription = stringResource(R.string.edit))
+                                }
+                                IconButton(onClick = { pendingDelete = item }) {
+                                    Icon(
+                                        Icons.Default.Delete,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.error
+                                    )
+                                }
                             }
                         }
                     }

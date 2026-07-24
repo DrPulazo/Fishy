@@ -14,8 +14,8 @@
     <string name="back">Back</string>
     <string name="coming_soon">Coming soon</string>
     <string name="about_title">About</string>
-    <string name="about_version">Version 2.1.0</string>
-    <string name="about_body">Shipment tracking for fish cargo receivers.\nFishy 2.1.0</string>
+    <string name="about_version">Version 2.1.1</string>
+    <string name="about_body">Shipment tracking for fish cargo receivers.\nFishy 2.1.1</string>
     <string name="about_deepseek">Built with help from\nthe DeepSeek AI chatbot.</string>
     <string name="about_budget_title">Development budget:</string>
     <string name="about_budget_beer">A case of beer</string>
@@ -290,6 +290,8 @@
     <string name="copy_default">Copy</string>
     <string name="notifications">Notifications</string>
     <string name="notify_enable">Enable notification</string>
+    <string name="notify_cd">Notification on</string>
+    <string name="notify_off_cd">Notification off</string>
     <string name="notify_datetime">Date and time: %1$s</string>
     <string name="notify_preview">Notification at: %1$s</string>
     <string name="date_label">Date: %1$s</string>
@@ -344,6 +346,11 @@
     <string name="dict_vessels">Vessels</string>
     <string name="dict_products">Products</string>
     <string name="dict_manufacturers">Manufacturers</string>
+    <string name="templates_empty_customers">No saved customers</string>
+    <string name="templates_empty_ports">No saved ports</string>
+    <string name="templates_empty_vessels">No saved vessels</string>
+    <string name="templates_empty_products">No saved products</string>
+    <string name="templates_empty_manufacturers">No saved manufacturers</string>
     <string name="new_value">Value</string>
     <string name="report_templates_title">Report templates</string>
     <string name="new_template">New template</string>
@@ -405,6 +412,8 @@
     <string name="stats_chart_by_customers">Tonnage by customer</string>
     <string name="stats_chart_by_ports">Tonnage by port</string>
     <string name="stats_chart_by_products">Tonnage by product</string>
+    <string name="stats_empty_title">No data</string>
+    <string name="stats_empty_hint">Statistics will appear after the first completed shipment</string>
     <string name="stats_period_from">From</string>
     <string name="stats_period_to">To</string>
     <string name="stats_month_kg">%1$s: %2$s kg</string>
