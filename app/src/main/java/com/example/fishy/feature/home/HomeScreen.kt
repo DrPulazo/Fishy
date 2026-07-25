@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -75,6 +76,7 @@ import com.example.fishy.data.settings.ThemeMode
 import com.example.fishy.domain.model.ShipmentMode
 import com.example.fishy.feature.shipment.ModePickerDialog
 import com.example.fishy.ui.ErrorFeedback
+import com.example.fishy.ui.components.ColumnScrollIndicator
 import com.example.fishy.ui.components.FishyButton
 import com.example.fishy.ui.components.FishyOutlinedButton
 import com.example.fishy.ui.components.DialogCenteredFishyButton
@@ -174,7 +176,7 @@ fun HomeScreen(
                 val layoutButtonCount = 7
                 val topBarReserve = 80.dp
                 val contentMaxHeight = (maxHeight - topBarReserve).coerceAtLeast(0.dp)
-                val layout = remember(contentMaxHeight) {
+                val layout = remember(contentMaxHeight, layoutButtonCount) {
                     computeHomeLayoutMetrics(contentMaxHeight, layoutButtonCount)
                 }
                 val titleStyle = if (layout.useTightTitle) {
@@ -289,16 +291,27 @@ fun HomeScreen(
                                 Spacer(modifier = Modifier.height(HomeBottomBreathing))
                             }
                         } else {
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .verticalScroll(rememberScrollState())
-                                    .padding(bottom = HomeBottomBreathing),
-                                horizontalAlignment = Alignment.CenterHorizontally
-                            ) {
-                                logo()
-                                Spacer(modifier = Modifier.height(innerLayout.buttonGap))
-                                buttons()
+                            val homeScroll = rememberScrollState()
+                            Box(modifier = Modifier.fillMaxSize()) {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .padding(end = 8.dp)
+                                        .verticalScroll(homeScroll)
+                                        .padding(bottom = HomeBottomBreathing),
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    logo()
+                                    Spacer(modifier = Modifier.height(innerLayout.buttonGap))
+                                    buttons()
+                                }
+                                ColumnScrollIndicator(
+                                    scrollState = homeScroll,
+                                    modifier = Modifier
+                                        .align(Alignment.CenterEnd)
+                                        .fillMaxHeight()
+                                        .padding(vertical = 4.dp)
+                                )
                             }
                         }
                     }

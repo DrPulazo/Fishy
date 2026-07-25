@@ -46,8 +46,10 @@ fun ColumnScrollIndicator(
         val trackPx = constraints.maxHeight.toFloat()
         if (trackPx <= 0f) return@BoxWithConstraints
 
+        // Track can briefly shrink below minThumb (e.g. accordion open); never invert coerceIn.
+        val effectiveMin = minOf(minThumbPx, trackPx)
         val thumbPx = (trackPx * trackPx / (trackPx + maxScroll))
-            .coerceIn(minThumbPx, trackPx)
+            .coerceIn(effectiveMin, trackPx)
         val travel = (trackPx - thumbPx).coerceAtLeast(0f)
         val fraction = (scrollState.value.toFloat() / maxScroll).coerceIn(0f, 1f)
         val thumbOffsetPx = fraction * travel

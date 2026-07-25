@@ -3,10 +3,10 @@ package com.example.fishy.feature.drafts
 import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ContentCopy
@@ -50,9 +51,11 @@ import com.example.fishy.data.local.entity.ShipmentEntity
 import com.example.fishy.data.serialization.FishyJson
 import com.example.fishy.domain.model.ShipmentSummaries
 import com.example.fishy.ui.ErrorFeedback
+import com.example.fishy.ui.components.CenteredEmptyBody
 import com.example.fishy.ui.components.ConfirmDeleteDialog
 import com.example.fishy.ui.components.EmptyListPlaceholder
 import com.example.fishy.ui.components.FishyButton
+import com.example.fishy.ui.components.LazyListScrollIndicator
 import com.example.fishy.ui.components.ListCardActionRow
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
@@ -104,38 +107,50 @@ fun DraftsScreen(
             )
         }
     ) { padding ->
-        if (items.isEmpty()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding),
-                contentAlignment = Alignment.Center
-            ) {
+        val listState = rememberLazyListState()
+        CenteredEmptyBody(
+            isEmpty = items.isEmpty(),
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding),
+            empty = {
                 EmptyListPlaceholder(
                     emoji = "📋",
                     title = stringResource(R.string.draft_empty),
                     hint = stringResource(R.string.draft_empty_hint)
                 )
             }
-        } else {
-            LazyColumn(
+        ) {
+            Row(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(padding)
-                    .padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                    .padding(16.dp)
             ) {
-                items(items, key = { it.id }) { item ->
-                    DraftCard(
-                        item = item,
-                        isDuplicated = "draft_${item.id}" in duplicatedKeys,
-                        modifiedLabel = fmt.format(Date(item.completedAtMillis)),
-                        onContinue = { onOpen(item.id) },
-                        onDuplicate = { duplicateDraft(item) },
-                        onDelete = { pendingDelete = item },
-                        modifier = Modifier.animateItem()
-                    )
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxSize(),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(items, key = { it.id }) { item ->
+                        DraftCard(
+                            item = item,
+                            isDuplicated = "draft_${item.id}" in duplicatedKeys,
+                            modifiedLabel = fmt.format(Date(item.completedAtMillis)),
+                            onContinue = { onOpen(item.id) },
+                            onDuplicate = { duplicateDraft(item) },
+                            onDelete = { pendingDelete = item },
+                            modifier = Modifier.animateItem()
+                        )
+                    }
                 }
+                LazyListScrollIndicator(
+                    listState = listState,
+                    modifier = Modifier
+                        .fillMaxHeight()
+                        .padding(vertical = 4.dp)
+                )
             }
         }
     }

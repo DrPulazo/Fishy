@@ -356,7 +356,6 @@ class ShipmentViewModel(application: Application) : AndroidViewModel(application
                 repo.rekeyEvents(previousKey, newKey)
                 _sessionKey.value = newKey
             }
-            repo.rememberDictionaryValues(current)
             baselinePayloadJson = FishyJson.encodePayload(current)
         }
     }
@@ -469,8 +468,18 @@ class ShipmentViewModel(application: Application) : AndroidViewModel(application
         it.copy(checklistEnabled = v)
     }
 
-    fun setChecklistReminderEnabled(v: Boolean) = update {
-        it.copy(checklistReminderEnabled = v)
+    fun setChecklistReminderEnabled(v: Boolean) {
+        val current = _payload.value
+        val allDone = current.checklist.isNotEmpty() && current.checklist.all { it.isCompleted }
+        if (v && allDone) {
+            viewModelScope.launch {
+                _events.emit(
+                    ShipmentUiEvent.Toast(app.getString(R.string.checklist_reminders_all_done))
+                )
+            }
+            return
+        }
+        update { it.copy(checklistReminderEnabled = v) }
     }
 
     fun setChecklistReminderIntervalMin(minutes: Int) = update {
@@ -1408,7 +1417,7 @@ class ShipmentViewModel(application: Application) : AndroidViewModel(application
                 it.copy(isCompleted = done, completedAtMillis = if (done) now else null)
             } else it
         }
-        p.copy(checklist = checklist)
+        p.copy(checklist = checklist).withRemindersOffIfChecklistComplete()
     }
 
     fun addChecklistTask(title: String) = update {
@@ -1417,10 +1426,21 @@ class ShipmentViewModel(application: Application) : AndroidViewModel(application
 
     fun deleteChecklistTask(id: Long) = update {
         it.copy(checklist = it.checklist.filter { t -> t.id != id })
+            .withRemindersOffIfChecklistComplete()
     }
 
     fun editChecklistTask(id: Long, title: String) = update {
         it.copy(checklist = it.checklist.map { t -> if (t.id == id) t.copy(title = title) else t })
+    }
+
+    /** Auto-disable shipment checklist reminders when every item is done (non-empty list). */
+    private fun ShipmentPayload.withRemindersOffIfChecklistComplete(): ShipmentPayload {
+        val allDone = checklist.isNotEmpty() && checklist.all { it.isCompleted }
+        return if (allDone && checklistReminderEnabled) {
+            copy(checklistReminderEnabled = false)
+        } else {
+            this
+        }
     }
 
     // Batches

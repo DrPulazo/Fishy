@@ -14,8 +14,8 @@
     <string name="back">Назад</string>
     <string name="coming_soon">Раздел в разработке</string>
     <string name="about_title">О приложении</string>
-    <string name="about_version">Версия 2.1.2</string>
-    <string name="about_body">Учёт и планирование отгрузок для приёмщиков рыбных грузов.\nFishy 2.1.2</string>
+    <string name="about_version">Версия 2.1.3</string>
+    <string name="about_body">Учёт и планирование отгрузок для приёмщиков рыбных грузов.\nFishy 2.1.3</string>
     <string name="about_deepseek">Разработано при содействии\nИИ чат-бота DeepSeek.</string>
     <string name="about_budget_title">Бюджет разработки:</string>
     <string name="about_budget_beer">Ящик пива</string>
@@ -72,7 +72,7 @@
     <string name="report">Отчёт</string>
     <string name="checklist">Чек-лист</string>
     <string name="checklist_prep">Подготовка</string>
-    <string name="checklist_shipment">Чек-лист отгрузки</string>
+    <string name="checklist_shipment">Чек-лист хода отгрузки</string>
     <string name="checklist_incomplete_title">Чек-лист не завершён</string>
     <string name="checklist_incomplete_finish_msg">Завершить отгрузку?</string>
     <string name="action_finish">Завершить</string>
@@ -84,6 +84,7 @@
     <string name="checklist_reminder">Напоминания</string>
     <string name="checklist_reminder_interval">Интервал</string>
     <string name="checklist_reminder_interval_min">%1$d минут</string>
+    <string name="checklist_reminders_all_done">Все пункты выполнены</string>
     <string name="checklist_item">Пункт</string>
     <string name="checklist_completed">Чек-лист выполнен</string>
     <string name="checklist_partial">Чек-лист выполнен частично</string>
@@ -152,7 +153,7 @@
     <string name="dict_added">«%1$s» добавлено в словарь</string>
     <string name="draft_saved">Черновик сохранён</string>
     <string name="save_draft">Сохранить черновик</string>
-    <string name="save_shipment">СОХРАНИТЬ ОТГРУЗКУ</string>
+    <string name="save_shipment">ЗАВЕРШИТЬ ОТГРУЗКУ</string>
     <string name="complete_confirm_title">Сохранение</string>
     <string name="complete_confirm_msg">Завершить отгрузку и сохранить в архив?</string>
     <string name="complete_confirm_places_over">Фактическое количество мест больше заданного. Вы уверены, что хотите завершить отгрузку?</string>
@@ -179,7 +180,7 @@
     <string name="pallet_forecast">Предрасчёт поддонов</string>
     <string name="forecast_running">Ведётся предрасчёт...</string>
     <string name="forecast_error">Ошибка предрасчёта!</string>
-    <string name="checklist_toggle">Чек-лист отгрузки</string>
+    <string name="checklist_toggle">Чек-лист хода отгрузки</string>
     <string name="batch_control">Контроль партий</string>
     <string name="enter_batches">Введите партии</string>
     <string name="add_batch">Добавить партию</string>
@@ -517,7 +518,7 @@
     <string name="faq_prep_checklist_body">Список того, что надо сделать до начала работы. Статус виден на карточке запланированной отгрузки и в уведомлении. При начале работы невыполненные пункты чек-листа подготовки переносятся в чек-лист отгрузки.</string>
     <string name="faq_schedule_reminders_title">Напоминания в расписании</string>
     <string name="faq_schedule_reminders_body">В карточке запланированной отгрузки можно задать одно или несколько напоминаний на нужное время. По нажатию на уведомление открывается чек-лист подготовки.</string>
-    <string name="faq_shipment_checklist_title">«Чек-лист отгрузки» (в отгрузке)</string>
+    <string name="faq_shipment_checklist_title">«Чек-лист хода отгрузки» (в отгрузке)</string>
     <string name="faq_shipment_checklist_body">Список того, что надо сделать во время работы. Если чек-лист не выполнен, перед завершением отгрузки появится предупреждение.</string>
     <string name="faq_shipment_checklist_reminders_title">Напоминания чек-листа отгрузки</string>
     <string name="faq_shipment_checklist_reminders_body">В чек-листе отгрузки можно включить периодические напоминания. Они срабатывают, пока экран отгрузки открыт, и помогают не забыть незавершённые пункты.</string>

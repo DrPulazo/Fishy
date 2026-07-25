@@ -14,8 +14,8 @@
     <string name="back">Atrás</string>
     <string name="coming_soon">Sección en desarrollo</string>
     <string name="about_title">Acerca de la aplicación</string>
-    <string name="about_version">Versión 2.1.2</string>
-    <string name="about_body">Registro y planificación de envíos para receptores de cargas de pescado.\nFishy 2.1.2</string>
+    <string name="about_version">Versión 2.1.3</string>
+    <string name="about_body">Registro y planificación de envíos para receptores de cargas de pescado.\nFishy 2.1.3</string>
     <string name="about_deepseek">Desarrollado con la colaboración\ndel chatbot de IA DeepSeek.</string>
     <string name="about_budget_title">Presupuesto de desarrollo:</string>
     <string name="about_budget_beer">Una caja de cerveza</string>
@@ -72,7 +72,7 @@
     <string name="report">Informe</string>
     <string name="checklist">Lista de verificación</string>
     <string name="checklist_prep">Preparación</string>
-    <string name="checklist_shipment">Lista de verificación del envío</string>
+    <string name="checklist_shipment">Lista de progreso del envío</string>
     <string name="checklist_incomplete_title">Lista de verificación incompleta</string>
     <string name="checklist_incomplete_finish_msg">¿Finalizar el envío?</string>
     <string name="action_finish">Finalizar</string>
@@ -84,6 +84,7 @@
     <string name="checklist_reminder">Recordatorios</string>
     <string name="checklist_reminder_interval">Intervalo</string>
     <string name="checklist_reminder_interval_min">%1$d min</string>
+    <string name="checklist_reminders_all_done">Todos los puntos completados</string>
     <string name="checklist_item">Elemento</string>
     <string name="checklist_completed">Lista de verificación completada</string>
     <string name="checklist_partial">Lista de verificación completada parcialmente</string>
@@ -152,7 +153,7 @@
     <string name="dict_added">«%1$s» añadido al diccionario</string>
     <string name="draft_saved">Borrador guardado</string>
     <string name="save_draft">Guardar borrador</string>
-    <string name="save_shipment">GUARDAR ENVÍO</string>
+    <string name="save_shipment">FINALIZAR ENVÍO</string>
     <string name="complete_confirm_title">Guardar</string>
     <string name="complete_confirm_msg">¿Finalizar el envío y guardarlo en el archivo?</string>
     <string name="complete_confirm_places_over">La cantidad real de plazas es mayor que la prevista. ¿Seguro que quieres finalizar el envío?</string>
@@ -179,7 +180,7 @@
     <string name="pallet_forecast">Previsión de palés</string>
     <string name="forecast_running">Calculando previsión...</string>
     <string name="forecast_error">¡Error de previsión!</string>
-    <string name="checklist_toggle">Lista de verificación del envío</string>
+    <string name="checklist_toggle">Lista de progreso del envío</string>
     <string name="batch_control">Control de lotes</string>
     <string name="enter_batches">Introduzca lotes</string>
     <string name="add_batch">Añadir lote</string>
@@ -517,7 +518,7 @@
     <string name="faq_prep_checklist_body">Lo que hay que hacer antes de empezar. El estado se ve en la tarjeta del envío planificado y en la notificación. Al empezar, los puntos de preparación no hechos pasan a la lista del envío.</string>
     <string name="faq_schedule_reminders_title">Recordatorios en el horario</string>
     <string name="faq_schedule_reminders_body">En la tarjeta del envío planificado puedes fijar uno o varios recordatorios a la hora que necesites. Al tocar la notificación se abre la lista de preparación.</string>
-    <string name="faq_shipment_checklist_title">«Lista del envío» (en el envío)</string>
+    <string name="faq_shipment_checklist_title">«Lista de progreso del envío» (en el envío)</string>
     <string name="faq_shipment_checklist_body">Lo que hay que hacer durante el trabajo. Si la lista no está completa, aparecerá un aviso antes de finalizar el envío.</string>
     <string name="faq_shipment_checklist_reminders_title">Recordatorios de la lista del envío</string>
     <string name="faq_shipment_checklist_reminders_body">En la lista del envío puedes activar recordatorios periódicos. Suenan mientras la pantalla del envío está abierta y ayudan a no olvidar puntos pendientes.</string>

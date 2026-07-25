@@ -14,8 +14,8 @@
     <string name="back">뒤쪽에</string>
     <string name="coming_soon">곧 출시 예정</string>
     <string name="about_title">에 대한</string>
-    <string name="about_version">버전 2.1.2</string>
-    <string name="about_body">생선 화물 수신기에 대한 배송 추적.\nFishy 2.1.2</string>
+    <string name="about_version">버전 2.1.3</string>
+    <string name="about_body">생선 화물 수신기에 대한 배송 추적.\nFishy 2.1.3</string>
     <string name="about_deepseek">\n DeepSeek AI 챗봇의 도움을 받아 구축되었습니다.</string>
     <string name="about_budget_title">개발 예산:</string>
     <string name="about_budget_beer">맥주 한 케이스</string>
@@ -72,7 +72,7 @@
     <string name="report">보고서</string>
     <string name="checklist">체크리스트</string>
     <string name="checklist_prep">준비</string>
-    <string name="checklist_shipment">배송 체크리스트</string>
+    <string name="checklist_shipment">출하 진행 체크리스트</string>
     <string name="checklist_incomplete_title">체크리스트 미완료</string>
     <string name="checklist_incomplete_finish_msg">배송을 완료할까요?</string>
     <string name="action_finish">완료</string>
@@ -84,6 +84,7 @@
     <string name="checklist_reminder">알림</string>
     <string name="checklist_reminder_interval">간격</string>
     <string name="checklist_reminder_interval_min">%1$d분</string>
+    <string name="checklist_reminders_all_done">모든 항목이 완료되었습니다</string>
     <string name="checklist_item">목</string>
     <string name="checklist_completed">체크리스트 완료</string>
     <string name="checklist_partial">체크리스트가 부분적으로 완료됨</string>
@@ -152,7 +153,7 @@
     <string name="dict_added">\"%1$s\" 사전에 추가됨</string>
     <string name="draft_saved">초안이 저장되었습니다.</string>
     <string name="save_draft">초안 저장</string>
-    <string name="save_shipment">배송 저장</string>
+    <string name="save_shipment">배송 완료</string>
     <string name="complete_confirm_title">저장</string>
     <string name="complete_confirm_msg">배송을 완료하고 아카이브에 저장하시겠습니까?</string>
     <string name="complete_confirm_places_over">실제 수량이 계획보다 많습니다. 출하를 완료하시겠습니까?</string>
@@ -179,7 +180,7 @@
     <string name="pallet_forecast">팔레트 예측</string>
     <string name="forecast_running">예측을 계산하는 중...</string>
     <string name="forecast_error">예측 계산 오류!</string>
-    <string name="checklist_toggle">배송 체크리스트</string>
+    <string name="checklist_toggle">출하 진행 체크리스트</string>
     <string name="batch_control">일괄 제어</string>
     <string name="enter_batches">배치 입력</string>
     <string name="add_batch">배치 추가</string>
@@ -517,7 +518,7 @@
     <string name="faq_prep_checklist_body">작업 시작 전에 할 일 목록입니다. 상태는 예정 카드와 알림에 표시됩니다. 시작 시 미완료 준비 항목은 출하 체크리스트로 옮겨집니다.</string>
     <string name="faq_schedule_reminders_title">일정의 알림</string>
     <string name="faq_schedule_reminders_body">예정된 출하 카드에서 필요한 시각에 알림을 하나 이상 설정할 수 있습니다. 알림을 누르면 준비 체크리스트가 열립니다.</string>
-    <string name="faq_shipment_checklist_title">출하 체크리스트(출하 중)</string>
+    <string name="faq_shipment_checklist_title">출하 진행 체크리스트(출하 중)</string>
     <string name="faq_shipment_checklist_body">작업 중에 할 일 목록입니다. 미완료면 출하 종료 전에 경고가 뜹니다.</string>
     <string name="faq_shipment_checklist_reminders_title">출하 체크리스트 알림</string>
     <string name="faq_shipment_checklist_reminders_body">출하 체크리스트에서 주기적 알림을 켤 수 있습니다. 출하 화면이 열려 있을 때만 울리며, 미완료 항목을 잊지 않도록 돕습니다.</string>

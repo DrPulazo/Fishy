@@ -2,12 +2,15 @@ package com.example.fishy.feature.shipment
 
 import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
@@ -31,6 +34,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -40,7 +44,18 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.LocalTextStyle
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.RoundRect
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.clipPath
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import com.example.fishy.ui.theme.FishyCornerRadius
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -52,6 +67,7 @@ import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Save
+import com.example.fishy.ui.components.LazyListScrollIndicator
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import com.example.fishy.ui.components.FishyButton
@@ -77,6 +93,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.remember
@@ -87,6 +104,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.currentStateAsState
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlin.math.sqrt
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
@@ -146,6 +164,9 @@ private enum class CompletePlacesMismatch {
     None, Over, Under
 }
 
+/** Min sweep so a near-zero pie does not draw a hairline tick. */
+private const val ReminderPieMinSweepDeg = 2f
+
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun ShipmentScreen(
@@ -197,6 +218,16 @@ fun ShipmentScreen(
     val lifecycleState by LocalLifecycleOwner.current.lifecycle.currentStateAsState()
     val isResumed = lifecycleState.isAtLeast(Lifecycle.State.RESUMED)
     val checklistIncomplete = payload.checklist.any { !it.isCompleted }
+    val reminderTimerActive = payload.checklistReminderEnabled &&
+        checklistIncomplete &&
+        !showChecklist &&
+        isResumed
+    var reminderProgress by remember { mutableFloatStateOf(0f) }
+
+    // Home / switch-app / overlay: flush draft immediately (don't wait for 3s debounce).
+    LaunchedEffect(isResumed) {
+        if (!isResumed) vm.flushDraft()
+    }
 
     LaunchedEffect(
         payload.checklistReminderEnabled,
@@ -205,17 +236,27 @@ fun ShipmentScreen(
         showChecklist,
         isResumed
     ) {
-        if (!payload.checklistReminderEnabled ||
-            !checklistIncomplete ||
-            showChecklist ||
-            !isResumed
-        ) {
+        if (!reminderTimerActive) {
+            reminderProgress = 0f
             return@LaunchedEffect
         }
         val intervalMs = payload.checklistReminderIntervalMin.coerceIn(5, 60) * 60_000L
-        delay(intervalMs)
-        ErrorFeedback.vibrateStrong(context)
-        showChecklist = true
+        val anim = Animatable(0f)
+        try {
+            anim.animateTo(
+                targetValue = 1f,
+                animationSpec = tween(
+                    durationMillis = intervalMs.toInt(),
+                    easing = LinearEasing
+                )
+            ) {
+                reminderProgress = value
+            }
+            ErrorFeedback.vibrateStrong(context)
+            showChecklist = true
+        } finally {
+            reminderProgress = 0f
+        }
     }
 
     LaunchedEffect(mode, draftId, scheduledId) {
@@ -289,12 +330,93 @@ fun ShipmentScreen(
                         }
                     },
                     actions = {
+                        val pieSweep = reminderProgress * 360f
+                        val showReminderPie = reminderTimerActive && pieSweep >= ReminderPieMinSweepDeg
+                        // Light: darken; dark: lighten — readable on Error/Warning fills.
+                        val pieColor = if (isLightTheme()) {
+                            Color.Black.copy(alpha = 0.38f)
+                        } else {
+                            Color.White.copy(alpha = 0.36f)
+                        }
                         IconButton(onClick = { showChecklist = true }) {
-                            Icon(
-                                Icons.Default.CheckBox,
-                                contentDescription = stringResource(R.string.checklist),
-                                tint = animatedChecklistColor
-                            )
+                            val checklistCd = stringResource(R.string.checklist)
+                            val checkMarkColor = MaterialTheme.colorScheme.surface
+                            Box(
+                                modifier = Modifier
+                                    .size(24.dp)
+                                    .semantics { contentDescription = checklistCd },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                if (showReminderPie) {
+                                    // Status face + pie + stroke ✓ (weight matched to CheckBox cutout).
+                                    Canvas(modifier = Modifier.fillMaxSize()) {
+                                        val inset = 3.dp.toPx()
+                                        val corner = 2.dp.toPx()
+                                        val faceLeft = inset
+                                        val faceTop = inset
+                                        val faceSide = size.minDimension - inset * 2f
+                                        val faceRight = faceLeft + faceSide
+                                        val faceBottom = faceTop + faceSide
+                                        val faceRound = RoundRect(
+                                            left = faceLeft,
+                                            top = faceTop,
+                                            right = faceRight,
+                                            bottom = faceBottom,
+                                            cornerRadius = CornerRadius(corner)
+                                        )
+                                        drawRoundRect(
+                                            color = animatedChecklistColor,
+                                            topLeft = Offset(faceLeft, faceTop),
+                                            size = Size(faceSide, faceSide),
+                                            cornerRadius = CornerRadius(corner)
+                                        )
+                                        val facePath = Path().apply { addRoundRect(faceRound) }
+                                        clipPath(facePath) {
+                                            val radius = faceSide * 0.5f * sqrt(2f)
+                                            val cx = faceLeft + faceSide * 0.5f
+                                            val cy = faceTop + faceSide * 0.5f
+                                            val origin = Offset(cx - radius, cy - radius)
+                                            drawArc(
+                                                color = pieColor,
+                                                startAngle = -90f,
+                                                sweepAngle = pieSweep,
+                                                useCenter = true,
+                                                topLeft = origin,
+                                                size = Size(radius * 2f, radius * 2f)
+                                            )
+                                        }
+                                        val checkPath = Path().apply {
+                                            moveTo(
+                                                faceLeft + faceSide * 0.18f,
+                                                faceTop + faceSide * 0.50f
+                                            )
+                                            lineTo(
+                                                faceLeft + faceSide * 0.40f,
+                                                faceTop + faceSide * 0.72f
+                                            )
+                                            lineTo(
+                                                faceLeft + faceSide * 0.82f,
+                                                faceTop + faceSide * 0.28f
+                                            )
+                                        }
+                                        drawPath(
+                                            path = checkPath,
+                                            color = checkMarkColor,
+                                            style = Stroke(
+                                                width = 2.5.dp.toPx(),
+                                                cap = StrokeCap.Round,
+                                                join = StrokeJoin.Round
+                                            )
+                                        )
+                                    }
+                                } else {
+                                    Icon(
+                                        Icons.Default.CheckBox,
+                                        contentDescription = null,
+                                        tint = animatedChecklistColor
+                                    )
+                                }
+                            }
                         }
                         IconButton(onClick = {
                             vm.flushDraft()
@@ -395,11 +517,18 @@ fun ShipmentScreen(
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            LazyColumn(
+            val listState = rememberLazyListState()
+            Row(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(16.dp)
-                    .imePadding(),
+                    .imePadding()
+            ) {
+            LazyColumn(
+                state = listState,
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxSize(),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
             item {
@@ -1101,6 +1230,13 @@ fun ShipmentScreen(
                     }
                 }
             }
+            }
+            LazyListScrollIndicator(
+                listState = listState,
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .padding(vertical = 4.dp)
+            )
             }
 
             AnimatedVisibility(

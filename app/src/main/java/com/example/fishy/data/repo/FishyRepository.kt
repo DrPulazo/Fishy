@@ -58,6 +58,12 @@ class FishyRepository(private val db: FishyDatabase) {
 
     suspend fun completeShipment(id: Long?, payload: ShipmentPayload): Long {
         val completed = payload.copy(completedAtMillis = System.currentTimeMillis())
+        return upsertArchivedShipment(id, completed)
+    }
+
+    private suspend fun upsertArchivedShipment(id: Long?, payload: ShipmentPayload): Long {
+        val completedAt = payload.completedAtMillis ?: System.currentTimeMillis()
+        val completed = payload.copy(completedAtMillis = completedAt)
         val totals = ShipmentCalculator.totals(completed)
         val existingId = id?.takeIf { it != 0L } ?: 0L
         val entity = ShipmentEntity(
@@ -72,7 +78,7 @@ class FishyRepository(private val db: FishyDatabase) {
                 completed.transport.wagonNumber.ifBlank { completed.transport.truckNumber }
             },
             createdAtMillis = completed.createdAtMillis,
-            completedAtMillis = completed.completedAtMillis!!,
+            completedAtMillis = completedAt,
             isDraft = false,
             draftName = ""
         )

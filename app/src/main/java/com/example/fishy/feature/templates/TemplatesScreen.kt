@@ -3,14 +3,16 @@ package com.example.fishy.feature.templates
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
@@ -43,12 +45,16 @@ import com.example.fishy.R
 import com.example.fishy.data.local.entity.DictionaryEntity
 import com.example.fishy.domain.model.DictionaryType
 import com.example.fishy.ui.components.CenteredDialogTitle
+import com.example.fishy.ui.components.CenteredEmptyBody
 import com.example.fishy.ui.components.ConfirmDeleteDialog
 import com.example.fishy.ui.components.DialogCancelConfirmActions
 import com.example.fishy.ui.components.EmptyListPlaceholder
+import com.example.fishy.ui.components.FabContentClearance
+import com.example.fishy.ui.components.FabEndInsetForScrollbar
 import com.example.fishy.ui.components.FishyFloatingActionButton
 import com.example.fishy.ui.components.FishySentenceKeyboardOptions
 import com.example.fishy.ui.components.HintedScrollableTabs
+import com.example.fishy.ui.components.LazyListScrollIndicator
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -63,26 +69,35 @@ fun TemplatesScreen(onBack: () -> Unit) {
     )
     var tab by remember { mutableIntStateOf(0) }
     val repo = FishyApp.instance.repository
-    val items by repo.observeDictionary(types[tab].first).collectAsState(initial = emptyList())
+    val dictType = types[tab].first
+    val items by remember(dictType) { repo.observeDictionary(dictType) }
+        .collectAsState(initial = null)
     val scope = rememberCoroutineScope()
     var dialogValue by remember { mutableStateOf("") }
     var editing by remember { mutableStateOf<DictionaryEntity?>(null) }
     var showEditor by remember { mutableStateOf(false) }
     var pendingDelete by remember { mutableStateOf<DictionaryEntity?>(null) }
+    val listState = rememberLazyListState()
 
-    val emptyEmoji = when (types[tab].first) {
+    val emptyEmoji = when (dictType) {
         DictionaryType.CUSTOMER -> "💼"
         DictionaryType.PORT -> "⚓️"
         DictionaryType.VESSEL -> "🛳️"
         DictionaryType.PRODUCT -> "🐟"
         DictionaryType.MANUFACTURER -> "🏭"
     }
-    val emptyTitle = when (types[tab].first) {
+    val emptyTitle = when (dictType) {
         DictionaryType.CUSTOMER -> stringResource(R.string.templates_empty_customers)
         DictionaryType.PORT -> stringResource(R.string.templates_empty_ports)
         DictionaryType.VESSEL -> stringResource(R.string.templates_empty_vessels)
         DictionaryType.PRODUCT -> stringResource(R.string.templates_empty_products)
         DictionaryType.MANUFACTURER -> stringResource(R.string.templates_empty_manufacturers)
+    }
+
+    fun openAddEditor() {
+        editing = null
+        dialogValue = ""
+        showEditor = true
     }
 
     Scaffold(
@@ -97,71 +112,90 @@ fun TemplatesScreen(onBack: () -> Unit) {
             )
         },
         floatingActionButton = {
-            FishyFloatingActionButton(onClick = {
-                editing = null
-                dialogValue = ""
-                showEditor = true
-            }) {
-                Icon(Icons.Default.Add, contentDescription = null)
+            FishyFloatingActionButton(
+                onClick = { openAddEditor() },
+                modifier = Modifier.padding(end = FabEndInsetForScrollbar)
+            ) {
+                Icon(Icons.Default.Add, contentDescription = stringResource(R.string.add))
             }
         }
     ) { padding ->
-        Column(
+        val list = items
+        CenteredEmptyBody(
+            isEmpty = list != null && list.isEmpty(),
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding)
+                .padding(padding),
+            topChrome = {
+                HintedScrollableTabs(
+                    selectedIndex = tab,
+                    titles = types.map { it.second },
+                    onSelect = { tab = it }
+                )
+            },
+            empty = {
+                EmptyListPlaceholder(emoji = emptyEmoji, title = emptyTitle)
+            }
         ) {
-            HintedScrollableTabs(
-                selectedIndex = tab,
-                titles = types.map { it.second },
-                onSelect = { tab = it }
-            )
-            if (items.isEmpty()) {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    EmptyListPlaceholder(emoji = emptyEmoji, title = emptyTitle)
-                }
+            if (list == null) {
+                Box(modifier = Modifier.fillMaxSize())
             } else {
-                LazyColumn(modifier = Modifier.padding(16.dp)) {
-                    items(items, key = { it.id }) { item ->
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 4.dp)
-                                .clickable {
-                                    editing = item
-                                    dialogValue = item.value
-                                    showEditor = true
-                                }
-                        ) {
-                            Row(
+                Row(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(16.dp)
+                ) {
+                    LazyColumn(
+                        state = listState,
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxSize(),
+                        contentPadding = PaddingValues(bottom = FabContentClearance)
+                    ) {
+                        items(list, key = { it.id }) { item ->
+                            Card(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .heightIn(min = 48.dp)
-                                    .padding(12.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
+                                    .padding(vertical = 4.dp)
+                                    .clickable {
+                                        editing = item
+                                        dialogValue = item.value
+                                        showEditor = true
+                                    }
                             ) {
-                                Text(item.value, modifier = Modifier.weight(1f))
-                                IconButton(onClick = {
-                                    editing = item
-                                    dialogValue = item.value
-                                    showEditor = true
-                                }) {
-                                    Icon(Icons.Default.Edit, contentDescription = stringResource(R.string.edit))
-                                }
-                                IconButton(onClick = { pendingDelete = item }) {
-                                    Icon(
-                                        Icons.Default.Delete,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.error
-                                    )
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .heightIn(min = 48.dp)
+                                        .padding(12.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(item.value, modifier = Modifier.weight(1f))
+                                    IconButton(onClick = {
+                                        editing = item
+                                        dialogValue = item.value
+                                        showEditor = true
+                                    }) {
+                                        Icon(Icons.Default.Edit, contentDescription = stringResource(R.string.edit))
+                                    }
+                                    IconButton(onClick = { pendingDelete = item }) {
+                                        Icon(
+                                            Icons.Default.Delete,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.error
+                                        )
+                                    }
                                 }
                             }
                         }
                     }
+                    LazyListScrollIndicator(
+                        listState = listState,
+                        modifier = Modifier
+                            .fillMaxHeight()
+                            .padding(vertical = 4.dp)
+                    )
                 }
             }
         }

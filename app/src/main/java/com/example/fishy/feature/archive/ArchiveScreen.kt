@@ -67,6 +67,7 @@ import com.example.fishy.domain.model.ShipmentFilters
 import com.example.fishy.domain.model.ShipmentPayload
 import com.example.fishy.domain.model.ShipmentSummaries
 import com.example.fishy.ui.ErrorFeedback
+import com.example.fishy.ui.components.CenteredEmptyBody
 import com.example.fishy.ui.components.ConfirmDeleteDialog
 import com.example.fishy.ui.components.DatePickerField
 import com.example.fishy.ui.components.EmptyListPlaceholder
@@ -226,231 +227,227 @@ fun ArchiveScreen(
             )
         }
     ) { padding ->
-        Column(
+        CenteredEmptyBody(
+            isEmpty = filtered.isEmpty(),
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .padding(horizontal = 16.dp)
-        ) {
-            OutlinedTextField(
-                value = searchText,
-                onValueChange = { searchText = it },
-                label = { Text(stringResource(R.string.search)) },
-                leadingIcon = {
-                    Icon(Icons.Default.Search, contentDescription = stringResource(R.string.search))
-                },
-                trailingIcon = {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        if (searchText.isNotEmpty()) {
-                            IconButton(onClick = { searchText = "" }) {
+                .padding(horizontal = 16.dp),
+            topChrome = {
+                OutlinedTextField(
+                    value = searchText,
+                    onValueChange = { searchText = it },
+                    label = { Text(stringResource(R.string.search)) },
+                    leadingIcon = {
+                        Icon(Icons.Default.Search, contentDescription = stringResource(R.string.search))
+                    },
+                    trailingIcon = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            if (searchText.isNotEmpty()) {
+                                IconButton(onClick = { searchText = "" }) {
+                                    Icon(
+                                        Icons.Default.Close,
+                                        contentDescription = stringResource(R.string.search_clear)
+                                    )
+                                }
+                            }
+                            IconButton(onClick = { filtersExpanded = !filtersExpanded }) {
                                 Icon(
-                                    Icons.Default.Close,
-                                    contentDescription = stringResource(R.string.search_clear)
+                                    Icons.Default.FilterList,
+                                    contentDescription = stringResource(R.string.archive_filters),
+                                    tint = if (filtersExpanded || hasActiveFilters) {
+                                        MaterialTheme.colorScheme.primary
+                                    } else {
+                                        MaterialTheme.colorScheme.onSurfaceVariant
+                                    }
                                 )
                             }
                         }
-                        IconButton(onClick = { filtersExpanded = !filtersExpanded }) {
-                            Icon(
-                                Icons.Default.FilterList,
-                                contentDescription = stringResource(R.string.archive_filters),
-                                tint = if (filtersExpanded || hasActiveFilters) {
-                                    MaterialTheme.colorScheme.primary
-                                } else {
-                                    MaterialTheme.colorScheme.onSurfaceVariant
-                                }
-                            )
-                        }
-                    }
-                },
-                singleLine = true,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 8.dp, bottom = 4.dp)
-            )
-
-            if (hasActiveFilters) {
-                TextButton(
-                    onClick = {
-                        customerFilter = ""
-                        portFilter = ""
-                        vesselFilter = ""
-                        productFilter = ""
-                        manufacturerFilter = ""
                     },
-                    modifier = Modifier.align(Alignment.End)
-                ) {
-                    Text(stringResource(R.string.archive_reset_filters))
-                }
-            }
-
-            if (filtersExpanded) {
-                Row(
+                    singleLine = true,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(top = 4.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    DatePickerField(
-                        label = stringResource(R.string.stats_period_from),
-                        value = dateFmt.format(Date(fromMillis)),
-                        modifier = Modifier.weight(1f),
-                        onClick = {
-                            val c = Calendar.getInstance().apply { timeInMillis = fromMillis }
-                            android.app.DatePickerDialog(
-                                context,
-                                { _, y, m, d ->
-                                    fromMillis = Calendar.getInstance().apply {
-                                        set(y, m, d, 0, 0, 0)
-                                        set(Calendar.MILLISECOND, 0)
-                                    }.timeInMillis
-                                    fromLocked = true
-                                    if (fromMillis > toMillis) {
-                                        toMillis = endOfDay(
-                                            Calendar.getInstance().apply { timeInMillis = fromMillis }
-                                        )
-                                    }
-                                },
-                                c.get(Calendar.YEAR),
-                                c.get(Calendar.MONTH),
-                                c.get(Calendar.DAY_OF_MONTH)
-                            ).show()
-                        }
-                    )
-                    DatePickerField(
-                        label = stringResource(R.string.stats_period_to),
-                        value = dateFmt.format(Date(toMillis)),
-                        modifier = Modifier.weight(1f),
-                        onClick = {
-                            val c = Calendar.getInstance().apply { timeInMillis = toMillis }
-                            android.app.DatePickerDialog(
-                                context,
-                                { _, y, m, d ->
-                                    toMillis = Calendar.getInstance().apply {
-                                        set(y, m, d, 23, 59, 59)
-                                        set(Calendar.MILLISECOND, 999)
-                                    }.timeInMillis
-                                    if (toMillis < fromMillis) {
-                                        fromMillis = startOfDay(toMillis)
-                                    }
-                                },
-                                c.get(Calendar.YEAR),
-                                c.get(Calendar.MONTH),
-                                c.get(Calendar.DAY_OF_MONTH)
-                            ).show()
-                        }
-                    )
-                }
-                FilterDropdown(
-                    label = stringResource(R.string.customer),
-                    value = customerFilter,
-                    options = listOf("") + customers.map { it.value },
-                    onSelect = { customerFilter = it }
+                        .padding(top = 8.dp, bottom = 4.dp)
                 )
-                FilterDropdown(
-                    label = stringResource(R.string.port),
-                    value = portFilter,
-                    options = listOf("") + ports.map { it.value },
-                    onSelect = { portFilter = it }
-                )
-                FilterDropdown(
-                    label = stringResource(R.string.vessel),
-                    value = vesselFilter,
-                    options = listOf("") + vessels.map { it.value },
-                    onSelect = { vesselFilter = it }
-                )
-                FilterDropdown(
-                    label = stringResource(R.string.product),
-                    value = productFilter,
-                    options = listOf("") + products.map { it.value },
-                    onSelect = { productFilter = it }
-                )
-                FilterDropdown(
-                    label = stringResource(R.string.manufacturer),
-                    value = manufacturerFilter,
-                    options = listOf("") + manufacturers.map { it.value },
-                    onSelect = { manufacturerFilter = it }
-                )
-            }
 
-            Text(
-                text = stringResource(R.string.found_count, filtered.size, items.size),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
-                modifier = Modifier.padding(bottom = 8.dp)
-            )
-
-            if (filtered.isEmpty()) {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        if (items.isEmpty()) {
-                            EmptyListPlaceholder(
-                                emoji = "📦",
-                                title = stringResource(R.string.archive_empty),
-                                hint = stringResource(R.string.archive_empty_hint)
-                            )
-                        } else if (searchText.isEmpty()) {
-                            EmptyListPlaceholder(
-                                emoji = "🔍",
-                                title = stringResource(R.string.archive_no_filters_match),
-                                hint = ""
-                            )
-                        } else {
-                            Icon(
-                                Icons.Default.SearchOff,
-                                contentDescription = null,
-                                modifier = Modifier.size(48.dp),
-                                tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
-                            )
-                            Spacer(modifier = Modifier.height(16.dp))
-                            Text(stringResource(R.string.nothing_found))
-                            Text(
-                                stringResource(R.string.query_label, searchText),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
-                            )
+                if (hasActiveFilters) {
+                    Box(modifier = Modifier.fillMaxWidth()) {
+                        TextButton(
+                            onClick = {
+                                customerFilter = ""
+                                portFilter = ""
+                                vesselFilter = ""
+                                productFilter = ""
+                                manufacturerFilter = ""
+                            },
+                            modifier = Modifier.align(Alignment.CenterEnd)
+                        ) {
+                            Text(stringResource(R.string.archive_reset_filters))
                         }
                     }
                 }
-            } else {
-                Row(
+
+                if (filtersExpanded) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        DatePickerField(
+                            label = stringResource(R.string.stats_period_from),
+                            value = dateFmt.format(Date(fromMillis)),
+                            modifier = Modifier.weight(1f),
+                            onClick = {
+                                val c = Calendar.getInstance().apply { timeInMillis = fromMillis }
+                                android.app.DatePickerDialog(
+                                    context,
+                                    { _, y, m, d ->
+                                        fromMillis = Calendar.getInstance().apply {
+                                            set(y, m, d, 0, 0, 0)
+                                            set(Calendar.MILLISECOND, 0)
+                                        }.timeInMillis
+                                        fromLocked = true
+                                        if (fromMillis > toMillis) {
+                                            toMillis = endOfDay(
+                                                Calendar.getInstance().apply { timeInMillis = fromMillis }
+                                            )
+                                        }
+                                    },
+                                    c.get(Calendar.YEAR),
+                                    c.get(Calendar.MONTH),
+                                    c.get(Calendar.DAY_OF_MONTH)
+                                ).show()
+                            }
+                        )
+                        DatePickerField(
+                            label = stringResource(R.string.stats_period_to),
+                            value = dateFmt.format(Date(toMillis)),
+                            modifier = Modifier.weight(1f),
+                            onClick = {
+                                val c = Calendar.getInstance().apply { timeInMillis = toMillis }
+                                android.app.DatePickerDialog(
+                                    context,
+                                    { _, y, m, d ->
+                                        toMillis = Calendar.getInstance().apply {
+                                            set(y, m, d, 23, 59, 59)
+                                            set(Calendar.MILLISECOND, 999)
+                                        }.timeInMillis
+                                        if (toMillis < fromMillis) {
+                                            fromMillis = startOfDay(toMillis)
+                                        }
+                                    },
+                                    c.get(Calendar.YEAR),
+                                    c.get(Calendar.MONTH),
+                                    c.get(Calendar.DAY_OF_MONTH)
+                                ).show()
+                            }
+                        )
+                    }
+                    FilterDropdown(
+                        label = stringResource(R.string.customer),
+                        value = customerFilter,
+                        options = listOf("") + customers.map { it.value },
+                        onSelect = { customerFilter = it }
+                    )
+                    FilterDropdown(
+                        label = stringResource(R.string.port),
+                        value = portFilter,
+                        options = listOf("") + ports.map { it.value },
+                        onSelect = { portFilter = it }
+                    )
+                    FilterDropdown(
+                        label = stringResource(R.string.vessel),
+                        value = vesselFilter,
+                        options = listOf("") + vessels.map { it.value },
+                        onSelect = { vesselFilter = it }
+                    )
+                    FilterDropdown(
+                        label = stringResource(R.string.product),
+                        value = productFilter,
+                        options = listOf("") + products.map { it.value },
+                        onSelect = { productFilter = it }
+                    )
+                    FilterDropdown(
+                        label = stringResource(R.string.manufacturer),
+                        value = manufacturerFilter,
+                        options = listOf("") + manufacturers.map { it.value },
+                        onSelect = { manufacturerFilter = it }
+                    )
+                }
+
+                Text(
+                    text = stringResource(R.string.found_count, filtered.size, items.size),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+            },
+            empty = {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    if (items.isEmpty()) {
+                        EmptyListPlaceholder(
+                            emoji = "📦",
+                            title = stringResource(R.string.archive_empty),
+                            hint = stringResource(R.string.archive_empty_hint)
+                        )
+                    } else if (searchText.isEmpty()) {
+                        EmptyListPlaceholder(
+                            emoji = "🔍",
+                            title = stringResource(R.string.archive_no_filters_match),
+                            hint = ""
+                        )
+                    } else {
+                        Icon(
+                            Icons.Default.SearchOff,
+                            contentDescription = null,
+                            modifier = Modifier.size(48.dp),
+                            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(stringResource(R.string.nothing_found))
+                        Text(
+                            stringResource(R.string.query_label, searchText),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                        )
+                    }
+                }
+            }
+        ) {
+            Row(
+                modifier = Modifier.fillMaxSize(),
+                verticalAlignment = Alignment.Top
+            ) {
+                LazyColumn(
+                    state = listState,
                     modifier = Modifier
                         .weight(1f)
-                        .fillMaxWidth(),
-                    verticalAlignment = Alignment.Top
+                        .fillMaxSize(),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    LazyColumn(
-                        state = listState,
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxSize(),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        items(filtered, key = { it.id }) { item ->
-                            ArchiveShipmentCard(
-                                item = item,
-                                displayNumber = archiveNumbers[item.id] ?: 0,
-                                dateLabel = fmt.format(Date(item.completedAtMillis)),
-                                thousandsSeparator = settings.effectiveThousandsSeparator,
-                                onOpen = { onOpen(item.id) },
-                                onOpenReport = { onOpenReport(item.id) },
-                                onDuplicate = { duplicateItem(item) },
-                                onDelete = { pendingDelete = item },
-                                modifier = Modifier.animateItem()
-                            )
-                        }
+                    items(filtered, key = { it.id }) { item ->
+                        ArchiveShipmentCard(
+                            item = item,
+                            displayNumber = archiveNumbers[item.id] ?: 0,
+                            dateLabel = fmt.format(Date(item.completedAtMillis)),
+                            thousandsSeparator = settings.effectiveThousandsSeparator,
+                            onOpen = { onOpen(item.id) },
+                            onOpenReport = { onOpenReport(item.id) },
+                            onDuplicate = { duplicateItem(item) },
+                            onDelete = { pendingDelete = item },
+                            modifier = Modifier.animateItem()
+                        )
                     }
-                    Spacer(modifier = Modifier.width(4.dp))
-                    LazyListScrollbar(
-                        listState = listState,
-                        width = 16.dp,
-                        modifier = Modifier
-                            .fillMaxHeight()
-                            .padding(vertical = 4.dp)
-                    )
                 }
+                Spacer(modifier = Modifier.width(4.dp))
+                LazyListScrollbar(
+                    listState = listState,
+                    width = 16.dp,
+                    modifier = Modifier
+                        .fillMaxHeight()
+                        .padding(vertical = 4.dp)
+                )
             }
         }
     }

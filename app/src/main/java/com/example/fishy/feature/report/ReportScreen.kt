@@ -1,7 +1,9 @@
 package com.example.fishy.feature.report
 
 import android.content.Intent
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -28,6 +30,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
@@ -41,6 +44,7 @@ import com.example.fishy.data.settings.FishySettings
 import com.example.fishy.domain.model.ShipmentEventType
 import com.example.fishy.domain.report.ReportGenerator
 import com.example.fishy.domain.report.ReportTemplate
+import com.example.fishy.ui.components.ColumnScrollIndicator
 import com.example.fishy.ui.components.FishyButton
 import com.example.fishy.ui.components.FishySentenceKeyboardOptions
 import kotlinx.coroutines.ensureActive
@@ -169,12 +173,27 @@ fun ReportScreen(
                     }
                 }) { Text(stringResource(R.string.reset_report)) }
             } else {
-                SelectionContainer(
+                val reportScroll = rememberScrollState()
+                Box(
                     modifier = Modifier
                         .weight(1f)
-                        .verticalScroll(rememberScrollState())
+                        .fillMaxWidth()
                 ) {
-                    Text(displayText)
+                    SelectionContainer(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(end = 8.dp)
+                            .verticalScroll(reportScroll)
+                    ) {
+                        Text(displayText)
+                    }
+                    ColumnScrollIndicator(
+                        scrollState = reportScroll,
+                        modifier = Modifier
+                            .align(Alignment.CenterEnd)
+                            .fillMaxHeight()
+                            .padding(vertical = 4.dp)
+                    )
                 }
                 FishyButton(
                     onClick = {

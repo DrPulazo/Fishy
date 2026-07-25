@@ -1,7 +1,9 @@
 package com.example.fishy.feature.home
 
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -17,11 +19,13 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.fishy.ui.components.ColumnScrollIndicator
 import com.example.fishy.ui.theme.FishyAccent
 import com.example.fishy.ui.theme.FishyAccentLink
 import com.example.fishy.ui.theme.isLightTheme
@@ -71,28 +75,42 @@ fun EasterEggScreen(onBack: () -> Unit) {
         }
     ) { padding ->
         val runesColor = if (isLightTheme()) FishyAccentLink else FishyAccent
-        Column(
+        val eggScroll = rememberScrollState()
+        Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .padding(horizontal = 20.dp, vertical = 12.dp)
-                .verticalScroll(rememberScrollState())
         ) {
-            Text(
-                text = EASTER_EGG_SAGA,
-                textAlign = TextAlign.Start
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(end = 8.dp)
+                    .padding(horizontal = 20.dp, vertical = 12.dp)
+                    .verticalScroll(eggScroll)
+            ) {
+                Text(
+                    text = EASTER_EGG_SAGA,
+                    textAlign = TextAlign.Start
+                )
+                Spacer(modifier = Modifier.height(28.dp))
+                Text(
+                    text = EASTER_EGG_RUNES,
+                    color = runesColor,
+                    fontSize = 34.sp,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center,
+                    lineHeight = 42.sp,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+            }
+            ColumnScrollIndicator(
+                scrollState = eggScroll,
+                modifier = Modifier
+                    .align(Alignment.CenterEnd)
+                    .fillMaxHeight()
+                    .padding(vertical = 4.dp)
             )
-            Spacer(modifier = Modifier.height(28.dp))
-            Text(
-                text = EASTER_EGG_RUNES,
-                color = runesColor,
-                fontSize = 34.sp,
-                fontWeight = FontWeight.Bold,
-                textAlign = TextAlign.Center,
-                lineHeight = 42.sp,
-                modifier = Modifier.fillMaxWidth()
-            )
-            Spacer(modifier = Modifier.height(16.dp))
         }
     }
 }

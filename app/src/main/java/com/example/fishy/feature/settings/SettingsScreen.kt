@@ -2,8 +2,10 @@ package com.example.fishy.feature.settings
 
 import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -49,6 +51,7 @@ import com.example.fishy.data.settings.AppLanguage
 import com.example.fishy.domain.format.QuantityFormatters
 import com.example.fishy.ui.components.CenteredDialogMessage
 import com.example.fishy.ui.components.CenteredDialogTitle
+import com.example.fishy.ui.components.ColumnScrollIndicator
 import com.example.fishy.ui.components.ConfirmDeleteDialog
 import com.example.fishy.ui.components.DialogCancelConfirmActions
 import com.example.fishy.ui.components.fishyCheckboxColors
@@ -110,19 +113,25 @@ fun SettingsScreen(onBack: () -> Unit) {
             )
         }
     ) { padding ->
+        val settingsScroll = rememberScrollState()
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
                 .padding(16.dp)
         ) {
-            Column(
+            Box(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth()
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(end = 8.dp)
+                        .verticalScroll(settingsScroll),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
                 ExposedDropdownMenuBox(
                     expanded = languageMenuOpen,
                     onExpandedChange = { languageMenuOpen = it }
@@ -306,6 +315,14 @@ fun SettingsScreen(onBack: () -> Unit) {
                         )
                     }
                 }
+            }
+                ColumnScrollIndicator(
+                    scrollState = settingsScroll,
+                    modifier = Modifier
+                        .align(Alignment.CenterEnd)
+                        .fillMaxHeight()
+                        .padding(vertical = 4.dp)
+                )
             }
 
             TextButton(

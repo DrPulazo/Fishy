@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -52,7 +53,9 @@ import com.example.fishy.domain.stats.StatSplit
 import com.example.fishy.domain.stats.StatisticsAggregator
 import com.example.fishy.domain.stats.StatisticsBreakdown
 import com.example.fishy.ui.components.AccordionCard
+import com.example.fishy.ui.components.CenteredEmptyBody
 import com.example.fishy.ui.components.ChartLegend
+import com.example.fishy.ui.components.ColumnScrollIndicator
 import com.example.fishy.ui.components.EmptyListPlaceholder
 import com.example.fishy.ui.components.FilterDropdown
 import com.example.fishy.ui.components.HintedScrollableTabs
@@ -174,161 +177,180 @@ fun StatisticsScreen(
             )
         }
     ) { padding ->
-        Column(
+        val showEmpty = !filtersExpanded && filteredEntities.isEmpty()
+        val statsScroll = rememberScrollState()
+        CenteredEmptyBody(
+            isEmpty = showEmpty,
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding)
-        ) {
-            HintedScrollableTabs(
-                selectedIndex = chartTab.ordinal,
-                titles = tabTitles,
-                onSelect = { index ->
-                    chartTab = StatsChartTab.entries[index]
-                }
-            )
-
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
-                    .padding(16.dp)
-            ) {
-                AccordionCard(
-                    title = stringResource(R.string.archive_filters),
-                    initiallyExpanded = false,
-                    onExpandedChange = { filtersExpanded = it }
+                .padding(padding),
+            topChrome = {
+                HintedScrollableTabs(
+                    selectedIndex = chartTab.ordinal,
+                    titles = tabTitles,
+                    onSelect = { index ->
+                        chartTab = StatsChartTab.entries[index]
+                    }
+                )
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp)
+                        .padding(top = 16.dp)
                 ) {
-                    FilterDropdown(
-                        label = stringResource(R.string.customer),
-                        value = customer,
-                        options = listOf("") + customers.map { it.value },
-                        onSelect = { customer = it }
-                    )
-                    FilterDropdown(
-                        label = stringResource(R.string.port),
-                        value = port,
-                        options = listOf("") + ports.map { it.value },
-                        onSelect = { port = it }
-                    )
-                    FilterDropdown(
-                        label = stringResource(R.string.product),
-                        value = productFilter,
-                        options = listOf("") + products.map { it.value },
-                        onSelect = { productFilter = it }
-                    )
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 8.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    AccordionCard(
+                        title = stringResource(R.string.archive_filters),
+                        initiallyExpanded = false,
+                        onExpandedChange = { filtersExpanded = it }
                     ) {
                         FilterDropdown(
-                            label = stringResource(R.string.stats_period_from),
-                            value = fromLabel,
-                            options = monthLabels,
-                            modifier = Modifier.weight(1f),
-                            onSelect = { label ->
-                                val start = labelToStart[label] ?: return@FilterDropdown
-                                fromMonthStart = start
-                                if (start > toMonthStart) toMonthStart = start
-                            }
+                            label = stringResource(R.string.customer),
+                            value = customer,
+                            options = listOf("") + customers.map { it.value },
+                            onSelect = { customer = it }
                         )
                         FilterDropdown(
-                            label = stringResource(R.string.stats_period_to),
-                            value = toLabel,
-                            options = monthLabels,
-                            modifier = Modifier.weight(1f),
-                            onSelect = { label ->
-                                val start = labelToStart[label] ?: return@FilterDropdown
-                                toMonthStart = start
-                                if (start < fromMonthStart) fromMonthStart = start
-                            }
+                            label = stringResource(R.string.port),
+                            value = port,
+                            options = listOf("") + ports.map { it.value },
+                            onSelect = { port = it }
                         )
+                        FilterDropdown(
+                            label = stringResource(R.string.product),
+                            value = productFilter,
+                            options = listOf("") + products.map { it.value },
+                            onSelect = { productFilter = it }
+                        )
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            FilterDropdown(
+                                label = stringResource(R.string.stats_period_from),
+                                value = fromLabel,
+                                options = monthLabels,
+                                modifier = Modifier.weight(1f),
+                                onSelect = { label ->
+                                    val start = labelToStart[label] ?: return@FilterDropdown
+                                    fromMonthStart = start
+                                    if (start > toMonthStart) toMonthStart = start
+                                }
+                            )
+                            FilterDropdown(
+                                label = stringResource(R.string.stats_period_to),
+                                value = toLabel,
+                                options = monthLabels,
+                                modifier = Modifier.weight(1f),
+                                onSelect = { label ->
+                                    val start = labelToStart[label] ?: return@FilterDropdown
+                                    toMonthStart = start
+                                    if (start < fromMonthStart) fromMonthStart = start
+                                }
+                            )
+                        }
                     }
                 }
-
+            },
+            empty = {
+                if (archive.isEmpty()) {
+                    EmptyListPlaceholder(
+                        emoji = "📊",
+                        title = stringResource(R.string.stats_empty_title),
+                        hint = stringResource(R.string.stats_empty_hint)
+                    )
+                } else {
+                    EmptyListPlaceholder(
+                        emoji = "📊",
+                        title = stringResource(R.string.archive_no_filters_match)
+                    )
+                }
+            }
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 16.dp)
+                    .padding(bottom = 16.dp)
+            ) {
                 if (filtersExpanded) {
                     Spacer(modifier = Modifier.weight(1f))
-                } else if (filteredEntities.isEmpty()) {
+                } else {
                     Box(
                         modifier = Modifier
                             .weight(1f)
-                            .fillMaxWidth(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        if (archive.isEmpty()) {
-                            EmptyListPlaceholder(
-                                emoji = "📊",
-                                title = stringResource(R.string.stats_empty_title),
-                                hint = stringResource(R.string.stats_empty_hint)
-                            )
-                        } else {
-                            EmptyListPlaceholder(
-                                emoji = "📊",
-                                title = stringResource(R.string.archive_no_filters_match)
-                            )
-                        }
-                    }
-                } else {
-                    Column(
-                        modifier = Modifier
-                            .weight(1f)
                             .fillMaxWidth()
-                            .verticalScroll(rememberScrollState())
-                            .padding(vertical = 12.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
-                        Text(
-                            text = stringResource(
-                                R.string.stats_summary_tonnage,
-                                QuantityFormatters.formatWeight(totalTonnageKg, settings.effectiveThousandsSeparator)
-                            ),
-                            style = MaterialTheme.typography.bodyLarge,
-                            fontWeight = FontWeight.Medium,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        selectedEntry?.let { entry ->
-                            val kgFmt = QuantityFormatters.formatWeight(
-                                entry.totalKg,
-                                settings.effectiveThousandsSeparator
-                            )
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .verticalScroll(statsScroll)
+                                .padding(vertical = 12.dp)
+                                .padding(end = 8.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
                             Text(
-                                text = stringResource(R.string.stats_month_kg, entry.label, kgFmt),
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                text = stringResource(
+                                    R.string.stats_summary_tonnage,
+                                    QuantityFormatters.formatWeight(
+                                        totalTonnageKg,
+                                        settings.effectiveThousandsSeparator
+                                    )
+                                ),
+                                style = MaterialTheme.typography.bodyLarge,
+                                fontWeight = FontWeight.Medium,
                                 textAlign = TextAlign.Center,
                                 modifier = Modifier.fillMaxWidth()
                             )
-                            entry.segments
-                                .sortedByDescending { it.valueKg }
-                                .forEach { seg ->
-                                    val w = QuantityFormatters.formatWeight(
-                                        seg.valueKg,
-                                        settings.effectiveThousandsSeparator
-                                    )
-                                    Text(
-                                        text = "${seg.label}: $w кг",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        textAlign = TextAlign.Center,
-                                        modifier = Modifier.fillMaxWidth()
-                                    )
-                                }
+                            selectedEntry?.let { entry ->
+                                val kgFmt = QuantityFormatters.formatWeight(
+                                    entry.totalKg,
+                                    settings.effectiveThousandsSeparator
+                                )
+                                Text(
+                                    text = stringResource(R.string.stats_month_kg, entry.label, kgFmt),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    textAlign = TextAlign.Center,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                                entry.segments
+                                    .sortedByDescending { it.valueKg }
+                                    .forEach { seg ->
+                                        val w = QuantityFormatters.formatWeight(
+                                            seg.valueKg,
+                                            settings.effectiveThousandsSeparator
+                                        )
+                                        Text(
+                                            text = "${seg.label}: $w кг",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            textAlign = TextAlign.Center,
+                                            modifier = Modifier.fillMaxWidth()
+                                        )
+                                    }
+                            }
+                            if (chartResult.legend.isNotEmpty()) {
+                                ChartLegend(
+                                    items = chartResult.legend,
+                                    totalKg = chartResult.legend.sumOf { it.totalKg },
+                                    modifier = Modifier.padding(top = 8.dp, bottom = 8.dp)
+                                )
+                            }
                         }
-                        if (chartResult.legend.isNotEmpty()) {
-                            ChartLegend(
-                                items = chartResult.legend,
-                                totalKg = chartResult.legend.sumOf { it.totalKg },
-                                modifier = Modifier.padding(top = 8.dp, bottom = 8.dp)
-                            )
-                        }
+                        ColumnScrollIndicator(
+                            scrollState = statsScroll,
+                            modifier = Modifier
+                                .align(Alignment.CenterEnd)
+                                .fillMaxHeight()
+                                .padding(vertical = 4.dp)
+                        )
                     }
-                }
 
-                if (!filteredEntities.isEmpty()) {
-                    val chartHeightDp = (LocalConfiguration.current.screenHeightDp / 3).coerceAtLeast(160)
+                    val chartHeightDp =
+                        (LocalConfiguration.current.screenHeightDp / 3).coerceAtLeast(160)
                     StackedVerticalBarChart(
                         title = chartTitleText,
                         entries = chartResult.bars,

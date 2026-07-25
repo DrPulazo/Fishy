@@ -22,6 +22,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.unit.dp
 import com.example.fishy.data.local.entity.DictionaryEntity
 import com.example.fishy.domain.model.DictionaryType
@@ -39,6 +40,7 @@ fun DictionaryAutocomplete(
     isError: Boolean = false
 ) {
     var expanded by remember { mutableStateOf(false) }
+    var hadFocus by remember { mutableStateOf(false) }
     val filtered = remember(value, suggestions) {
         if (value.isBlank()) suggestions.take(20)
         else suggestions.filter { it.value.contains(value, ignoreCase = true) }.take(20)
@@ -74,7 +76,20 @@ fun DictionaryAutocomplete(
             textStyle = textStyle,
             modifier = Modifier
                 .menuAnchor()
-                .fillMaxWidth(),
+                .fillMaxWidth()
+                .onFocusChanged { focus ->
+                    if (focus.isFocused) {
+                        hadFocus = true
+                    } else if (hadFocus) {
+                        hadFocus = false
+                        val trimmed = value.trim()
+                        val type = dictionaryType
+                        val add = onAddToDictionary
+                        if (trimmed.isNotEmpty() && type != null && add != null) {
+                            add(type, trimmed)
+                        }
+                    }
+                },
             keyboardOptions = FishySentenceKeyboardOptions,
             isError = isError,
             trailingIcon = {

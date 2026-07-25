@@ -14,8 +14,8 @@
     <string name="back">Back</string>
     <string name="coming_soon">Coming soon</string>
     <string name="about_title">About</string>
-    <string name="about_version">Version 2.1.2</string>
-    <string name="about_body">Shipment tracking for fish cargo receivers.\nFishy 2.1.2</string>
+    <string name="about_version">Version 2.1.3</string>
+    <string name="about_body">Shipment tracking for fish cargo receivers.\nFishy 2.1.3</string>
     <string name="about_deepseek">Built with help from\nthe DeepSeek AI chatbot.</string>
     <string name="about_budget_title">Development budget:</string>
     <string name="about_budget_beer">A case of beer</string>
@@ -72,7 +72,7 @@
     <string name="report">Report</string>
     <string name="checklist">Checklist</string>
     <string name="checklist_prep">Preparation</string>
-    <string name="checklist_shipment">Shipment checklist</string>
+    <string name="checklist_shipment">Shipment progress checklist</string>
     <string name="checklist_incomplete_title">Checklist incomplete</string>
     <string name="checklist_incomplete_finish_msg">Finish shipment?</string>
     <string name="action_finish">Finish</string>
@@ -84,6 +84,7 @@
     <string name="checklist_reminder">Reminders</string>
     <string name="checklist_reminder_interval">Interval</string>
     <string name="checklist_reminder_interval_min">%1$d min</string>
+    <string name="checklist_reminders_all_done">All items completed</string>
     <string name="checklist_item">Item</string>
     <string name="checklist_completed">Checklist completed</string>
     <string name="checklist_partial">Checklist partially done</string>
@@ -152,7 +153,7 @@
     <string name="dict_added">\"%1$s\" added to dictionary</string>
     <string name="draft_saved">Draft saved</string>
     <string name="save_draft">Save draft</string>
-    <string name="save_shipment">SAVE SHIPMENT</string>
+    <string name="save_shipment">COMPLETE SHIPMENT</string>
     <string name="complete_confirm_title">Saving</string>
     <string name="complete_confirm_msg">Complete shipment and save to archive?</string>
     <string name="complete_confirm_places_over">Actual place count is greater than planned. Are you sure you want to complete the shipment?</string>
@@ -179,7 +180,7 @@
     <string name="pallet_forecast">Pallet forecast</string>
     <string name="forecast_running">Forecast in progress...</string>
     <string name="forecast_error">Forecast error!</string>
-    <string name="checklist_toggle">Shipment checklist</string>
+    <string name="checklist_toggle">Shipment progress checklist</string>
     <string name="batch_control">Batch control</string>
     <string name="enter_batches">Enter batches</string>
     <string name="add_batch">Add batch</string>
@@ -517,7 +518,7 @@
     <string name="faq_prep_checklist_body">Things to do before work starts. Status is shown on the scheduled shipment card and in the notification. When work starts, unfinished preparation items are moved into the shipment checklist.</string>
     <string name="faq_schedule_reminders_title">Reminders in the schedule</string>
     <string name="faq_schedule_reminders_body">On a scheduled shipment card you can set one or more reminders for the times you need. Tapping the notification opens the preparation checklist.</string>
-    <string name="faq_shipment_checklist_title">“Shipment checklist” (in shipment)</string>
+    <string name="faq_shipment_checklist_title">“Shipment progress checklist” (in shipment)</string>
     <string name="faq_shipment_checklist_body">Things to do during work. If the checklist is incomplete, a warning appears before finishing the shipment.</string>
     <string name="faq_shipment_checklist_reminders_title">Shipment checklist reminders</string>
     <string name="faq_shipment_checklist_reminders_body">In the shipment checklist you can turn on periodic reminders. They fire while the shipment screen is open and help you not forget unfinished items.</string>

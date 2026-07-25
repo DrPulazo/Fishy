@@ -78,7 +78,7 @@ object StatisticsBreakdown {
     const val OTHER_KEY = "__other__"
     const val UNSPECIFIED_KEY = "__unspecified__"
     const val DEFAULT_TOP_GROUPS = 10
-    const val DEFAULT_TOP_SERIES = 7
+    const val DEFAULT_TOP_SERIES = 9
 
     private val monthLabelFmt = SimpleDateFormat("MM.yyyy", Locale.getDefault())
 

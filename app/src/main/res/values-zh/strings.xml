@@ -14,8 +14,8 @@
     <string name="back">返回</string>
     <string name="coming_soon">即将推出</string>
     <string name="about_title">关于应用</string>
-    <string name="about_version">版本 2.1.2</string>
-    <string name="about_body">鱼类货物收货发货管理。\nFishy 2.1.2</string>
+    <string name="about_version">版本 2.1.3</string>
+    <string name="about_body">鱼类货物收货发货管理。\nFishy 2.1.3</string>
     <string name="about_deepseek">在 DeepSeek AI\n助手协助下开发。</string>
     <string name="about_budget_title">开发预算：</string>
     <string name="about_budget_beer">一箱啤酒</string>
@@ -72,7 +72,7 @@
     <string name="report">报告</string>
     <string name="checklist">检查清单</string>
     <string name="checklist_prep">准备</string>
-    <string name="checklist_shipment">发货检查清单</string>
+    <string name="checklist_shipment">发货进度检查清单</string>
     <string name="checklist_incomplete_title">清单未完成</string>
     <string name="checklist_incomplete_finish_msg">完成发货？</string>
     <string name="action_finish">完成</string>
@@ -84,6 +84,7 @@
     <string name="checklist_reminder">提醒</string>
     <string name="checklist_reminder_interval">间隔</string>
     <string name="checklist_reminder_interval_min">%1$d 分钟</string>
+    <string name="checklist_reminders_all_done">所有项目已完成</string>
     <string name="checklist_item">项目</string>
     <string name="checklist_completed">清单已完成</string>
     <string name="checklist_partial">清单部分完成</string>
@@ -152,7 +153,7 @@
     <string name="dict_added">已将“%1$s”加入词典</string>
     <string name="draft_saved">草稿已保存</string>
     <string name="save_draft">保存草稿</string>
-    <string name="save_shipment">保存发货</string>
+    <string name="save_shipment">完成发货</string>
     <string name="complete_confirm_title">保存</string>
     <string name="complete_confirm_msg">完成发货并保存到归档？</string>
     <string name="complete_confirm_places_over">实际件数大于计划。确定要完成发货吗？</string>
@@ -179,7 +180,7 @@
     <string name="pallet_forecast">托盘预估</string>
     <string name="forecast_running">正在计算预估...</string>
     <string name="forecast_error">预估计算错误！</string>
-    <string name="checklist_toggle">发货检查清单</string>
+    <string name="checklist_toggle">发货进度检查清单</string>
     <string name="batch_control">批次控制</string>
     <string name="enter_batches">请输入批次</string>
     <string name="add_batch">添加批次</string>
@@ -517,7 +518,7 @@
     <string name="faq_prep_checklist_body">开工前要做的事项。状态会显示在计划发货卡片和通知中。开始发货时，未完成的准备项会转入发货清单。</string>
     <string name="faq_schedule_reminders_title">排程提醒</string>
     <string name="faq_schedule_reminders_body">在计划发货卡片上可设置一个或多个所需时间的提醒。点击通知会打开准备清单。</string>
-    <string name="faq_shipment_checklist_title">「发货清单」（发货中）</string>
+    <string name="faq_shipment_checklist_title">「发货进度清单」（发货中）</string>
     <string name="faq_shipment_checklist_body">工作中要做的事项。若清单未完成，结束发货前会提示。</string>
     <string name="faq_shipment_checklist_reminders_title">发货清单提醒</string>
     <string name="faq_shipment_checklist_reminders_body">可在发货清单中开启定期提醒。仅在发货界面打开时触发，帮助不忘记未完成项。</string>

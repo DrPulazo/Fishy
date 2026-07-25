@@ -14,8 +14,8 @@ android {
         applicationId = "com.example.fishy"
         minSdk = 26
         targetSdk = 35
-        versionCode = 6
-        versionName = "2.1.2"
+        versionCode = 7
+        versionName = "2.1.3"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

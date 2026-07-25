@@ -1,7 +1,9 @@
 package com.example.fishy.feature.home
 
 import android.content.Context
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -25,6 +27,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -34,6 +37,7 @@ import com.example.fishy.FishyApp
 import com.example.fishy.R
 import com.example.fishy.data.settings.AppLanguage
 import com.example.fishy.data.settings.FishySettings
+import com.example.fishy.ui.components.ColumnScrollIndicator
 import com.example.fishy.ui.components.FishyButton
 import java.nio.charset.StandardCharsets
 import java.util.Locale
@@ -106,17 +110,30 @@ fun EulaScreen(
             }
         }
     ) { padding ->
-        Column(
+        Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .verticalScroll(scrollState)
-                .padding(horizontal = 20.dp, vertical = 12.dp)
         ) {
-            Text(
-                text = eulaText,
-                style = MaterialTheme.typography.bodyMedium,
-                textAlign = TextAlign.Justify
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(end = 8.dp)
+                    .verticalScroll(scrollState)
+                    .padding(horizontal = 20.dp, vertical = 12.dp)
+            ) {
+                Text(
+                    text = eulaText,
+                    style = MaterialTheme.typography.bodyMedium,
+                    textAlign = TextAlign.Justify
+                )
+            }
+            ColumnScrollIndicator(
+                scrollState = scrollState,
+                modifier = Modifier
+                    .align(Alignment.CenterEnd)
+                    .fillMaxHeight()
+                    .padding(vertical = 4.dp)
             )
         }
     }

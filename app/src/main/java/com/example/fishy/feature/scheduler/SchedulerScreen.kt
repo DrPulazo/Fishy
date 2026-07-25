@@ -11,8 +11,10 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -23,6 +25,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.rememberScrollState
@@ -38,7 +41,6 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.NotificationsOff
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
@@ -100,14 +102,19 @@ import com.example.fishy.ui.components.BatchEntryDialog
 import com.example.fishy.ui.components.ConfirmDeleteDialog
 import com.example.fishy.ui.components.CenteredDialogMessage
 import com.example.fishy.ui.components.CenteredDialogTitle
+import com.example.fishy.ui.components.CenteredEmptyBody
 import com.example.fishy.ui.components.ChecklistStatusBanner
 import com.example.fishy.ui.components.ColumnScrollIndicator
 import com.example.fishy.ui.components.DatePickerField
 import com.example.fishy.ui.components.DialogCancelConfirmActions
 import com.example.fishy.ui.components.DialogCenteredFishyButton
+import com.example.fishy.ui.components.EmptyListPlaceholder
+import com.example.fishy.ui.components.FabContentClearance
+import com.example.fishy.ui.components.FabEndInsetForScrollbar
 import com.example.fishy.ui.components.FishyButton
 import com.example.fishy.ui.components.FishyFloatingActionButton
 import com.example.fishy.ui.components.FishySentenceKeyboardOptions
+import com.example.fishy.ui.components.LazyListScrollIndicator
 import com.example.fishy.ui.components.LocalAccordionTitleStyle
 import com.example.fishy.ui.components.LocalFormTextStyle
 import com.example.fishy.ui.components.TimePickerField
@@ -339,6 +346,8 @@ fun SchedulerScreen(
         }
     }
 
+    val listState = rememberLazyListState()
+
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
@@ -351,77 +360,75 @@ fun SchedulerScreen(
             )
         },
         floatingActionButton = {
-            if (items.isNotEmpty()) {
-                FishyFloatingActionButton(onClick = { openNewEditor() }) {
-                    Icon(Icons.Default.Add, contentDescription = null)
-                }
+            FishyFloatingActionButton(
+                onClick = { openNewEditor() },
+                modifier = Modifier.padding(end = FabEndInsetForScrollbar)
+            ) {
+                Icon(Icons.Default.Add, contentDescription = stringResource(R.string.schedule_add))
             }
         }
     ) { padding ->
-        if (items.isEmpty()) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding)
-                    .padding(32.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
-            ) {
-                Icon(
-                    Icons.Default.Schedule,
-                    contentDescription = null,
-                    modifier = Modifier.size(64.dp),
-                    tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
+        CenteredEmptyBody(
+            isEmpty = items.isEmpty(),
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding),
+            empty = {
+                EmptyListPlaceholder(
+                    emoji = "🕗",
+                    title = stringResource(R.string.schedule_empty_title),
+                    hint = stringResource(R.string.schedule_empty_hint)
                 )
-                Spacer(modifier = Modifier.height(16.dp))
-                Text(
-                    stringResource(R.string.schedule_empty_title),
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
-                Spacer(modifier = Modifier.height(16.dp))
-                FishyButton(onClick = { openNewEditor() }) {
-                    Icon(Icons.Default.Add, contentDescription = null)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(stringResource(R.string.schedule_add))
-                }
             }
-        } else {
-            LazyColumn(
+        ) {
+            Row(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(padding)
                     .padding(16.dp)
             ) {
-                items(items, key = { it.id }) { item ->
-                    val whenDate = Date(item.scheduledDateMillis)
-                    val weekday = weekdayFmt.format(whenDate).replaceFirstChar { ch ->
-                        if (ch.isLowerCase()) ch.titlecase(Locale.getDefault()) else ch.toString()
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxSize(),
+                    contentPadding = PaddingValues(bottom = FabContentClearance)
+                ) {
+                    items(items, key = { it.id }) { item ->
+                        val whenDate = Date(item.scheduledDateMillis)
+                        val weekday = weekdayFmt.format(whenDate).replaceFirstChar { ch ->
+                            if (ch.isLowerCase()) ch.titlecase(Locale.getDefault()) else ch.toString()
+                        }
+                        val dateLabel =
+                            "${dateFmt.format(whenDate)} — $weekday — ${item.scheduledTime}"
+                        ScheduledShipmentCard(
+                            item = item,
+                            dateLabel = dateLabel,
+                            isDuplicated = "sched_${item.id}" in duplicatedKeys,
+                            thousandsSeparator = settings.effectiveThousandsSeparator,
+                            onEdit = {
+                                editorScrollToNotifications = false
+                                editing = item
+                                showEditor = true
+                            },
+                            onEditNotifications = {
+                                editorScrollToNotifications = true
+                                editing = item
+                                showEditor = true
+                            },
+                            onOpenChecklist = { checklistFor = item.id },
+                            onStart = { pendingStart = item },
+                            onDuplicate = { duplicate(item) },
+                            onDelete = { pendingDelete = item },
+                            modifier = Modifier.animateItem()
+                        )
                     }
-                    val dateLabel =
-                        "${dateFmt.format(whenDate)} — $weekday — ${item.scheduledTime}"
-                    ScheduledShipmentCard(
-                        item = item,
-                        dateLabel = dateLabel,
-                        isDuplicated = "sched_${item.id}" in duplicatedKeys,
-                        thousandsSeparator = settings.effectiveThousandsSeparator,
-                        onEdit = {
-                            editorScrollToNotifications = false
-                            editing = item
-                            showEditor = true
-                        },
-                        onEditNotifications = {
-                            editorScrollToNotifications = true
-                            editing = item
-                            showEditor = true
-                        },
-                        onOpenChecklist = { checklistFor = item.id },
-                        onStart = { pendingStart = item },
-                        onDuplicate = { duplicate(item) },
-                        onDelete = { pendingDelete = item },
-                        modifier = Modifier.animateItem()
-                    )
                 }
+                LazyListScrollIndicator(
+                    listState = listState,
+                    modifier = Modifier
+                        .fillMaxHeight()
+                        .padding(vertical = 4.dp)
+                )
             }
         }
     }
@@ -855,18 +862,11 @@ private fun ScheduledEditorDialog(
             notify = initial.notificationEnabled && reminders.isNotEmpty()
             nextLocalKey = -1L
         }
-        baselineNotify = notify
-        baselineReminderTimes = reminders.map { it.atMillis }
-        errorReminderKeys = emptySet()
-        remindersReady = true
-    }
-
-    LaunchedEffect(scrollToNotifications) {
-        if (scrollToNotifications) {
-            delay(100)
-            addReminderBringIntoView.bringIntoView()
-        }
-    }
+    baselineNotify = notify
+    baselineReminderTimes = reminders.map { it.atMillis }
+    errorReminderKeys = emptySet()
+    remindersReady = true
+}
 
     val isDirty =
         remindersReady && (
@@ -896,6 +896,15 @@ private fun ScheduledEditorDialog(
         errorReminderKeys = errorReminderKeys - localKey
     }
 
+    fun toastNoReminderSlot() {
+        ErrorFeedback.vibrate(context)
+        Toast.makeText(
+            context,
+            context.getString(R.string.notify_error_no_slot),
+            Toast.LENGTH_SHORT
+        ).show()
+    }
+
     fun enableRemindersOrFail(): Boolean {
         if (reminders.isNotEmpty()) {
             notify = true
@@ -905,6 +914,7 @@ private fun ScheduledEditorDialog(
         val shipmentAt = combineScheduledAt(dateMillis, time)
         val at = firstReminderAt(shipmentAt, dateMillis, System.currentTimeMillis())
         if (at == null) {
+            toastNoReminderSlot()
             return false
         }
         val key = nextLocalKey
@@ -924,11 +934,26 @@ private fun ScheduledEditorDialog(
             dayMillis = dateMillis,
             now = System.currentTimeMillis()
         )
-        if (at == null) return
+        if (at == null) {
+            toastNoReminderSlot()
+            return
+        }
         val key = nextLocalKey
         nextLocalKey -= 1
         reminders = reminders + ReminderDraft(localKey = key, id = 0L, atMillis = at)
         scrollToAddReminder()
+    }
+
+    LaunchedEffect(scrollToNotifications, remindersReady) {
+        if (!scrollToNotifications || !remindersReady) return@LaunchedEffect
+        if (!notify) {
+            if (!enableRemindersOrFail()) {
+                notificationsBringIntoView.bringIntoView()
+                return@LaunchedEffect
+            }
+        }
+        delay(80)
+        addReminderBringIntoView.bringIntoView()
     }
 
     val dateFmt = remember { SimpleDateFormat("dd.MM.yyyy", Locale.getDefault()) }
@@ -1028,10 +1053,16 @@ private fun ScheduledEditorDialog(
                 LocalAccordionTitleStyle provides MaterialTheme.typography.bodySmall,
                 LocalFormTextStyle provides MaterialTheme.typography.bodySmall
             ) {
-            Column(
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .heightIn(max = 560.dp)
+            ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .fillMaxHeight()
+                    .padding(end = 8.dp)
                     .verticalScroll(editorScrollState),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
@@ -1117,7 +1148,7 @@ private fun ScheduledEditorDialog(
                 ) {
                     Icon(Icons.Default.Checklist, contentDescription = null)
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text(stringResource(R.string.checklist))
+                    Text(stringResource(R.string.checklist_shipment))
                 }
 
                 HorizontalDivider()
@@ -1242,6 +1273,14 @@ private fun ScheduledEditorDialog(
                         )
                     }
                 }
+            }
+            ColumnScrollIndicator(
+                scrollState = editorScrollState,
+                modifier = Modifier
+                    .align(Alignment.CenterEnd)
+                    .fillMaxHeight()
+                    .padding(vertical = 4.dp)
+            )
             }
             }
         },
