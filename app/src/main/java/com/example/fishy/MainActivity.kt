@@ -25,6 +25,7 @@ import kotlinx.coroutines.launch
 class MainActivity : AppCompatActivity() {
 
     private var openScheduler by mutableStateOf(false)
+    private var openPrepChecklistId by mutableStateOf<Long?>(null)
     private var startScheduledId by mutableStateOf<Long?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -50,9 +51,11 @@ class MainActivity : AppCompatActivity() {
                 ) {
                     FishyNavHost(
                         openScheduler = openScheduler,
+                        openPrepChecklistId = openPrepChecklistId,
                         startScheduledId = startScheduledId,
                         onNotificationNavConsumed = {
                             openScheduler = false
+                            openPrepChecklistId = null
                             startScheduledId = null
                         }
                     )
@@ -77,10 +80,21 @@ class MainActivity : AppCompatActivity() {
         if (startId > 0L) {
             startScheduledId = startId
             openScheduler = false
+            openPrepChecklistId = null
+            return
+        }
+        val shipmentId = intent.getLongExtra(NotificationScheduler.EXTRA_ID, -1L)
+        if (intent.getBooleanExtra(NotificationScheduler.EXTRA_OPEN_PREP_CHECKLIST, false) &&
+            shipmentId > 0L
+        ) {
+            openPrepChecklistId = shipmentId
+            openScheduler = true
+            startScheduledId = null
             return
         }
         if (intent.getBooleanExtra(NotificationScheduler.EXTRA_OPEN_SCHEDULER, true)) {
             openScheduler = true
+            openPrepChecklistId = null
             startScheduledId = null
         }
     }

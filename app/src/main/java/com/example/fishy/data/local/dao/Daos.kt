@@ -9,6 +9,7 @@ import androidx.room.Update
 import com.example.fishy.data.local.entity.ChecklistItemEntity
 import com.example.fishy.data.local.entity.DictionaryEntity
 import com.example.fishy.data.local.entity.ReportTemplateEntity
+import com.example.fishy.data.local.entity.ScheduledReminderEntity
 import com.example.fishy.data.local.entity.ScheduledShipmentEntity
 import com.example.fishy.data.local.entity.ShipmentEntity
 import com.example.fishy.data.local.entity.ShipmentEventEntity
@@ -19,10 +20,10 @@ interface ShipmentDao {
     @Query("SELECT * FROM shipments WHERE isDraft = 0 ORDER BY completedAtMillis DESC")
     fun observeArchive(): Flow<List<ShipmentEntity>>
 
-    @Query("SELECT * FROM shipments WHERE isDraft = 1 ORDER BY createdAtMillis DESC")
+    @Query("SELECT * FROM shipments WHERE isDraft = 1 ORDER BY completedAtMillis DESC")
     fun observeDrafts(): Flow<List<ShipmentEntity>>
 
-    @Query("SELECT * FROM shipments WHERE isDraft = 1 ORDER BY createdAtMillis DESC")
+    @Query("SELECT * FROM shipments WHERE isDraft = 1 ORDER BY completedAtMillis DESC")
     suspend fun getDrafts(): List<ShipmentEntity>
 
     @Query("SELECT * FROM shipments WHERE id = :id LIMIT 1")
@@ -60,8 +61,17 @@ interface ScheduledShipmentDao {
     @Query(
         """
         SELECT * FROM scheduled_shipments
-        WHERE notificationEnabled = 1 AND isCompleted = 0
-          AND (notificationSent = 0 OR startNotificationSent = 0)
+        WHERE isCompleted = 0
+          AND (
+            startNotificationSent = 0
+            OR (
+              notificationEnabled = 1
+              AND EXISTS (
+                SELECT 1 FROM scheduled_reminders r
+                WHERE r.scheduledShipmentId = scheduled_shipments.id AND r.sent = 0
+              )
+            )
+          )
         """
     )
     suspend fun getPendingNotifications(): List<ScheduledShipmentEntity>
@@ -92,6 +102,45 @@ interface ScheduledShipmentDao {
 
     @Query("DELETE FROM checklist_items WHERE scheduledShipmentId = :shipmentId")
     suspend fun deleteChecklistForShipment(shipmentId: Long)
+
+    @Query("SELECT * FROM scheduled_reminders WHERE scheduledShipmentId = :shipmentId ORDER BY sortOrder ASC, atMillis ASC")
+    fun observeReminders(shipmentId: Long): Flow<List<ScheduledReminderEntity>>
+
+    @Query("SELECT * FROM scheduled_reminders WHERE scheduledShipmentId = :shipmentId ORDER BY sortOrder ASC, atMillis ASC")
+    suspend fun getReminders(shipmentId: Long): List<ScheduledReminderEntity>
+
+    @Query("SELECT * FROM scheduled_reminders WHERE id = :id LIMIT 1")
+    suspend fun getReminderById(id: Long): ScheduledReminderEntity?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertReminder(item: ScheduledReminderEntity): Long
+
+    @Query("DELETE FROM scheduled_reminders WHERE id = :id")
+    suspend fun deleteReminder(id: Long)
+
+    @Query("DELETE FROM scheduled_reminders WHERE scheduledShipmentId = :shipmentId")
+    suspend fun deleteRemindersForShipment(shipmentId: Long)
+
+    @Query(
+        """
+        DELETE FROM scheduled_reminders
+        WHERE scheduledShipmentId = :shipmentId
+          AND sent = 1
+        """
+    )
+    suspend fun pruneDueReminders(shipmentId: Long): Int
+
+    @Query(
+        """
+        DELETE FROM scheduled_reminders
+        WHERE scheduledShipmentId = :shipmentId
+          AND atMillis <= :nowMillis
+        """
+    )
+    suspend fun deletePastReminders(shipmentId: Long, nowMillis: Long): Int
+
+    @Query("SELECT * FROM scheduled_shipments WHERE isCompleted = 0")
+    suspend fun getActiveScheduled(): List<ScheduledShipmentEntity>
 }
 
 @Dao

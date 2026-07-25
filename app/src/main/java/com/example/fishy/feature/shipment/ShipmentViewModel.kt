@@ -46,6 +46,8 @@ import java.util.concurrent.atomic.AtomicInteger
 
 sealed interface ShipmentUiEvent {
     data class Toast(val message: String, val isError: Boolean = false) : ShipmentUiEvent
+    /** Blocking info dialog with a single OK action. */
+    data class Alert(val message: String) : ShipmentUiEvent
     class GuardConfirm(
         val field: String,
         val value: String,
@@ -257,7 +259,7 @@ class ShipmentViewModel(application: Application) : AndroidViewModel(application
                 ShipmentEventType.STARTED,
                 app.getString(R.string.history_msg_from_scheduler, scheduledId)
             )
-            if (payload.hasUserContent()) {
+            if (payload.hasShipmentCargoContent()) {
                 saveDraftInternal(force = true)
                 finishScheduledSource()
             } else {
@@ -410,7 +412,7 @@ class ShipmentViewModel(application: Application) : AndroidViewModel(application
 
     fun complete() {
         viewModelScope.launch {
-            completing.set(true)
+            if (!completing.compareAndSet(false, true)) return@launch
             saveGeneration.incrementAndGet()
             try {
                 flushPendingPlacesLogNow()
@@ -422,10 +424,10 @@ class ShipmentViewModel(application: Application) : AndroidViewModel(application
                 forecastJobs.clear()
                 // Wait out any in-flight save before flipping the row to archive.
                 draftSaveMutex.withLock { /* barrier */ }
-                finishScheduledSource()
                 val previousKey = _sessionKey.value
                 val draftIdBefore = _draftId.value
                 val id = repo.completeShipment(draftIdBefore, _payload.value)
+                finishScheduledSource()
                 repo.rekeyEvents(previousKey, id.toString())
                 _sessionKey.value = id.toString()
                 _draftId.value = null
@@ -466,6 +468,15 @@ class ShipmentViewModel(application: Application) : AndroidViewModel(application
     fun setChecklistEnabled(v: Boolean) = update {
         it.copy(checklistEnabled = v)
     }
+
+    fun setChecklistReminderEnabled(v: Boolean) = update {
+        it.copy(checklistReminderEnabled = v)
+    }
+
+    fun setChecklistReminderIntervalMin(minutes: Int) = update {
+        it.copy(checklistReminderIntervalMin = minutes)
+    }
+
     fun setBatchControl(v: Boolean) = update {
         if (!v) unknownBatchWarnedKeys.clear()
         it.copy(batchControlEnabled = v)
@@ -555,16 +566,33 @@ class ShipmentViewModel(application: Application) : AndroidViewModel(application
         )
     }
 
-    private val _quickPlacesText = MutableStateFlow("")
-    val quickPlacesText: StateFlow<String> = _quickPlacesText.asStateFlow()
+    private val _quickPlacesByKey = MutableStateFlow<Map<String, String>>(emptyMap())
+    val quickPlacesByKey: StateFlow<Map<String, String>> = _quickPlacesByKey.asStateFlow()
 
-    fun setQuickPlacesText(raw: String) {
-        _quickPlacesText.value = QuantityFormatters.sanitizeDecimalInput(raw)
+    fun setQuickPlacesText(product: Product, raw: String) {
+        val key = quickPlacesMapKey(product)
+        val sanitized = QuantityFormatters.sanitizeDecimalInput(raw)
+        _quickPlacesByKey.update { it + (key to sanitized) }
+    }
+
+    fun quickPlacesTextFor(product: Product): String =
+        _quickPlacesByKey.value[quickPlacesMapKey(product)].orEmpty()
+
+    /** Incomplete product identity → per-product slot so empty cards don't share one draft. */
+    private fun quickPlacesMapKey(product: Product): String {
+        if (product.name.isBlank() ||
+            product.batch.isBlank() ||
+            product.manufacturer.isBlank() ||
+            product.packageWeight <= 0.0
+        ) {
+            return "id:${product.id}"
+        }
+        return ShipmentCalculator.batchKey(product)
     }
 
     /** Parsed draft for simplified counter; null if empty/invalid/non-positive. */
-    private fun parseQuickPlacesDraft(): Double? {
-        val parsed = QuantityFormatters.parseDecimalInput(_quickPlacesText.value) ?: return null
+    private fun parseQuickPlacesDraft(product: Product): Double? {
+        val parsed = QuantityFormatters.parseDecimalInput(quickPlacesTextFor(product)) ?: return null
         return parsed.takeIf { it > 0.0 }
     }
 
@@ -581,6 +609,7 @@ class ShipmentViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun addPallet(productId: Long, focusAfter: Boolean = false) {
+        flushPendingForecast(productId)
         val s = settings.value
         if (s.simplifiedCounterEnabled) {
             stampNextPlaceholderOrAdd(productId)
@@ -594,12 +623,12 @@ class ShipmentViewModel(application: Application) : AndroidViewModel(application
      * pallet (first add with places triggers forecast like typing on the first row).
      */
     private fun stampNextPlaceholderOrAdd(productId: Long) {
-        val places = parseQuickPlacesDraft()
+        val product = findProduct(productId) ?: return
+        val places = parseQuickPlacesDraft(product)
         if (places == null) {
             rejectQuickPlacesRequired()
             return
         }
-        val product = findProduct(productId) ?: return
         if (_payload.value.palletForecastEnabled && product.pallets.any { it.isPlaceholder }) {
             val lastRealIndex = product.pallets.indexOfLast { !it.isPlaceholder }
             val next = product.pallets.getOrNull(lastRealIndex + 1)
@@ -614,30 +643,40 @@ class ShipmentViewModel(application: Application) : AndroidViewModel(application
         addPalletWithPlaces(productId, places, focusAfter = false)
     }
 
+    private fun batchPlacesUsed(payload: ShipmentPayload, product: Product): Double {
+        val key = ShipmentCalculator.batchKey(product)
+        return ShipmentCalculator.allProducts(payload)
+            .filter { ShipmentCalculator.batchKey(it) == key }
+            .sumOf { ShipmentCalculator.placesForProduct(it, payload.doubleControlEnabled) }
+    }
+
+    private fun emitBatchLimitAlert(product: Product, availablePlaces: Double) {
+        vibrateShort()
+        viewModelScope.launch {
+            _events.emit(
+                ShipmentUiEvent.Alert(
+                    app.getString(
+                        R.string.batch_limit_exceeded,
+                        product.batch.ifBlank { product.name }.ifBlank { "—" },
+                        QuantityFormatters.formatCount(availablePlaces.coerceAtLeast(0.0))
+                    )
+                )
+            )
+        }
+    }
+
     private fun addPalletWithPlaces(productId: Long, places: Double, focusAfter: Boolean) {
         flushPendingPlacesLog()
         val s = settings.value
         val product = findProduct(productId) ?: return
 
         if (places > 0.0 && !ShipmentCalculator.canAddPlaces(_payload.value, product, places)) {
-            viewModelScope.launch {
-                val key = ShipmentCalculator.batchKey(product)
-                val limit = _payload.value.batchLimits.find {
-                    ShipmentCalculator.batchKey(it) == key
-                }
-                val used = ShipmentCalculator.placesForProduct(product, _payload.value.doubleControlEnabled)
-                val avail = (limit?.plannedPlaces ?: 0.0) - used
-                _events.emit(
-                    ShipmentUiEvent.Toast(
-                        app.getString(
-                            R.string.batch_limit_exceeded,
-                            product.batch.ifBlank { product.name }.ifBlank { "—" },
-                            QuantityFormatters.formatCount(avail.coerceAtLeast(0.0))
-                        ),
-                        isError = true
-                    )
-                )
+            val limit = _payload.value.batchLimits.find {
+                ShipmentCalculator.batchKey(it) == ShipmentCalculator.batchKey(product)
             }
+            val used = batchPlacesUsed(_payload.value, product)
+            val avail = (limit?.plannedPlaces ?: 0.0) - used
+            emitBatchLimitAlert(product, avail)
             return
         }
 
@@ -736,24 +775,12 @@ class ShipmentViewModel(application: Application) : AndroidViewModel(application
                 val oldPlaces = target.places
                 val delta = places - oldPlaces
                 if (!ShipmentCalculator.canAddPlaces(_payload.value, product, delta)) {
-                    viewModelScope.launch {
-                        val key = ShipmentCalculator.batchKey(product)
-                        val limit = _payload.value.batchLimits.find {
-                            ShipmentCalculator.batchKey(it) == key
-                        }
-                        val used = ShipmentCalculator.placesForProduct(product, _payload.value.doubleControlEnabled)
-                        val avail = (limit?.plannedPlaces ?: 0.0) - used + oldPlaces
-                        _events.emit(
-                            ShipmentUiEvent.Toast(
-                                app.getString(
-                                    R.string.batch_limit_exceeded,
-                                    product.batch.ifBlank { product.name }.ifBlank { "—" },
-                                    QuantityFormatters.formatCount(avail.coerceAtLeast(0.0))
-                                ),
-                                isError = true
-                            )
-                        )
+                    val limit = _payload.value.batchLimits.find {
+                        ShipmentCalculator.batchKey(it) == ShipmentCalculator.batchKey(product)
                     }
+                    val used = batchPlacesUsed(_payload.value, product)
+                    val avail = (limit?.plannedPlaces ?: 0.0) - used + oldPlaces
+                    emitBatchLimitAlert(product, avail)
                     return@mutateProductPallet product
                 }
                 if (_payload.value.batchControlEnabled &&
@@ -1035,108 +1062,163 @@ class ShipmentViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
-    /** Smart FAB (4.14) */
+    /** Smart FAB: finish current context, then sibling product, then next block, else toast. */
     fun smartAddPallet() {
         val p = _payload.value
         when (p.mode) {
             ShipmentMode.MONO -> {
-                val product = preferredFabProduct(p) ?: run {
+                if (p.products.isEmpty()) {
                     addProduct()
                     return
                 }
-                if (p.palletForecastEnabled && product.pallets.any { it.isPlaceholder }) {
-                    focusOrAddPallet(product.id)
-                    return
+                val target = pickFabProduct(
+                    blocks = listOf(p.products),
+                    stickyProductId = p.lastUsedProductId,
+                    forecastEnabled = p.palletForecastEnabled
+                )
+                if (target != null) {
+                    focusOrAddPallet(target.id)
+                } else {
+                    emitAllFullToast()
                 }
-                if (ShipmentCalculator.remainder(product, p.doubleControlEnabled, false) <= 0 && product.quantity > 0) {
-                    viewModelScope.launch {
-                        _events.emit(ShipmentUiEvent.Toast(getApplication<Application>().getString(R.string.all_transports_full), isError = true))
-                    }
-                    return
-                }
-                focusOrAddPallet(product.id)
             }
             ShipmentMode.MULTI_VEHICLE -> {
-                val vehicles = p.multiVehicles
-                if (vehicles.isEmpty()) {
+                if (p.multiVehicles.isEmpty()) {
                     addVehicle()
                     return
                 }
-                val lastId = p.lastUsedVehicleId
-                val ordered = if (lastId != null) {
-                    val last = vehicles.find { it.id == lastId }
-                    if (last != null) listOf(last) + vehicles.filter { it.id != lastId } else vehicles
-                } else vehicles
-
-                // Prefer products that still have forecast placeholders — don't jump to next transport.
-                if (p.palletForecastEnabled) {
-                    for (v in ordered) {
-                        val product = v.products.lastOrNull() ?: continue
-                        if (product.pallets.any { it.isPlaceholder }) {
-                            update { it.copy(lastUsedVehicleId = v.id) }
-                            focusOrAddPallet(product.id)
-                            return
-                        }
-                    }
-                }
-
-                for (v in ordered) {
-                    val product = v.products.lastOrNull() ?: continue
-                    val rem = ShipmentCalculator.remainder(product, p.doubleControlEnabled || v.doubleControlEnabled, false)
-                    if (product.quantity == 0 || rem > 0) {
-                        update { it.copy(lastUsedVehicleId = v.id) }
-                        focusOrAddPallet(product.id)
-                        return
-                    }
-                }
-                viewModelScope.launch {
-                    _events.emit(ShipmentUiEvent.Toast(getApplication<Application>().getString(com.example.fishy.R.string.all_transports_full), isError = true))
+                val ordered = stickyOrder(p.multiVehicles, p.lastUsedVehicleId) { it.id }
+                val target = pickFabProduct(
+                    blocks = ordered.map { it.products },
+                    stickyProductId = p.lastUsedProductId,
+                    forecastEnabled = p.palletForecastEnabled
+                )
+                if (target != null) {
+                    focusOrAddPallet(target.id)
+                } else {
+                    emitAllFullToast()
                 }
             }
             ShipmentMode.MULTI_PORT -> {
-                val product = preferredFabProduct(p)
-                if (product != null) focusOrAddPallet(product.id)
+                if (p.multiPorts.isEmpty()) {
+                    addPortGroup()
+                    return
+                }
+                val ordered = stickyOrder(p.multiPorts, p.lastUsedPortId) { it.id }
+                val target = pickFabProduct(
+                    blocks = ordered.map { it.products },
+                    stickyProductId = p.lastUsedProductId,
+                    forecastEnabled = p.palletForecastEnabled
+                )
+                if (target != null) {
+                    focusOrAddPallet(target.id)
+                } else {
+                    emitAllFullToast()
+                }
             }
             ShipmentMode.UNLOAD -> {
-                val product = preferredFabProduct(p)
-                if (product != null) focusOrAddPallet(product.id)
+                if (p.unloadReceptions.isEmpty()) {
+                    addUnloadReception()
+                    return
+                }
+                val ordered = stickyOrder(p.unloadReceptions, p.lastUsedUnloadReceptionId) { it.id }
+                // Within a reception: walk inbounds top-to-bottom; sticky product first if present.
+                val blocks = ordered.map { reception ->
+                    reception.inbounds.flatMap { it.products }
+                }
+                val target = pickFabProduct(
+                    blocks = blocks,
+                    stickyProductId = p.lastUsedProductId,
+                    forecastEnabled = p.palletForecastEnabled
+                )
+                if (target != null) {
+                    focusOrAddPallet(target.id)
+                } else {
+                    emitAllFullToast()
+                }
             }
         }
     }
 
-    private fun preferredFabProduct(p: ShipmentPayload): Product? {
-        val products = when (p.mode) {
-            ShipmentMode.MONO -> p.products
-            else -> ShipmentCalculator.allProducts(p)
-        }
-        if (products.isEmpty()) return null
+    /**
+     * Prefer sticky (last-used) product/block while it still has work.
+     * Neighbors with quantity==0 do not steal the FAB.
+     * FAB fill uses all real pallet places (ignore DC import flags).
+     */
+    private fun pickFabProduct(
+        blocks: List<List<Product>>,
+        stickyProductId: Long?,
+        forecastEnabled: Boolean
+    ): Product? {
+        fun productsInBlock(block: List<Product>): List<Product> =
+            stickyOrder(block, stickyProductId) { it.id }
 
-        fun doubleControlFor(product: Product): Boolean = when (p.mode) {
-            ShipmentMode.MONO -> p.doubleControlEnabled
-            ShipmentMode.MULTI_VEHICLE -> p.multiVehicles.find { v ->
-                v.products.any { it.id == product.id }
-            }?.let { v -> p.doubleControlEnabled || v.doubleControlEnabled } ?: p.doubleControlEnabled
-            ShipmentMode.MULTI_PORT -> p.multiPorts.find { g ->
-                g.products.any { it.id == product.id }
-            }?.let { g -> p.doubleControlEnabled || g.doubleControlEnabled } ?: p.doubleControlEnabled
-            ShipmentMode.UNLOAD -> false
-        }
-
-        fun hasPlaceholders(prod: Product) = prod.pallets.any { it.isPlaceholder }
-        fun hasRoom(prod: Product) =
-            prod.quantity == 0 ||
-                ShipmentCalculator.remainder(prod, doubleControlFor(prod), p.mode == ShipmentMode.UNLOAD) > 0
-
-        p.lastUsedProductId?.let { id ->
-            products.find { it.id == id }?.let { prod ->
-                if (p.palletForecastEnabled && hasPlaceholders(prod)) return prod
-                if (hasRoom(prod)) return prod
+        stickyProductId?.let { id ->
+            val sticky = blocks.flatten().find { it.id == id }
+            if (sticky != null) {
+                if (forecastEnabled && fabHasPlaceholders(sticky)) return sticky
+                if (fabHasRoomSticky(sticky)) return sticky
             }
         }
-        if (p.palletForecastEnabled) {
-            products.firstOrNull { hasPlaceholders(it) }?.let { return it }
+
+        if (forecastEnabled) {
+            for (block in blocks) {
+                for (product in productsInBlock(block)) {
+                    if (product.id == stickyProductId) continue
+                    if (fabHasPlaceholders(product)) return product
+                }
+            }
         }
-        return products.firstOrNull { hasRoom(it) } ?: products.lastOrNull()
+        for (block in blocks) {
+            for (product in productsInBlock(block)) {
+                if (product.id == stickyProductId) continue
+                if (fabHasRoomNeighbor(product)) return product
+            }
+        }
+        return null
+    }
+
+    private fun <T> stickyOrder(items: List<T>, stickyId: Long?, idOf: (T) -> Long): List<T> {
+        if (stickyId == null || items.isEmpty()) return items
+        val sticky = items.find { idOf(it) == stickyId } ?: return items
+        return listOf(sticky) + items.filter { idOf(it) != stickyId }
+    }
+
+    private fun fabHasPlaceholders(product: Product): Boolean =
+        product.pallets.any { it.isPlaceholder }
+
+    /** Physical remainder ignoring double-control import flags. */
+    private fun fabPhysicalRemainder(product: Product): Double =
+        ShipmentCalculator.remainder(product, doubleControl = false, unload = false)
+
+    private fun fabHasRoomSticky(product: Product): Boolean =
+        product.quantity == 0 || fabPhysicalRemainder(product) > 0
+
+    /** Neighbors without a quantity plan must not capture the FAB. */
+    private fun fabHasRoomNeighbor(product: Product): Boolean =
+        product.quantity > 0 && fabPhysicalRemainder(product) > 0
+
+    private fun emitAllFullToast() {
+        viewModelScope.launch {
+            _events.emit(
+                ShipmentUiEvent.Toast(
+                    getApplication<Application>().getString(R.string.all_transports_full),
+                    isError = true
+                )
+            )
+        }
+    }
+
+    private fun flushPendingForecast(productId: Long) {
+        val job = forecastJobs.remove(productId) ?: return
+        job.cancel()
+        applyForecastNow(productId)
+        if (pendingForecastProductId == productId) pendingForecastProductId = null
+        if (forecastJobs.isEmpty()) {
+            viewModelScope.launch {
+                _events.emit(ShipmentUiEvent.ForecastRunning(false))
+            }
+        }
     }
 
     /**
@@ -1145,6 +1227,7 @@ class ShipmentViewModel(application: Application) : AndroidViewModel(application
      * With simplified counter: stamp draft places onto next placeholder or add first + forecast.
      */
     private fun focusOrAddPallet(productId: Long) {
+        flushPendingForecast(productId)
         val product = ShipmentCalculator.allProducts(_payload.value).find { it.id == productId }
             ?: return
         val s = settings.value
@@ -1164,20 +1247,40 @@ class ShipmentViewModel(application: Application) : AndroidViewModel(application
                 return
             }
         }
-        addPallet(productId, focusAfter = true)
+        addPalletWithPlaces(productId, places = 0.0, focusAfter = true)
     }
 
     private fun touchLastUsedProduct(productId: Long) {
-        val receptionId = _payload.value.unloadReceptions.firstOrNull { r ->
-            r.inbounds.any { ib -> ib.products.any { p -> p.id == productId } }
-        }?.id
         update { payload ->
             when (payload.mode) {
-                ShipmentMode.UNLOAD -> payload.copy(
-                    lastUsedProductId = productId,
-                    lastUsedUnloadReceptionId = receptionId ?: payload.lastUsedUnloadReceptionId
-                )
-                else -> payload.copy(lastUsedProductId = productId)
+                ShipmentMode.MONO -> payload.copy(lastUsedProductId = productId)
+                ShipmentMode.MULTI_VEHICLE -> {
+                    val vehicleId = payload.multiVehicles.find { v ->
+                        v.products.any { it.id == productId }
+                    }?.id
+                    payload.copy(
+                        lastUsedProductId = productId,
+                        lastUsedVehicleId = vehicleId ?: payload.lastUsedVehicleId
+                    )
+                }
+                ShipmentMode.MULTI_PORT -> {
+                    val portId = payload.multiPorts.find { g ->
+                        g.products.any { it.id == productId }
+                    }?.id
+                    payload.copy(
+                        lastUsedProductId = productId,
+                        lastUsedPortId = portId ?: payload.lastUsedPortId
+                    )
+                }
+                ShipmentMode.UNLOAD -> {
+                    val receptionId = payload.unloadReceptions.find { r ->
+                        r.inbounds.any { ib -> ib.products.any { it.id == productId } }
+                    }?.id
+                    payload.copy(
+                        lastUsedProductId = productId,
+                        lastUsedUnloadReceptionId = receptionId ?: payload.lastUsedUnloadReceptionId
+                    )
+                }
             }
         }
     }

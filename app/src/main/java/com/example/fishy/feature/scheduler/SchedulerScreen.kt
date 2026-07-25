@@ -3,6 +3,7 @@ package com.example.fishy.feature.scheduler
 import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
@@ -16,6 +17,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -74,11 +76,13 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.DialogProperties
 import androidx.core.content.ContextCompat
 import com.example.fishy.FishyApp
 import com.example.fishy.R
 import com.example.fishy.data.local.entity.ChecklistItemEntity
+import com.example.fishy.data.local.entity.ScheduledReminderEntity
 import com.example.fishy.data.local.entity.ScheduledShipmentEntity
 import com.example.fishy.data.serialization.FishyJson
 import com.example.fishy.data.settings.FishySettings
@@ -89,12 +93,15 @@ import com.example.fishy.domain.model.ChecklistTask
 import com.example.fishy.domain.model.DictionaryType
 import com.example.fishy.domain.model.ShipmentEventType
 import com.example.fishy.domain.model.ShipmentMode
+import com.example.fishy.domain.model.ShipmentSummaries
 import com.example.fishy.notifications.NotificationScheduler
+import com.example.fishy.ui.ErrorFeedback
 import com.example.fishy.ui.components.BatchEntryDialog
 import com.example.fishy.ui.components.ConfirmDeleteDialog
 import com.example.fishy.ui.components.CenteredDialogMessage
 import com.example.fishy.ui.components.CenteredDialogTitle
 import com.example.fishy.ui.components.ChecklistStatusBanner
+import com.example.fishy.ui.components.ColumnScrollIndicator
 import com.example.fishy.ui.components.DatePickerField
 import com.example.fishy.ui.components.DialogCancelConfirmActions
 import com.example.fishy.ui.components.DialogCenteredFishyButton
@@ -120,6 +127,14 @@ import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 
+private const val MAX_PREP_REMINDERS = 15
+
+private data class ReminderDraft(
+    val localKey: Long,
+    val id: Long,
+    val atMillis: Long
+)
+
 private enum class ChecklistStatus {
     COMPLETED, PARTIAL, NONE, EMPTY
 }
@@ -134,20 +149,96 @@ private fun checklistStatusOf(items: List<ChecklistItemEntity>): ChecklistStatus
     }
 }
 
-@Composable
-private fun modeLabel(mode: String): String = when (mode) {
-    ShipmentMode.MONO.name -> stringResource(R.string.mode_mono)
-    ShipmentMode.MULTI_VEHICLE.name -> stringResource(R.string.mode_multi_vehicle)
-    ShipmentMode.MULTI_PORT.name -> stringResource(R.string.mode_multi_port)
-    ShipmentMode.UNLOAD.name -> stringResource(R.string.mode_unload)
-    else -> mode
+/** Calendar day from [dateMillis] combined with "HH:mm" [timeHhMm]. */
+private fun combineScheduledAt(dateMillis: Long, timeHhMm: String): Long {
+    val parts = timeHhMm.split(":")
+    val hour = parts.getOrNull(0)?.toIntOrNull() ?: 0
+    val minute = parts.getOrNull(1)?.toIntOrNull() ?: 0
+    return Calendar.getInstance().apply {
+        timeInMillis = dateMillis
+        set(Calendar.HOUR_OF_DAY, hour)
+        set(Calendar.MINUTE, minute)
+        set(Calendar.SECOND, 0)
+        set(Calendar.MILLISECOND, 0)
+    }.timeInMillis
+}
+
+private const val REMINDER_MIN_GAP_MS = 5L * 60L * 1000L
+private const val REMINDER_HOUR_MS = 60L * 60L * 1000L
+
+private fun reminderDeadline(shipmentAt: Long): Long = shipmentAt - REMINDER_MIN_GAP_MS
+
+private fun eightAmOnDay(dayMillis: Long): Long =
+    Calendar.getInstance().apply {
+        timeInMillis = dayMillis
+        set(Calendar.HOUR_OF_DAY, 8)
+        set(Calendar.MINUTE, 0)
+        set(Calendar.SECOND, 0)
+        set(Calendar.MILLISECOND, 0)
+    }.timeInMillis
+
+/**
+ * First prep slot: 08:00 if <= deadline, else deadline;
+ * if still <= now, retry deadline; null if no future slot.
+ */
+private fun firstReminderAt(shipmentAt: Long, dayMillis: Long, now: Long): Long? {
+    val deadline = reminderDeadline(shipmentAt)
+    val eight = eightAmOnDay(dayMillis)
+    var candidate = if (eight <= deadline) eight else deadline
+    if (candidate <= now) candidate = deadline
+    return candidate.takeIf { it > now }
+}
+
+/**
+ * Next slot: last+1h (or [firstReminderAt] if empty), skipping [occupied].
+ * Null if result is past or after deadline.
+ */
+private fun nextReminderCandidate(
+    lastAt: Long?,
+    occupied: Collection<Long>,
+    shipmentAt: Long,
+    dayMillis: Long,
+    now: Long
+): Long? {
+    if (lastAt == null) return firstReminderAt(shipmentAt, dayMillis, now)
+    val deadline = reminderDeadline(shipmentAt)
+    var candidate = lastAt + REMINDER_HOUR_MS
+    while (candidate in occupied) {
+        candidate += REMINDER_HOUR_MS
+    }
+    if (candidate <= now || candidate > deadline) return null
+    return candidate
+}
+
+private enum class ReminderTimeError {
+    PAST, AFTER_SHIPMENT, DUPLICATE
+}
+
+private fun validateReminderAt(
+    at: Long,
+    shipmentAt: Long,
+    now: Long,
+    otherTimes: Collection<Long>
+): ReminderTimeError? = when {
+    at <= now -> ReminderTimeError.PAST
+    at > reminderDeadline(shipmentAt) -> ReminderTimeError.AFTER_SHIPMENT
+    at in otherTimes -> ReminderTimeError.DUPLICATE
+    else -> null
+}
+
+private fun reminderErrorRes(error: ReminderTimeError): Int = when (error) {
+    ReminderTimeError.PAST -> R.string.notify_error_past
+    ReminderTimeError.AFTER_SHIPMENT -> R.string.notify_error_after_shipment
+    ReminderTimeError.DUPLICATE -> R.string.notify_error_duplicate
 }
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun SchedulerScreen(
     onBack: () -> Unit,
-    onStartShipment: (Long) -> Unit
+    onStartShipment: (Long) -> Unit,
+    openPrepChecklistId: Long? = null,
+    onPrepChecklistConsumed: () -> Unit = {}
 ) {
     val app = FishyApp.instance
     val repo = app.repository
@@ -179,6 +270,13 @@ fun SchedulerScreen(
         }
     }
 
+    LaunchedEffect(openPrepChecklistId) {
+        val id = openPrepChecklistId
+        if (id != null && id > 0L) {
+            checklistFor = id
+        }
+    }
+
     fun openNewEditor() {
         val tomorrowStart = Calendar.getInstance().apply {
             add(Calendar.DAY_OF_YEAR, 1)
@@ -187,18 +285,11 @@ fun SchedulerScreen(
             set(Calendar.SECOND, 0)
             set(Calendar.MILLISECOND, 0)
         }
-        val notifyDefault = Calendar.getInstance().apply {
-            timeInMillis = tomorrowStart.timeInMillis
-            set(Calendar.HOUR_OF_DAY, 8)
-            set(Calendar.MINUTE, 0)
-            set(Calendar.SECOND, 0)
-            set(Calendar.MILLISECOND, 0)
-        }
         editing = ScheduledShipmentEntity(
             scheduledDateMillis = tomorrowStart.timeInMillis,
             scheduledTime = "13:00",
             notificationEnabled = true,
-            notificationAtMillis = notifyDefault.timeInMillis
+            notificationAtMillis = null
         )
         editorScrollToNotifications = false
         showEditor = true
@@ -210,6 +301,7 @@ fun SchedulerScreen(
             val copy = item.copy(
                 id = 0,
                 title = item.title,
+                notificationAtMillis = null,
                 notificationSent = false,
                 startNotificationSent = false,
                 isCompleted = false,
@@ -228,9 +320,22 @@ fun SchedulerScreen(
                     )
                 )
             }
+            val reminders = repo.getReminders(item.id)
+            repo.replaceReminders(
+                newId,
+                reminders.mapIndexed { index, row ->
+                    ScheduledReminderEntity(
+                        id = 0,
+                        scheduledShipmentId = newId,
+                        atMillis = row.atMillis,
+                        sent = false,
+                        sortOrder = index
+                    )
+                }
+            )
             repo.log("sched_$newId", ShipmentEventType.DUPLICATED, "sched#${item.id}")
             val saved = copy.copy(id = newId)
-            scheduler.schedule(saved)
+            scheduler.scheduleSuspend(saved)
         }
     }
 
@@ -299,6 +404,7 @@ fun SchedulerScreen(
                         item = item,
                         dateLabel = dateLabel,
                         isDuplicated = "sched_${item.id}" in duplicatedKeys,
+                        thousandsSeparator = settings.effectiveThousandsSeparator,
                         onEdit = {
                             editorScrollToNotifications = false
                             editing = item
@@ -328,11 +434,33 @@ fun SchedulerScreen(
                 showEditor = false
                 editorScrollToNotifications = false
             },
-            onSave = { entity ->
+            onSave = { entity, reminderDrafts ->
                 scope.launch {
-                    val id = repo.upsertScheduled(entity)
-                    val saved = entity.copy(id = if (entity.id == 0L) id else entity.id)
-                    scheduler.schedule(saved)
+                    val previous = editing
+                    val startChanged = previous != null && (
+                        NotificationScheduler.scheduledStartMillis(previous) !=
+                            NotificationScheduler.scheduledStartMillis(entity)
+                    )
+                    val cleaned = entity.copy(
+                        notificationAtMillis = null,
+                        notificationSent = false,
+                        startNotificationSent = if (startChanged) false else entity.startNotificationSent
+                    )
+                    val id = repo.upsertScheduled(cleaned)
+                    val savedId = if (entity.id == 0L) id else entity.id
+                    repo.replaceReminders(
+                        savedId,
+                        reminderDrafts.mapIndexed { index, draft ->
+                            ScheduledReminderEntity(
+                                id = draft.id,
+                                scheduledShipmentId = savedId,
+                                atMillis = draft.atMillis,
+                                sortOrder = index
+                            )
+                        }
+                    )
+                    val saved = repo.getScheduled(savedId) ?: cleaned.copy(id = savedId)
+                    scheduler.scheduleSuspend(saved)
                     showEditor = false
                     editorScrollToNotifications = false
                 }
@@ -341,6 +469,12 @@ fun SchedulerScreen(
     }
 
     checklistFor?.let { id ->
+        LaunchedEffect(id, openPrepChecklistId) {
+            if (openPrepChecklistId == id) {
+                onPrepChecklistConsumed()
+            }
+            scheduler.deliverDueAndSchedule(id)
+        }
         ScheduledChecklistDialog(scheduledId = id, onDismiss = { checklistFor = null })
     }
 
@@ -350,7 +484,7 @@ fun SchedulerScreen(
             message = stringResource(R.string.delete_scheduled_msg, item.customer.ifBlank { item.title.ifBlank { "#${item.id}" } }),
             onConfirm = {
                 scope.launch {
-                    scheduler.cancel(item.id)
+                    scheduler.cancelSuspend(item.id)
                     repo.deleteScheduled(item.id)
                     pendingDelete = null
                 }
@@ -416,6 +550,7 @@ private fun ScheduledShipmentCard(
     item: ScheduledShipmentEntity,
     dateLabel: String,
     isDuplicated: Boolean,
+    thousandsSeparator: Boolean,
     onEdit: () -> Unit,
     onEditNotifications: () -> Unit,
     onOpenChecklist: () -> Unit,
@@ -428,7 +563,16 @@ private fun ScheduledShipmentCard(
     val checklist by repo.observeChecklist(item.id).collectAsState(initial = emptyList())
     val status = remember(checklist) { checklistStatusOf(checklist) }
     var showMenu by remember { mutableStateOf(false) }
-    val productName = remember(item.payloadJson) { productLabelFromPayloadJson(item.payloadJson) }
+    val bodyLines = remember(item.payloadJson, item.mode, item.customer, item.port, item.vessel, thousandsSeparator) {
+        val payload = decodeScheduledPayload(
+            item.payloadJson,
+            item.mode,
+            item.customer,
+            item.port,
+            item.vessel
+        )
+        ShipmentSummaries.scheduleCardBodyLines(payload, thousandsSeparator)
+    }
 
     Card(
         modifier = modifier
@@ -457,33 +601,51 @@ private fun ScheduledShipmentCard(
                             modifier = Modifier.padding(top = 2.dp)
                         )
                     }
-                    Text(
-                        if (item.customer.isBlank()) {
-                            stringResource(R.string.customer_not_specified)
-                        } else {
-                            item.customer
-                        },
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(top = 4.dp)
-                    )
                 }
+                val reminders by repo.observeReminders(item.id).collectAsState(initial = emptyList())
+                val reminderCount = reminders.size
+                val remindersActive = item.notificationEnabled && reminderCount > 0
+                val countLabel = when {
+                    !remindersActive -> null
+                    reminderCount > 9 -> "!"
+                    else -> reminderCount.toString()
+                }
+                val notifyCd = stringResource(
+                    if (remindersActive) R.string.notify_cd else R.string.notify_off_cd
+                )
                 IconButton(onClick = onEditNotifications) {
-                    Icon(
-                        imageVector = if (item.notificationEnabled) {
-                            Icons.Default.NotificationsActive
-                        } else {
-                            Icons.Default.NotificationsOff
-                        },
-                        contentDescription = stringResource(
-                            if (item.notificationEnabled) R.string.notify_cd else R.string.notify_off_cd
-                        ),
-                        tint = if (item.notificationEnabled) {
-                            MaterialTheme.colorScheme.onSurface
-                        } else {
-                            PlaceholderGrey
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = if (remindersActive) {
+                                Icons.Default.NotificationsActive
+                            } else {
+                                Icons.Default.NotificationsOff
+                            },
+                            contentDescription = if (countLabel != null) {
+                                "$notifyCd, $countLabel"
+                            } else {
+                                notifyCd
+                            },
+                            modifier = Modifier.size(24.dp),
+                            tint = if (remindersActive) {
+                                MaterialTheme.colorScheme.onSurface
+                            } else {
+                                PlaceholderGrey
+                            }
+                        )
+                        if (countLabel != null) {
+                            Text(
+                                text = countLabel,
+                                color = MaterialTheme.colorScheme.background,
+                                style = MaterialTheme.typography.labelMedium.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 13.sp,
+                                    lineHeight = 13.sp
+                                ),
+                                modifier = Modifier.offset(y = 0.5.dp)
+                            )
                         }
-                    )
+                    }
                 }
                 Box {
                     IconButton(onClick = { showMenu = true }) {
@@ -538,23 +700,21 @@ private fun ScheduledShipmentCard(
                 }
             }
 
-            HorizontalDivider(modifier = Modifier.padding(vertical = 10.dp))
-
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Column(
+                modifier = Modifier.padding(top = 4.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
                 Text(
-                    modeLabel(item.mode),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.primary,
-                    fontWeight = FontWeight.Medium
+                    if (item.customer.isBlank()) {
+                        stringResource(R.string.customer_not_specified)
+                    } else {
+                        stringResource(R.string.customer_binding, item.customer)
+                    },
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Bold
                 )
-                if (item.vessel.isNotBlank()) {
-                    Text(stringResource(R.string.vessel_prefix, item.vessel), style = MaterialTheme.typography.bodyMedium)
-                }
-                if (item.port.isNotBlank()) {
-                    Text(stringResource(R.string.port_prefix, item.port), style = MaterialTheme.typography.bodyMedium)
-                }
-                if (productName.isNotBlank()) {
-                    Text(stringResource(R.string.product_prefix, productName), style = MaterialTheme.typography.bodyMedium)
+                bodyLines.forEach { line ->
+                    Text(line, style = MaterialTheme.typography.bodyMedium)
                 }
             }
 
@@ -613,7 +773,7 @@ private fun ScheduledEditorDialog(
     initial: ScheduledShipmentEntity,
     scrollToNotifications: Boolean = false,
     onDismiss: () -> Unit,
-    onSave: (ScheduledShipmentEntity) -> Unit
+    onSave: (ScheduledShipmentEntity, List<ReminderDraft>) -> Unit
 ) {
     val context = LocalContext.current
     val repo = FishyApp.instance.repository
@@ -640,17 +800,11 @@ private fun ScheduledEditorDialog(
     var time by remember { mutableStateOf(initial.scheduledTime) }
     var dateMillis by remember { mutableLongStateOf(initial.scheduledDateMillis) }
     var notify by remember { mutableStateOf(initial.notificationEnabled) }
-    var notifyAt by remember {
-        mutableLongStateOf(
-            initial.notificationAtMillis ?: Calendar.getInstance().apply {
-                timeInMillis = dateMillis
-                set(Calendar.HOUR_OF_DAY, 8)
-                set(Calendar.MINUTE, 0)
-                set(Calendar.SECOND, 0)
-                set(Calendar.MILLISECOND, 0)
-            }.timeInMillis
-        )
-    }
+    var reminders by remember { mutableStateOf<List<ReminderDraft>>(emptyList()) }
+    var nextLocalKey by remember { mutableLongStateOf(-1L) }
+    var remindersReady by remember { mutableStateOf(false) }
+    var baselineNotify by remember { mutableStateOf(initial.notificationEnabled) }
+    var baselineReminderTimes by remember { mutableStateOf<List<Long>>(emptyList()) }
     val baselinePayloadJson = remember {
         FishyJson.encodePayload(
             decodeScheduledPayload(
@@ -664,33 +818,117 @@ private fun ScheduledEditorDialog(
     }
     val baselineTime = remember { initial.scheduledTime }
     val baselineDateMillis = remember { initial.scheduledDateMillis }
-    val baselineNotify = remember { initial.notificationEnabled }
-    val baselineNotifyAt = remember { notifyAt }
     var pendingDelete by remember { mutableStateOf<PendingSchedulerDelete?>(null) }
     var showDiscardConfirm by remember { mutableStateOf(false) }
     var showSettingsMenu by remember { mutableStateOf(false) }
     var batchForceExpandToken by remember { mutableStateOf<Any?>(null) }
     var batchEditor by remember { mutableStateOf<BatchLimit?>(null) }
     var showShipmentChecklist by remember { mutableStateOf(false) }
+    var errorReminderKeys by remember { mutableStateOf<Set<Long>>(emptySet()) }
+    var pendingReminderDelete by remember { mutableStateOf<ReminderDraft?>(null) }
     val notificationsBringIntoView = remember { BringIntoViewRequester() }
+    val addReminderBringIntoView = remember { BringIntoViewRequester() }
+    val editorScrollState = rememberScrollState()
+
+    LaunchedEffect(initial.id) {
+        val now = System.currentTimeMillis()
+        val shipmentAt = combineScheduledAt(initial.scheduledDateMillis, initial.scheduledTime)
+        if (initial.id == 0L) {
+            val at = firstReminderAt(shipmentAt, initial.scheduledDateMillis, now)
+            if (at != null) {
+                reminders = listOf(ReminderDraft(localKey = -1L, id = 0L, atMillis = at))
+                notify = true
+                nextLocalKey = -2L
+            } else {
+                reminders = emptyList()
+                notify = false
+                nextLocalKey = -1L
+            }
+        } else {
+            FishyApp.instance.notificationScheduler.deliverDueAndSchedule(initial.id)
+            val loaded = repo.getReminders(initial.id)
+            reminders = if (loaded.isNotEmpty()) {
+                loaded.map { ReminderDraft(localKey = it.id, id = it.id, atMillis = it.atMillis) }
+            } else {
+                emptyList()
+            }
+            notify = initial.notificationEnabled && reminders.isNotEmpty()
+            nextLocalKey = -1L
+        }
+        baselineNotify = notify
+        baselineReminderTimes = reminders.map { it.atMillis }
+        errorReminderKeys = emptySet()
+        remindersReady = true
+    }
 
     LaunchedEffect(scrollToNotifications) {
         if (scrollToNotifications) {
             delay(100)
-            notificationsBringIntoView.bringIntoView()
+            addReminderBringIntoView.bringIntoView()
         }
     }
 
     val isDirty =
-        FishyJson.encodePayload(payload) != baselinePayloadJson ||
-            time != baselineTime ||
-            dateMillis != baselineDateMillis ||
-            notify != baselineNotify ||
-            (notify && notifyAt != baselineNotifyAt) ||
-            (!notify && baselineNotify)
+        remindersReady && (
+            FishyJson.encodePayload(payload) != baselinePayloadJson ||
+                time != baselineTime ||
+                dateMillis != baselineDateMillis ||
+                notify != baselineNotify ||
+                reminders.map { it.atMillis } != baselineReminderTimes ||
+                reminders.size != baselineReminderTimes.size
+            )
 
     fun requestDismiss() {
         if (isDirty) showDiscardConfirm = true else onDismiss()
+    }
+
+    fun scrollToAddReminder() {
+        scope.launch {
+            delay(80)
+            addReminderBringIntoView.bringIntoView()
+        }
+    }
+
+    fun setReminderTime(localKey: Long, updated: Long) {
+        reminders = reminders.map {
+            if (it.localKey == localKey) it.copy(atMillis = updated) else it
+        }
+        errorReminderKeys = errorReminderKeys - localKey
+    }
+
+    fun enableRemindersOrFail(): Boolean {
+        if (reminders.isNotEmpty()) {
+            notify = true
+            scrollToAddReminder()
+            return true
+        }
+        val shipmentAt = combineScheduledAt(dateMillis, time)
+        val at = firstReminderAt(shipmentAt, dateMillis, System.currentTimeMillis())
+        if (at == null) {
+            return false
+        }
+        val key = nextLocalKey
+        nextLocalKey -= 1
+        reminders = listOf(ReminderDraft(localKey = key, id = 0L, atMillis = at))
+        notify = true
+        scrollToAddReminder()
+        return true
+    }
+
+    fun addReminderOrFail() {
+        val shipmentAt = combineScheduledAt(dateMillis, time)
+        val at = nextReminderCandidate(
+            lastAt = reminders.lastOrNull()?.atMillis,
+            occupied = reminders.map { it.atMillis },
+            shipmentAt = shipmentAt,
+            dayMillis = dateMillis,
+            now = System.currentTimeMillis()
+        )
+        if (at == null) return
+        val key = nextLocalKey
+        nextLocalKey -= 1
+        reminders = reminders + ReminderDraft(localKey = key, id = 0L, atMillis = at)
+        scrollToAddReminder()
     }
 
     val dateFmt = remember { SimpleDateFormat("dd.MM.yyyy", Locale.getDefault()) }
@@ -794,7 +1032,7 @@ private fun ScheduledEditorDialog(
                 modifier = Modifier
                     .fillMaxWidth()
                     .heightIn(max = 560.dp)
-                    .verticalScroll(rememberScrollState()),
+                    .verticalScroll(editorScrollState),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 ExposedDropdownMenuBox(
@@ -887,60 +1125,120 @@ private fun ScheduledEditorDialog(
                     modifier = Modifier.bringIntoViewRequester(notificationsBringIntoView),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Text(
-                        stringResource(R.string.notifications),
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Bold
-                    )
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(stringResource(R.string.notify_enable))
-                        Switch(checked = notify, onCheckedChange = { notify = it }, colors = fishySwitchColors())
+                        Switch(
+                            checked = notify,
+                            onCheckedChange = { enabled ->
+                                if (!enabled) {
+                                    notify = false
+                                } else {
+                                    enableRemindersOrFail()
+                                }
+                            },
+                            colors = fishySwitchColors()
+                        )
                     }
                     if (notify) {
-                        val notifyTime = remember(notifyAt) {
-                            val c = Calendar.getInstance().apply { timeInMillis = notifyAt }
-                            "%02d:%02d".format(c.get(Calendar.HOUR_OF_DAY), c.get(Calendar.MINUTE))
+                        reminders.forEachIndexed { index, draft ->
+                            val reminderCal = Calendar.getInstance().apply { timeInMillis = draft.atMillis }
+                            val reminderTime =
+                                "%02d:%02d".format(
+                                    reminderCal.get(Calendar.HOUR_OF_DAY),
+                                    reminderCal.get(Calendar.MINUTE)
+                                )
+                            val rowError = draft.localKey in errorReminderKeys
+                            Column(
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        stringResource(R.string.notify_preview, notifyFmt.format(Date(draft.atMillis))),
+                                        modifier = Modifier.weight(1f),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                                    )
+                                    IconButton(
+                                        onClick = { pendingReminderDelete = draft }
+                                    ) {
+                                        Icon(
+                                            Icons.Default.Delete,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.error
+                                        )
+                                    }
+                                }
+                                DatePickerField(
+                                    selectedDateMillis = draft.atMillis,
+                                    onDateSelected = { newDate ->
+                                        val c = Calendar.getInstance().apply { timeInMillis = draft.atMillis }
+                                        val h = c.get(Calendar.HOUR_OF_DAY)
+                                        val m = c.get(Calendar.MINUTE)
+                                        val updated = Calendar.getInstance().apply {
+                                            timeInMillis = newDate
+                                            set(Calendar.HOUR_OF_DAY, h)
+                                            set(Calendar.MINUTE, m)
+                                            set(Calendar.SECOND, 0)
+                                            set(Calendar.MILLISECOND, 0)
+                                        }.timeInMillis
+                                        setReminderTime(draft.localKey, updated)
+                                    },
+                                    label = stringResource(R.string.notify_date_field),
+                                    isError = rowError
+                                )
+                                TimePickerField(
+                                    time = reminderTime,
+                                    onTimeChange = { newTime ->
+                                        val parts = newTime.split(":")
+                                        val h = parts.getOrNull(0)?.toIntOrNull() ?: 9
+                                        val m = parts.getOrNull(1)?.toIntOrNull() ?: 0
+                                        val updated = Calendar.getInstance().apply {
+                                            timeInMillis = draft.atMillis
+                                            set(Calendar.HOUR_OF_DAY, h)
+                                            set(Calendar.MINUTE, m)
+                                            set(Calendar.SECOND, 0)
+                                            set(Calendar.MILLISECOND, 0)
+                                        }.timeInMillis
+                                        setReminderTime(draft.localKey, updated)
+                                    },
+                                    label = stringResource(R.string.notify_time_field),
+                                    isError = rowError
+                                )
+                                if (index < reminders.lastIndex) {
+                                    HorizontalDivider()
+                                }
+                            }
                         }
-                        DatePickerField(
-                            selectedDateMillis = notifyAt,
-                            onDateSelected = { newDate ->
-                                val c = Calendar.getInstance().apply { timeInMillis = notifyAt }
-                                val h = c.get(Calendar.HOUR_OF_DAY)
-                                val m = c.get(Calendar.MINUTE)
-                                notifyAt = Calendar.getInstance().apply {
-                                    timeInMillis = newDate
-                                    set(Calendar.HOUR_OF_DAY, h)
-                                    set(Calendar.MINUTE, m)
-                                    set(Calendar.SECOND, 0)
-                                    set(Calendar.MILLISECOND, 0)
-                                }.timeInMillis
-                            },
-                            label = stringResource(R.string.notify_date_field)
-                        )
-                        TimePickerField(
-                            time = notifyTime,
-                            onTimeChange = { newTime ->
-                                val parts = newTime.split(":")
-                                val h = parts.getOrNull(0)?.toIntOrNull() ?: 9
-                                val m = parts.getOrNull(1)?.toIntOrNull() ?: 0
-                                notifyAt = Calendar.getInstance().apply {
-                                    timeInMillis = notifyAt
-                                    set(Calendar.HOUR_OF_DAY, h)
-                                    set(Calendar.MINUTE, m)
-                                    set(Calendar.SECOND, 0)
-                                    set(Calendar.MILLISECOND, 0)
-                                }.timeInMillis
-                            },
-                            label = stringResource(R.string.notify_time_field)
-                        )
-                        Text(
-                            stringResource(R.string.notify_preview, notifyFmt.format(Date(notifyAt))),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                        if (reminders.size < MAX_PREP_REMINDERS) {
+                            FishyButton(
+                                onClick = { addReminderOrFail() },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .bringIntoViewRequester(addReminderBringIntoView)
+                            ) {
+                                Icon(Icons.Default.Add, contentDescription = null)
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(stringResource(R.string.reminders_add))
+                            }
+                        } else {
+                            Spacer(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .bringIntoViewRequester(addReminderBringIntoView)
+                            )
+                        }
+                    } else {
+                        Spacer(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .bringIntoViewRequester(addReminderBringIntoView)
                         )
                     }
                 }
@@ -951,41 +1249,102 @@ private fun ScheduledEditorDialog(
             DialogCancelConfirmActions(
                 onCancel = { requestDismiss() },
                 onConfirm = {
-                    val finalPayload = ensurePayloadStructure(payload)
-                    val autoTitle = listOf(
-                        finalPayload.customer,
-                        finalPayload.vessel.ifBlank {
-                            finalPayload.multiPorts.firstOrNull()?.vessel.orEmpty()
-                        },
-                        dateFmt.format(Date(dateMillis))
-                    )
-                        .filter { it.isNotBlank() }
-                        .joinToString(" · ")
-                        .ifBlank { context.getString(R.string.shipment_default) }
-                    onSave(
-                        initial.copy(
-                            title = autoTitle,
-                            customer = finalPayload.customer,
-                            port = finalPayload.port.ifBlank {
-                                finalPayload.multiPorts.firstOrNull()?.port.orEmpty()
-                            },
-                            vessel = finalPayload.vessel.ifBlank {
-                                finalPayload.multiPorts.firstOrNull()?.vessel.orEmpty()
-                            },
-                            payloadJson = FishyJson.encodePayload(finalPayload),
-                            scheduledTime = time,
-                            scheduledDateMillis = dateMillis,
-                            notificationEnabled = notify,
-                            notificationAtMillis = if (notify) notifyAt else null,
-                            mode = finalPayload.mode.name,
-                            updatedAtMillis = System.currentTimeMillis()
-                        )
-                    )
+                    val now = System.currentTimeMillis()
+                    val shipmentAt = combineScheduledAt(dateMillis, time)
+                    if (shipmentAt < now) {
+                        ErrorFeedback.vibrate(context)
+                        Toast.makeText(
+                            context,
+                            context.getString(R.string.schedule_error_past),
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    } else {
+                        val reminderConflicts = if (notify && reminders.isNotEmpty()) {
+                            val conflicts = linkedSetOf<Long>()
+                            var firstError: ReminderTimeError? = null
+                            reminders.forEach { draft ->
+                                val others = reminders
+                                    .filter { it.localKey != draft.localKey }
+                                    .map { it.atMillis }
+                                val error = validateReminderAt(draft.atMillis, shipmentAt, now, others)
+                                if (error != null) {
+                                    conflicts += draft.localKey
+                                    if (firstError == null || error.ordinal < firstError!!.ordinal) {
+                                        firstError = error
+                                    }
+                                }
+                            }
+                            if (conflicts.isNotEmpty()) {
+                                errorReminderKeys = conflicts
+                                ErrorFeedback.vibrate(context)
+                                Toast.makeText(
+                                    context,
+                                    context.getString(reminderErrorRes(firstError!!)),
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                                true
+                            } else {
+                                false
+                            }
+                        } else {
+                            false
+                        }
+                        if (!reminderConflicts) {
+                            errorReminderKeys = emptySet()
+                            val finalPayload = ensurePayloadStructure(payload)
+                            val autoTitle = listOf(
+                                finalPayload.customer,
+                                finalPayload.vessel.ifBlank {
+                                    finalPayload.multiPorts.firstOrNull()?.vessel.orEmpty()
+                                },
+                                dateFmt.format(Date(dateMillis))
+                            )
+                                .filter { it.isNotBlank() }
+                                .joinToString(" · ")
+                                .ifBlank { context.getString(R.string.shipment_default) }
+                            onSave(
+                                initial.copy(
+                                    title = autoTitle,
+                                    customer = finalPayload.customer,
+                                    port = finalPayload.port.ifBlank {
+                                        finalPayload.multiPorts.firstOrNull()?.port.orEmpty()
+                                    },
+                                    vessel = finalPayload.vessel.ifBlank {
+                                        finalPayload.multiPorts.firstOrNull()?.vessel.orEmpty()
+                                    },
+                                    payloadJson = FishyJson.encodePayload(finalPayload),
+                                    scheduledTime = time,
+                                    scheduledDateMillis = dateMillis,
+                                    notificationEnabled = notify && reminders.isNotEmpty(),
+                                    notificationAtMillis = null,
+                                    notificationSent = false,
+                                    mode = finalPayload.mode.name,
+                                    updatedAtMillis = System.currentTimeMillis()
+                                ),
+                                reminders
+                            )
+                        }
+                    }
                 },
                 confirmText = stringResource(R.string.save)
             )
         }
     )
+
+    pendingReminderDelete?.let { draft ->
+        ConfirmDeleteDialog(
+            title = stringResource(R.string.delete_confirm_title),
+            message = notifyFmt.format(Date(draft.atMillis)),
+            onConfirm = {
+                val next = reminders.filter { it.localKey != draft.localKey }
+                reminders = next
+                errorReminderKeys = errorReminderKeys - draft.localKey
+                if (next.isEmpty()) notify = false
+                pendingReminderDelete = null
+            },
+            onDismiss = { pendingReminderDelete = null }
+        )
+    }
 
     pendingDelete?.let { del ->
         ConfirmDeleteDialog(
@@ -1069,6 +1428,7 @@ private fun ScheduledChecklistDialog(scheduledId: Long, onDismiss: () -> Unit) {
 
     AlertDialog(
         onDismissRequest = onDismiss,
+        properties = DialogProperties(dismissOnClickOutside = false),
         containerColor = MaterialTheme.colorScheme.background,
         title = { CenteredDialogTitle(stringResource(R.string.checklist_prep)) },
         text = {
@@ -1079,26 +1439,43 @@ private fun ScheduledChecklistDialog(scheduledId: Long, onDismiss: () -> Unit) {
                 ChecklistStatusBanner(completed = completed, total = total)
 
                 if (items.isNotEmpty()) {
-                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        items.forEach { item ->
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Checkbox(
-                                    checked = item.isCompleted,
-                                    onCheckedChange = {
-                                        scope.launch {
-                                            repo.upsertChecklistItem(item.copy(isCompleted = it))
-                                        }
-                                    },
-                                    colors = fishyCheckboxColors()
-                                )
-                                Text(item.title, modifier = Modifier.weight(1f))
-                                IconButton(onClick = {
-                                    scope.launch { repo.deleteChecklistItem(item.id) }
-                                }) {
-                                    Icon(Icons.Default.Delete, contentDescription = null)
+                    val listScroll = rememberScrollState()
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 320.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(end = 8.dp)
+                                .verticalScroll(listScroll),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            items.forEach { item ->
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Checkbox(
+                                        checked = item.isCompleted,
+                                        onCheckedChange = {
+                                            scope.launch {
+                                                repo.upsertChecklistItem(item.copy(isCompleted = it))
+                                            }
+                                        },
+                                        colors = fishyCheckboxColors()
+                                    )
+                                    Text(item.title, modifier = Modifier.weight(1f))
+                                    IconButton(onClick = {
+                                        scope.launch { repo.deleteChecklistItem(item.id) }
+                                    }) {
+                                        Icon(Icons.Default.Delete, contentDescription = null)
+                                    }
                                 }
                             }
                         }
+                        ColumnScrollIndicator(
+                            scrollState = listScroll,
+                            modifier = Modifier.align(Alignment.CenterEnd)
+                        )
                     }
                 }
 
@@ -1211,7 +1588,11 @@ private fun PayloadChecklistDialog(
                                 IconButton(onClick = {
                                     onChange(checklist.filter { it.id != task.id })
                                 }) {
-                                    Icon(Icons.Default.Delete, contentDescription = null)
+                                    Icon(
+                                        Icons.Default.Delete,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.error
+                                    )
                                 }
                             }
                         }

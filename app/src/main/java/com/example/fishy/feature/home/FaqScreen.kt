@@ -39,7 +39,9 @@ fun FaqScreen(
         R.string.faq_input_guard_title to R.string.faq_input_guard_body,
         R.string.faq_autospacing_title to R.string.faq_autospacing_body,
         R.string.faq_prep_checklist_title to R.string.faq_prep_checklist_body,
+        R.string.faq_schedule_reminders_title to R.string.faq_schedule_reminders_body,
         R.string.faq_shipment_checklist_title to R.string.faq_shipment_checklist_body,
+        R.string.faq_shipment_checklist_reminders_title to R.string.faq_shipment_checklist_reminders_body,
         R.string.faq_start_schedule_title to R.string.faq_start_schedule_body,
         R.string.faq_drafts_title to R.string.faq_drafts_body,
         R.string.faq_history_title to R.string.faq_history_body

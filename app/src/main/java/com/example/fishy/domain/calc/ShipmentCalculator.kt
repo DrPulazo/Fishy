@@ -134,9 +134,40 @@ object ShipmentCalculator {
     fun progressPercent(payload: ShipmentPayload): Float {
         val t = totals(payload)
         if (t.quantity <= 0) return 0f
+        if (hasAnyProductOverload(payload)) return 1.01f
         val done = t.quantity - t.remainder
         // May exceed 1f on overload — FillProgressBar turns red in that case.
         return (done / t.quantity).toFloat()
+    }
+
+    /** Products with a planned quantity that are over the target places. */
+    fun hasAnyProductOverload(payload: ShipmentPayload): Boolean =
+        targetedProductRemainders(payload).any { it < -EPS }
+
+    /** Products with a planned quantity that are under the target places. */
+    fun hasAnyProductUnderload(payload: ShipmentPayload): Boolean =
+        targetedProductRemainders(payload).any { it > EPS }
+
+    private fun targetedProductRemainders(payload: ShipmentPayload): List<Double> {
+        val unload = payload.mode == ShipmentMode.UNLOAD
+        return when (payload.mode) {
+            ShipmentMode.MONO -> payload.products
+                .filter { it.quantity > 0 }
+                .map { remainder(it, payload.doubleControlEnabled, unload) }
+            ShipmentMode.MULTI_VEHICLE -> payload.multiVehicles.flatMap { vg ->
+                val dc = payload.doubleControlEnabled || vg.doubleControlEnabled
+                vg.products.filter { it.quantity > 0 }.map { remainder(it, dc, false) }
+            }
+            ShipmentMode.MULTI_PORT -> payload.multiPorts.flatMap { pg ->
+                val dc = payload.doubleControlEnabled || pg.doubleControlEnabled
+                pg.products.filter { it.quantity > 0 }.map { remainder(it, dc, false) }
+            }
+            ShipmentMode.UNLOAD -> payload.unloadReceptions
+                .flatMap { it.inbounds }
+                .flatMap { it.products }
+                .filter { it.quantity > 0 }
+                .map { remainder(it, false, unload = true) }
+        }
     }
 
     fun doubleControlStats(products: List<Product>, enabled: Boolean): DoubleControlStats {

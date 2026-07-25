@@ -17,10 +17,14 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -50,10 +54,29 @@ fun EulaScreen(
             .use { it.readText() }
     }
     val scrollState = rememberScrollState()
-    val reachedEnd by remember {
-        derivedStateOf {
-            scrollState.maxValue == 0 || scrollState.value >= scrollState.maxValue
+    var layoutReady by remember { mutableStateOf(false) }
+    var hasReachedEnd by remember { mutableStateOf(false) }
+    LaunchedEffect(eulaText) {
+        layoutReady = false
+        hasReachedEnd = false
+        // Wait until Compose measures scroll extent (avoids maxValue==0 before layout).
+        withFrameNanos { }
+        withFrameNanos { }
+        layoutReady = true
+        if (scrollState.maxValue == 0) {
+            hasReachedEnd = true
         }
+    }
+    val atEnd by remember {
+        derivedStateOf {
+            layoutReady && (
+                scrollState.maxValue == 0 ||
+                    scrollState.value >= scrollState.maxValue
+                )
+        }
+    }
+    LaunchedEffect(atEnd) {
+        if (atEnd) hasReachedEnd = true
     }
 
     Scaffold(
@@ -73,7 +96,7 @@ fun EulaScreen(
             if (requireAccept) {
                 FishyButton(
                     onClick = { onAccepted?.invoke() ?: onBack() },
-                    enabled = reachedEnd,
+                    enabled = hasReachedEnd,
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(16.dp)

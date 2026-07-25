@@ -146,15 +146,20 @@ fun StatisticsScreen(
                 toMonthStart = toMonthStart,
                 otherSeriesLabel = otherLabel,
                 otherGroupLabel = otherLabel,
-                portFilter = port
+                portFilter = port,
+                productFilter = productFilter
             )
             selectedBarIndex = -1
         }
     }
 
     val selectedEntry = chartResult.bars.getOrNull(selectedBarIndex)
-    val totalTonnageKg = remember(filteredEntities, port) {
-        StatisticsBreakdown.totalWeightKg(filteredEntities, portFilter = port)
+    val totalTonnageKg = remember(filteredEntities, port, productFilter) {
+        StatisticsBreakdown.totalWeightKg(
+            filteredEntities,
+            portFilter = port,
+            productFilter = productFilter
+        )
     }
 
     Scaffold(

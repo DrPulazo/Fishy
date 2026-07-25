@@ -2,6 +2,7 @@ package com.example.fishy.domain.model
 
 import com.example.fishy.data.local.entity.ShipmentEntity
 import com.example.fishy.domain.calc.ShipmentCalculator
+import com.example.fishy.domain.format.QuantityFormatters
 import kotlin.math.abs
 
 /**
@@ -9,6 +10,8 @@ import kotlin.math.abs
  * Transport uses the same XOR rule as the form: wagon XOR road set.
  */
 object ShipmentSummaries {
+
+    private const val SCHEDULE_LIST_CAP = 5
 
     fun ports(payload: ShipmentPayload): List<String> = when (payload.mode) {
         ShipmentMode.MONO, ShipmentMode.MULTI_VEHICLE ->
@@ -91,6 +94,108 @@ object ShipmentSummaries {
         return parts.joinToString(", ")
     }
 
+    /**
+     * MULTI_VEHICLE schedule card: one kind → «N контейнеров»; mixed → «N транспортов».
+     * Empty / untyped slots are ignored.
+     */
+    fun scheduleTransportLine(payload: ShipmentPayload): String? {
+        if (payload.mode != ShipmentMode.MULTI_VEHICLE) return null
+        val kinds = payload.multiVehicles.mapNotNull { transportKind(it.transport) }
+        if (kinds.isEmpty()) return null
+        val distinct = kinds.distinct()
+        return if (distinct.size == 1) {
+            when (distinct.first()) {
+                TransportKind.CONTAINER -> ruCount(kinds.size, "контейнер", "контейнера", "контейнеров")
+                TransportKind.WAGON -> ruCount(kinds.size, "вагон", "вагона", "вагонов")
+                TransportKind.TRUCK -> ruCount(kinds.size, "авто", "авто", "авто")
+            }
+        } else {
+            ruCount(kinds.size, "транспорт", "транспорта", "транспортов")
+        }
+    }
+
+    fun schedulePlannedTonnageKg(payload: ShipmentPayload): Double =
+        ShipmentCalculator.totals(payload).targetWeight
+
+    /**
+     * Body lines for a scheduled-shipment list card (RU-first declensions).
+     * Order depends on [ShipmentPayload.mode]; blank sections omitted.
+     */
+    fun scheduleCardBodyLines(
+        payload: ShipmentPayload,
+        thousandsSeparator: Boolean = false
+    ): List<String> = buildList {
+        addAll(scheduleLocationLines(payload))
+        scheduleTransportLine(payload)?.let { add(it) }
+        scheduleProductLine(payload)?.let { add(it) }
+        val tonnage = schedulePlannedTonnageKg(payload)
+        if (tonnage > 0.0) {
+            val formatted = QuantityFormatters.formatWeight(tonnage, thousandsSeparator)
+            add("Тоннаж: $formatted кг")
+        }
+    }
+
+    fun scheduleLocationLines(payload: ShipmentPayload): List<String> = when (payload.mode) {
+        ShipmentMode.MONO, ShipmentMode.MULTI_VEHICLE -> {
+            val port = payload.port.trim()
+            if (port.isBlank()) emptyList() else listOf("Порт: $port")
+        }
+        ShipmentMode.MULTI_PORT -> cappedNumberedList(
+            items = payload.multiPorts.map { it.port.trim() }.filter { it.isNotBlank() },
+            singularLabel = { i, name -> "Порт $i: $name" },
+            moreWord = Triple("порт", "порта", "портов")
+        )
+        ShipmentMode.UNLOAD -> {
+            val names = payload.unloadReceptions.map { it.name.trim() }.filter { it.isNotBlank() }
+            when {
+                names.isEmpty() -> emptyList()
+                names.size == 1 -> listOf("Точка приёма: ${names.first()}")
+                else -> cappedNumberedList(
+                    items = names,
+                    singularLabel = { i, name -> "Точка приёма $i: $name" },
+                    moreWord = Triple("точка", "точки", "точек")
+                )
+            }
+        }
+    }
+
+    fun scheduleProductLine(payload: ShipmentPayload): String? {
+        val kinds = scheduleProductKinds(payload)
+        return when {
+            kinds.isEmpty() -> null
+            kinds.size == 1 -> {
+                val name = kinds.first().name.trim()
+                if (name.isBlank()) null else "Продукция: $name"
+            }
+            else -> ruCount(kinds.size, "вид", "вида", "видов") + " продукции"
+        }
+    }
+
+    fun scheduleProductKinds(payload: ShipmentPayload): List<Product> =
+        ShipmentCalculator.allProducts(payload)
+            .filter {
+                it.name.isNotBlank() || it.batch.isNotBlank() ||
+                    it.manufacturer.isNotBlank() || it.packageWeight > 0.0 ||
+                    it.quantity > 0 ||
+                    ShipmentCalculator.realPallets(it).any { p -> p.places > 0.0 }
+            }
+            .distinctBy { ShipmentCalculator.batchKey(it) }
+
+    private fun cappedNumberedList(
+        items: List<String>,
+        singularLabel: (index: Int, name: String) -> String,
+        moreWord: Triple<String, String, String>
+    ): List<String> {
+        if (items.isEmpty()) return emptyList()
+        val shown = items.take(SCHEDULE_LIST_CAP)
+        val lines = shown.mapIndexed { index, name -> singularLabel(index + 1, name) }.toMutableList()
+        val rest = items.size - shown.size
+        if (rest > 0) {
+            lines += "Ещё " + ruCount(rest, moreWord.first, moreWord.second, moreWord.third)
+        }
+        return lines
+    }
+
     fun productNames(payload: ShipmentPayload): List<String> =
         ShipmentCalculator.allProducts(payload)
             .map { it.name.trim() }
@@ -157,7 +262,7 @@ object ShipmentSummaries {
         }.joinToString(" ") { it.trim() }.lowercase()
     }
 
-    private fun ruCount(n: Int, one: String, few: String, many: String): String {
+    fun ruCount(n: Int, one: String, few: String, many: String): String {
         val mod100 = abs(n) % 100
         val mod10 = abs(n) % 10
         val word = when {
@@ -167,6 +272,23 @@ object ShipmentSummaries {
             else -> many
         }
         return "$n $word"
+    }
+
+    /**
+     * First non-blank name, or «first + N порт(а/ов)» when more remain.
+     * Blank entries are skipped; order preserved.
+     */
+    fun firstPlusRestRu(
+        names: List<String>,
+        one: String = "порт",
+        few: String = "порта",
+        many: String = "портов"
+    ): String? {
+        val cleaned = names.map { it.trim() }.filter { it.isNotBlank() }
+        if (cleaned.isEmpty()) return null
+        if (cleaned.size == 1) return cleaned.first()
+        val rest = cleaned.size - 1
+        return "${cleaned.first()} + ${ruCount(rest, one, few, many)}"
     }
 
     /**

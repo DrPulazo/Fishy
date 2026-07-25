@@ -189,7 +189,8 @@ object StatisticsAggregator {
         topSeries: Int = StatisticsBreakdown.DEFAULT_TOP_SERIES,
         otherSeriesLabel: String = "…",
         otherGroupLabel: String = "…",
-        portFilter: String = ""
+        portFilter: String = "",
+        productFilter: String = ""
     ): StackedChartResult = StatisticsBreakdown.buildStackedChart(
         entities = entities,
         groupBy = groupBy,
@@ -200,7 +201,8 @@ object StatisticsAggregator {
         topSeries = topSeries,
         otherSeriesLabel = otherSeriesLabel,
         otherGroupLabel = otherGroupLabel,
-        portFilter = portFilter
+        portFilter = portFilter,
+        productFilter = productFilter
     )
 
     internal fun monthsInclusivePublic(fromMonthStart: Long, toMonthStart: Long): List<Long> =

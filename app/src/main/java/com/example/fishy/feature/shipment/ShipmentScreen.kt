@@ -22,6 +22,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredHeight
@@ -29,6 +31,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
@@ -78,9 +82,14 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.currentStateAsState
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -109,6 +118,7 @@ import com.example.fishy.ui.components.ConfirmSaveDialog
 import com.example.fishy.ui.components.CenteredDialogMessage
 import com.example.fishy.ui.components.CenteredDialogTitle
 import com.example.fishy.ui.components.ChecklistStatusBanner
+import com.example.fishy.ui.components.ColumnScrollIndicator
 import com.example.fishy.ui.components.DecimalNumberField
 import com.example.fishy.ui.components.DialogCancelConfirmActions
 import com.example.fishy.ui.components.DialogCenteredAction
@@ -150,7 +160,7 @@ fun ShipmentScreen(
     val payload by vm.payload.collectAsState()
     val settings by vm.settings.collectAsState()
     val settingsReady by vm.settingsReady.collectAsState()
-    val quickPlacesText by vm.quickPlacesText.collectAsState()
+    val quickPlacesByKey by vm.quickPlacesByKey.collectAsState()
     val sessionKey by vm.sessionKey.collectAsState()
     val customers by vm.customers.collectAsState()
     val ports by vm.ports.collectAsState()
@@ -176,11 +186,36 @@ fun ShipmentScreen(
     var showIncompleteChecklistConfirm by remember { mutableStateOf(false) }
     var completePlacesMismatch by remember { mutableStateOf(CompletePlacesMismatch.None) }
     var guardDialog by remember { mutableStateOf<ShipmentUiEvent.GuardConfirm?>(null) }
+    var alertDialogMessage by remember { mutableStateOf<String?>(null) }
     var pendingDelete by remember { mutableStateOf<PendingDelete?>(null) }
     var forecastExpectationMsg by remember { mutableStateOf<String?>(null) }
     val forecastRunningMsg = stringResource(R.string.forecast_running)
     var focusPalletTarget by remember {
         mutableStateOf<ShipmentUiEvent.FocusPalletPlaces?>(null)
+    }
+    val notesBringIntoView = remember { BringIntoViewRequester() }
+    val lifecycleState by LocalLifecycleOwner.current.lifecycle.currentStateAsState()
+    val isResumed = lifecycleState.isAtLeast(Lifecycle.State.RESUMED)
+    val checklistIncomplete = payload.checklist.any { !it.isCompleted }
+
+    LaunchedEffect(
+        payload.checklistReminderEnabled,
+        payload.checklistReminderIntervalMin,
+        checklistIncomplete,
+        showChecklist,
+        isResumed
+    ) {
+        if (!payload.checklistReminderEnabled ||
+            !checklistIncomplete ||
+            showChecklist ||
+            !isResumed
+        ) {
+            return@LaunchedEffect
+        }
+        val intervalMs = payload.checklistReminderIntervalMin.coerceIn(5, 60) * 60_000L
+        delay(intervalMs)
+        ErrorFeedback.vibrateStrong(context)
+        showChecklist = true
     }
 
     LaunchedEffect(mode, draftId, scheduledId) {
@@ -193,6 +228,10 @@ fun ShipmentScreen(
                 is ShipmentUiEvent.Toast -> {
                     if (event.isError) ErrorFeedback.vibrate(context)
                     Toast.makeText(context, event.message, Toast.LENGTH_SHORT).show()
+                }
+                is ShipmentUiEvent.Alert -> {
+                    ErrorFeedback.vibrate(context)
+                    alertDialogMessage = event.message
                 }
                 is ShipmentUiEvent.GuardConfirm -> {
                     ErrorFeedback.vibrate(context)
@@ -359,7 +398,8 @@ fun ShipmentScreen(
             LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(16.dp),
+                    .padding(16.dp)
+                    .imePadding(),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
             item {
@@ -468,8 +508,8 @@ fun ShipmentScreen(
                             batchMismatch = ShipmentCalculator.isUnknownBatch(product, payload),
                             grossWeightEnabled = payload.grossWeightEnabled,
                             simplifiedCounterEnabled = settings.simplifiedCounterEnabled,
-                            quickPlacesText = quickPlacesText,
-                            onQuickPlacesChange = vm::setQuickPlacesText
+                            quickPlacesText = quickPlacesByKey[quickPlacesStorageKey(product)].orEmpty(),
+                            onQuickPlacesChange = { vm.setQuickPlacesText(product, it) }
                         )
                     }
                     item {
@@ -573,8 +613,8 @@ fun ShipmentScreen(
                                         batchMismatch = ShipmentCalculator.isUnknownBatch(product, payload),
                                         grossWeightEnabled = payload.grossWeightEnabled,
                                         simplifiedCounterEnabled = settings.simplifiedCounterEnabled,
-                                        quickPlacesText = quickPlacesText,
-                                        onQuickPlacesChange = vm::setQuickPlacesText
+                                        quickPlacesText = quickPlacesByKey[quickPlacesStorageKey(product)].orEmpty(),
+                                        onQuickPlacesChange = { vm.setQuickPlacesText(product, it) }
                                     )
                                 }
                                 FishyButton(
@@ -712,8 +752,8 @@ fun ShipmentScreen(
                                         batchMismatch = ShipmentCalculator.isUnknownBatch(product, payload),
                                         grossWeightEnabled = payload.grossWeightEnabled,
                                         simplifiedCounterEnabled = settings.simplifiedCounterEnabled,
-                                        quickPlacesText = quickPlacesText,
-                                        onQuickPlacesChange = vm::setQuickPlacesText
+                                        quickPlacesText = quickPlacesByKey[quickPlacesStorageKey(product)].orEmpty(),
+                                        onQuickPlacesChange = { vm.setQuickPlacesText(product, it) }
                                     )
                                 }
                                 FishyButton(
@@ -908,8 +948,8 @@ fun ShipmentScreen(
                                             batchMismatch = ShipmentCalculator.isUnknownBatch(product, payload),
                                             grossWeightEnabled = payload.grossWeightEnabled,
                                             simplifiedCounterEnabled = settings.simplifiedCounterEnabled,
-                                            quickPlacesText = quickPlacesText,
-                                            onQuickPlacesChange = vm::setQuickPlacesText
+                                            quickPlacesText = quickPlacesByKey[quickPlacesStorageKey(product)].orEmpty(),
+                                            onQuickPlacesChange = { vm.setQuickPlacesText(product, it) }
                                         )
                                     }
                                     FishyButton(
@@ -976,24 +1016,53 @@ fun ShipmentScreen(
                         totals = totals,
                         thousandsSeparator = settings.effectiveThousandsSeparator,
                         grossWeightEnabled = payload.grossWeightEnabled,
-                        unload = payload.mode == ShipmentMode.UNLOAD
+                        unload = payload.mode == ShipmentMode.UNLOAD,
+                        hasAnyOverload = ShipmentCalculator.hasAnyProductOverload(payload),
+                        hasAnyUnderload = ShipmentCalculator.hasAnyProductUnderload(payload)
                     )
                 }
             }
 
-            item {
+            item(key = "notes") {
                 AccordionCard(
                     title = stringResource(R.string.notes_section),
                     initiallyExpanded = !resumeDraft
                 ) {
-                    OutlinedTextField(
-                        value = payload.notes,
-                        onValueChange = vm::setNotes,
-                        modifier = Modifier.fillMaxWidth(),
-                        minLines = 3,
-                        maxLines = 8,
-                        keyboardOptions = FishySentenceKeyboardOptions
-                    )
+                    val notesScroll = rememberScrollState()
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 220.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(end = 8.dp)
+                                .verticalScroll(notesScroll)
+                        ) {
+                            OutlinedTextField(
+                                value = payload.notes,
+                                onValueChange = vm::setNotes,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .bringIntoViewRequester(notesBringIntoView)
+                                    .onFocusChanged { focus ->
+                                        if (focus.isFocused) {
+                                            scope.launch {
+                                                delay(100)
+                                                notesBringIntoView.bringIntoView()
+                                            }
+                                        }
+                                    },
+                                minLines = 3,
+                                keyboardOptions = FishySentenceKeyboardOptions
+                            )
+                        }
+                        ColumnScrollIndicator(
+                            scrollState = notesScroll,
+                            modifier = Modifier.align(Alignment.CenterEnd)
+                        )
+                    }
                 }
             }
 
@@ -1199,6 +1268,20 @@ fun ShipmentScreen(
         )
     }
 
+    alertDialogMessage?.let { message ->
+        AlertDialog(
+            onDismissRequest = { alertDialogMessage = null },
+            containerColor = MaterialTheme.colorScheme.background,
+            title = { CenteredDialogTitle(stringResource(R.string.batch_control)) },
+            text = { CenteredDialogMessage(message) },
+            confirmButton = {
+                DialogCenteredFishyButton(onClick = { alertDialogMessage = null }) {
+                    Text("OK")
+                }
+            }
+        )
+    }
+
     pendingDelete?.let { del ->
         ConfirmDeleteDialog(
             title = del.title,
@@ -1223,7 +1306,9 @@ private fun TotalsBlock(
     totals: ShipmentTotals,
     thousandsSeparator: Boolean = false,
     grossWeightEnabled: Boolean = false,
-    unload: Boolean = false
+    unload: Boolean = false,
+    hasAnyOverload: Boolean = false,
+    hasAnyUnderload: Boolean = false
 ) {
     val placesFmt = QuantityFormatters.formatCount(totals.places, thousandsSeparator)
     val palletsFmt = QuantityFormatters.formatInteger(totals.pallets, thousandsSeparator)
@@ -1269,6 +1354,8 @@ private fun TotalsBlock(
             )
         )
     }
+    val balancedTotal = kotlin.math.abs(totals.remainder) < 1e-9
+    val allPositionsOk = !hasAnyOverload && !hasAnyUnderload
     when {
         totals.quantity <= 0 -> Unit
         totals.remainder > 0 -> Text(
@@ -1281,9 +1368,14 @@ private fun TotalsBlock(
             color = Warning,
             fontWeight = FontWeight.Bold
         )
-        else -> Text(
+        balancedTotal && allPositionsOk -> Text(
             stringResource(if (unload) R.string.unloading_done else R.string.loading_done),
             color = Success,
+            fontWeight = FontWeight.Bold
+        )
+        balancedTotal -> Text(
+            stringResource(R.string.totals_position_mismatch),
+            color = Warning,
             fontWeight = FontWeight.Bold
         )
     }
@@ -1589,6 +1681,7 @@ private fun ProductCard(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ChecklistDialog(vm: ShipmentViewModel, onDismiss: () -> Unit) {
     val payload by vm.payload.collectAsState()
@@ -1596,33 +1689,63 @@ private fun ChecklistDialog(vm: ShipmentViewModel, onDismiss: () -> Unit) {
     var showAdd by remember { mutableStateOf(false) }
     val completed = payload.checklist.count { it.isCompleted }
     val total = payload.checklist.size
+    val reminderIntervals = remember { listOf(5, 10, 15, 30, 45, 60) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
+        properties = androidx.compose.ui.window.DialogProperties(dismissOnClickOutside = false),
         containerColor = MaterialTheme.colorScheme.background,
         title = { CenteredDialogTitle(stringResource(R.string.checklist_shipment)) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 480.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
                 ChecklistStatusBanner(completed = completed, total = total)
 
                 if (payload.checklist.isNotEmpty()) {
-                    payload.checklist.forEach { task ->
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Checkbox(
-                                checked = task.isCompleted,
-                                onCheckedChange = { vm.toggleChecklist(task.id) },
-                                colors = fishyCheckboxColors()
-                            )
-                            OutlinedTextField(
-                                value = task.title,
-                                onValueChange = { vm.editChecklistTask(task.id, it) },
-                                modifier = Modifier.weight(1f),
-                                keyboardOptions = FishySentenceKeyboardOptions
-                            )
-                            IconButton(onClick = { vm.deleteChecklistTask(task.id) }) {
-                                Icon(Icons.Default.Delete, contentDescription = null)
+                    val listScroll = rememberScrollState()
+                    Box(
+                        modifier = Modifier
+                            .weight(1f, fill = false)
+                            .fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(end = 8.dp)
+                                .verticalScroll(listScroll),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            payload.checklist.forEach { task ->
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Checkbox(
+                                        checked = task.isCompleted,
+                                        onCheckedChange = { vm.toggleChecklist(task.id) },
+                                        colors = fishyCheckboxColors()
+                                    )
+                                    OutlinedTextField(
+                                        value = task.title,
+                                        onValueChange = { vm.editChecklistTask(task.id, it) },
+                                        modifier = Modifier.weight(1f),
+                                        keyboardOptions = FishySentenceKeyboardOptions
+                                    )
+                                    IconButton(onClick = { vm.deleteChecklistTask(task.id) }) {
+                                        Icon(
+                                            Icons.Default.Delete,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.error
+                                        )
+                                    }
+                                }
                             }
                         }
+                        ColumnScrollIndicator(
+                            scrollState = listScroll,
+                            modifier = Modifier.align(Alignment.CenterEnd)
+                        )
                     }
                 }
 
@@ -1633,6 +1756,68 @@ private fun ChecklistDialog(vm: ShipmentViewModel, onDismiss: () -> Unit) {
                     Icon(Icons.Default.Add, contentDescription = null)
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(stringResource(R.string.checklist_add_item))
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        stringResource(R.string.checklist_reminder),
+                        modifier = Modifier.weight(1f).padding(end = 12.dp),
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Switch(
+                        checked = payload.checklistReminderEnabled,
+                        onCheckedChange = vm::setChecklistReminderEnabled,
+                        colors = fishySwitchColors()
+                    )
+                }
+                if (payload.checklistReminderEnabled) {
+                    var intervalMenuExpanded by remember { mutableStateOf(false) }
+                    Box(modifier = Modifier.fillMaxWidth()) {
+                        OutlinedTextField(
+                            value = stringResource(
+                                R.string.checklist_reminder_interval_min,
+                                payload.checklistReminderIntervalMin
+                            ),
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text(stringResource(R.string.checklist_reminder_interval)) },
+                            trailingIcon = {
+                                IconButton(onClick = { intervalMenuExpanded = true }) {
+                                    Icon(
+                                        if (intervalMenuExpanded) Icons.Default.ExpandLess
+                                        else Icons.Default.ExpandMore,
+                                        contentDescription = null
+                                    )
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        DropdownMenu(
+                            expanded = intervalMenuExpanded,
+                            onDismissRequest = { intervalMenuExpanded = false }
+                        ) {
+                            reminderIntervals.forEach { minutes ->
+                                DropdownMenuItem(
+                                    text = {
+                                        Text(
+                                            stringResource(
+                                                R.string.checklist_reminder_interval_min,
+                                                minutes
+                                            )
+                                        )
+                                    },
+                                    onClick = {
+                                        vm.setChecklistReminderIntervalMin(minutes)
+                                        intervalMenuExpanded = false
+                                    }
+                                )
+                            }
+                        }
+                    }
                 }
             }
         },
@@ -1673,6 +1858,17 @@ private fun ChecklistDialog(vm: ShipmentViewModel, onDismiss: () -> Unit) {
             }
         )
     }
+}
+
+private fun quickPlacesStorageKey(product: Product): String {
+    if (product.name.isBlank() ||
+        product.batch.isBlank() ||
+        product.manufacturer.isBlank() ||
+        product.packageWeight <= 0.0
+    ) {
+        return "id:${product.id}"
+    }
+    return ShipmentCalculator.batchKey(product)
 }
 
 private fun sectionExpanded(resumeDraft: Boolean, activeId: Long?, thisId: Long): Boolean =

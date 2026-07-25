@@ -24,7 +24,8 @@ fun TimePickerField(
     time: String,
     onTimeChange: (String) -> Unit,
     label: String,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    isError: Boolean = false
 ) {
     val context = LocalContext.current
     val (hour, minute) = remember(time) {
@@ -43,6 +44,7 @@ fun TimePickerField(
             textStyle = formTextStyleOrDefault(),
             readOnly = true,
             enabled = false,
+            isError = isError,
             trailingIcon = {
                 Icon(
                     Icons.Default.AccessTime,
@@ -51,10 +53,25 @@ fun TimePickerField(
             },
             colors = OutlinedTextFieldDefaults.colors(
                 disabledTextColor = MaterialTheme.colorScheme.onSurface,
-                disabledBorderColor = MaterialTheme.colorScheme.outline,
-                disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                disabledTrailingIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                disabledContainerColor = Color.Transparent
+                disabledBorderColor = if (isError) {
+                    MaterialTheme.colorScheme.error
+                } else {
+                    MaterialTheme.colorScheme.outline
+                },
+                disabledLabelColor = if (isError) {
+                    MaterialTheme.colorScheme.error
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
+                disabledTrailingIconColor = if (isError) {
+                    MaterialTheme.colorScheme.error
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
+                disabledContainerColor = Color.Transparent,
+                errorBorderColor = MaterialTheme.colorScheme.error,
+                errorLabelColor = MaterialTheme.colorScheme.error,
+                errorTrailingIconColor = MaterialTheme.colorScheme.error
             ),
             modifier = Modifier.fillMaxWidth()
         )

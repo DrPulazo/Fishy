@@ -73,6 +73,7 @@ fun ReportScreen(
         settings.effectiveAutoSpaceVehicles,
         settings.effectiveThousandsSeparator
     ) {
+        if (editing) return@LaunchedEffect
         val s = settingsRepo.settings.first()
         val entity = repo.getShipment(shipmentId) ?: return@LaunchedEffect
         val loaded = FishyJson.decodePayload(entity.payloadJson)

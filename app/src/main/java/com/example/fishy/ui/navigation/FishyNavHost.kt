@@ -36,6 +36,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun FishyNavHost(
     openScheduler: Boolean = false,
+    openPrepChecklistId: Long? = null,
     startScheduledId: Long? = null,
     onNotificationNavConsumed: () -> Unit = {}
 ) {
@@ -74,8 +75,9 @@ fun FishyNavHost(
     }
 
     val navController = rememberNavController()
+    var pendingPrepChecklistId by remember { mutableStateOf<Long?>(null) }
 
-    LaunchedEffect(openScheduler, startScheduledId) {
+    LaunchedEffect(openScheduler, openPrepChecklistId, startScheduledId) {
         when {
             startScheduledId != null && startScheduledId > 0L -> {
                 navController.navigate("shipment_from_scheduled/$startScheduledId") {
@@ -83,8 +85,12 @@ fun FishyNavHost(
                 }
                 onNotificationNavConsumed()
             }
-            openScheduler -> {
+            openScheduler || (openPrepChecklistId != null && openPrepChecklistId > 0L) -> {
+                if (openPrepChecklistId != null && openPrepChecklistId > 0L) {
+                    pendingPrepChecklistId = openPrepChecklistId
+                }
                 navController.navigate(FishyRoute.Scheduler.route) {
+                    launchSingleTop = true
                     popUpTo(FishyRoute.Home.route)
                 }
                 onNotificationNavConsumed()
@@ -162,6 +168,8 @@ fun FishyNavHost(
         composable(FishyRoute.Scheduler.route) { entry ->
             NavBackStackEntryGuard(entry, navController) {
                 SchedulerScreen(
+                    openPrepChecklistId = pendingPrepChecklistId,
+                    onPrepChecklistConsumed = { pendingPrepChecklistId = null },
                     onBack = { navController.popBackStackWhenResumed() },
                     onStartShipment = { scheduledId ->
                         navController.navigate("shipment_from_scheduled/$scheduledId")

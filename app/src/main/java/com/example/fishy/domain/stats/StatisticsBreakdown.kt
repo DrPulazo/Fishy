@@ -159,9 +159,14 @@ object StatisticsBreakdown {
         return extractContributions(entity, payload)
     }
 
-    fun totalWeightKg(entities: List<ShipmentEntity>, portFilter: String = ""): Double =
+    fun totalWeightKg(
+        entities: List<ShipmentEntity>,
+        portFilter: String = "",
+        productFilter: String = ""
+    ): Double =
         entities.flatMap { extractContributions(it) }
             .let { filterContributionsByPort(it, portFilter) }
+            .let { filterContributionsByProduct(it, productFilter) }
             .sumOf { it.weightKg }
 
     fun filterContributionsByPort(
@@ -170,6 +175,17 @@ object StatisticsBreakdown {
     ): List<StatContribution> {
         if (portFilter.isBlank()) return contributions
         return contributions.filter { it.port.equals(portFilter, ignoreCase = true) }
+    }
+
+    fun filterContributionsByProduct(
+        contributions: List<StatContribution>,
+        productFilter: String
+    ): List<StatContribution> {
+        if (productFilter.isBlank()) return contributions
+        return contributions.filter {
+            it.productLabel.equals(productFilter, ignoreCase = true) ||
+                it.productKey.equals(productFilter, ignoreCase = true)
+        }
     }
 
     private fun addProductRow(
@@ -273,7 +289,8 @@ object StatisticsBreakdown {
         topSeries: Int = DEFAULT_TOP_SERIES,
         otherSeriesLabel: String = "…",
         otherGroupLabel: String = "…",
-        portFilter: String = ""
+        portFilter: String = "",
+        productFilter: String = ""
     ): StackedChartResult {
         if (!isValidCombination(groupBy, splitBy)) {
             return StackedChartResult(emptyList(), emptyList())
@@ -282,6 +299,7 @@ object StatisticsBreakdown {
             val payload = FishyJson.decodePayloadOrNull(entity.payloadJson) ?: return@flatMap emptyList()
             extractContributions(entity, payload)
         }.let { list -> filterContributionsByPort(list, portFilter) }
+            .let { list -> filterContributionsByProduct(list, productFilter) }
         if (contributions.isEmpty()) return StackedChartResult(emptyList(), emptyList())
 
         val splitDim = splitToDimension(splitBy)

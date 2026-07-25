@@ -49,6 +49,16 @@ data class ChecklistItemEntity(
     val sortOrder: Int = 0
 )
 
+/** One-shot prep reminders for a scheduled shipment (not the start-time alarm). */
+@Entity(tableName = "scheduled_reminders")
+data class ScheduledReminderEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val scheduledShipmentId: Long,
+    val atMillis: Long,
+    val sent: Boolean = false,
+    val sortOrder: Int = 0
+)
+
 @Entity(tableName = "dictionary_items")
 data class DictionaryEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,

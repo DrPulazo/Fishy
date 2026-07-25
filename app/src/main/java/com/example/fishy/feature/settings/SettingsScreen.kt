@@ -394,7 +394,7 @@ private fun languageOptionLabel(lang: AppLanguage): String = when (lang) {
     AppLanguage.SYSTEM, AppLanguage.RU -> "🇷🇺 Русский"
     AppLanguage.EN -> "🇬🇧 English"
     AppLanguage.ZH -> "🇨🇳 中文"
-    AppLanguage.KO -> "🇰🇷 한국어"
+    AppLanguage.KO -> "🇰🇵 한국어"
     AppLanguage.JA -> "🇯🇵 日本語"
     AppLanguage.ES -> "🇪🇸 Español"
 }

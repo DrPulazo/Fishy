@@ -37,7 +37,8 @@ fun DatePickerField(
     selectedDateMillis: Long,
     onDateSelected: (Long) -> Unit,
     label: String,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    isError: Boolean = false
 ) {
     var showPicker by remember { mutableStateOf(false) }
     val dateFormatter = remember { SimpleDateFormat("dd.MM.yyyy", Locale.getDefault()) }
@@ -65,6 +66,7 @@ fun DatePickerField(
             textStyle = formTextStyleOrDefault(),
             readOnly = true,
             enabled = false,
+            isError = isError,
             trailingIcon = {
                 Icon(
                     Icons.Default.CalendarToday,
@@ -73,11 +75,26 @@ fun DatePickerField(
             },
             colors = OutlinedTextFieldDefaults.colors(
                 disabledTextColor = MaterialTheme.colorScheme.onSurface,
-                disabledBorderColor = MaterialTheme.colorScheme.outline,
-                disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                disabledTrailingIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                disabledBorderColor = if (isError) {
+                    MaterialTheme.colorScheme.error
+                } else {
+                    MaterialTheme.colorScheme.outline
+                },
+                disabledLabelColor = if (isError) {
+                    MaterialTheme.colorScheme.error
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
+                disabledTrailingIconColor = if (isError) {
+                    MaterialTheme.colorScheme.error
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
                 // Transparent so the field matches dialog / accordion surface (not a solid patch).
-                disabledContainerColor = Color.Transparent
+                disabledContainerColor = Color.Transparent,
+                errorBorderColor = MaterialTheme.colorScheme.error,
+                errorLabelColor = MaterialTheme.colorScheme.error,
+                errorTrailingIconColor = MaterialTheme.colorScheme.error
             ),
             modifier = Modifier.fillMaxWidth()
         )

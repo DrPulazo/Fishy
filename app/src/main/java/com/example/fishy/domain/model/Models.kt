@@ -155,6 +155,8 @@ data class ShipmentPayload(
     val doubleControlEnabled: Boolean = false,
     val palletForecastEnabled: Boolean = false,
     val checklistEnabled: Boolean = true,
+    val checklistReminderEnabled: Boolean = false,
+    val checklistReminderIntervalMin: Int = 15,
     val batchControlEnabled: Boolean = false,
     val grossWeightEnabled: Boolean = false,
     val batchWarnThreshold: Int = 5,
@@ -214,6 +216,56 @@ data class ShipmentPayload(
             return true
         }
         if (checklist.any { it.title.isNotBlank() }) return true
+        return false
+    }
+
+    /**
+     * Cargo / identity content only — excludes checklist.
+     * Used when deciding whether opening from the scheduler should complete the plan.
+     */
+    fun hasShipmentCargoContent(): Boolean {
+        if (customer.isNotBlank() || port.isNotBlank() || vessel.isNotBlank() || notes.isNotBlank()) {
+            return true
+        }
+        if (transport.hasUserContent()) return true
+        if (products.any { it.hasUserContent() }) return true
+        if (multiVehicles.any { vg ->
+                vg.transport.hasUserContent() || vg.products.any { it.hasUserContent() }
+            }
+        ) {
+            return true
+        }
+        if (multiPorts.any { pg ->
+                pg.port.isNotBlank() ||
+                    pg.vessel.isNotBlank() ||
+                    pg.products.any { it.hasUserContent() }
+            }
+        ) {
+            return true
+        }
+        if (unloadReceptions.any { reception ->
+                reception.name.isNotBlank() ||
+                    reception.transport.hasUserContent() ||
+                    reception.inbounds.any { inbound ->
+                        inbound.port.isNotBlank() ||
+                            inbound.vessel.isNotBlank() ||
+                            inbound.transport.hasUserContent() ||
+                            inbound.products.any { it.hasUserContent() }
+                    }
+            }
+        ) {
+            return true
+        }
+        if (batchLimits.any {
+                it.productName.isNotBlank() ||
+                    it.batchName.isNotBlank() ||
+                    it.manufacturer.isNotBlank() ||
+                    it.packageWeight > 0.0 ||
+                    it.plannedPlaces > 0
+            }
+        ) {
+            return true
+        }
         return false
     }
 }
