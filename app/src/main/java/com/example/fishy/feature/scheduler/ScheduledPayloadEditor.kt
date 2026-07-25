@@ -121,31 +121,6 @@ fun switchPayloadMode(current: ShipmentPayload, newMode: ShipmentMode): Shipment
     )
 }
 
-fun firstProductName(payload: ShipmentPayload): String {
-    return when (payload.mode) {
-        ShipmentMode.MONO -> payload.products.firstOrNull()?.name
-        ShipmentMode.MULTI_VEHICLE -> payload.multiVehicles.firstOrNull()?.products?.firstOrNull()?.name
-        ShipmentMode.MULTI_PORT -> payload.multiPorts.firstOrNull()?.products?.firstOrNull()?.name
-        ShipmentMode.UNLOAD -> payload.unloadReceptions.firstOrNull()
-            ?.inbounds?.firstOrNull()
-            ?.products?.firstOrNull()
-            ?.name
-    }.orEmpty()
-}
-
-fun productLabelFromPayloadJson(payloadJson: String): String {
-    if (payloadJson.isBlank()) return ""
-    return try {
-        val element = FishyJson.json.parseToJsonElement(payloadJson).jsonObject
-        if (element.containsKey("productName") && !element.containsKey("mode")) {
-            return element["productName"]?.jsonPrimitive?.content.orEmpty()
-        }
-        firstProductName(FishyJson.decodePayload(payloadJson))
-    } catch (_: Exception) {
-        ""
-    }
-}
-
 fun decodeScheduledPayload(
     payloadJson: String,
     modeName: String,

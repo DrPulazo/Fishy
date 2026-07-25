@@ -12,7 +12,6 @@ import androidx.compose.animation.scaleOut
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -27,7 +26,6 @@ import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredHeight
 import androidx.compose.foundation.layout.size
@@ -61,7 +59,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckBox
-import androidx.compose.material.icons.filled.Checklist
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
@@ -76,7 +73,6 @@ import com.example.fishy.ui.components.FishyOutlinedButton
 import com.example.fishy.ui.components.ShipmentCoachOverlay
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -118,7 +114,6 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.fishy.FishyApp
 import com.example.fishy.R
-import com.example.fishy.domain.calc.BatchStatus
 import com.example.fishy.domain.calc.ShipmentCalculator
 import com.example.fishy.domain.calc.ShipmentTotals
 import com.example.fishy.domain.format.QuantityFormatters
@@ -126,7 +121,6 @@ import com.example.fishy.domain.model.BatchLimit
 import com.example.fishy.domain.model.DictionaryType
 import com.example.fishy.domain.model.Product
 import com.example.fishy.domain.model.ShipmentMode
-import com.example.fishy.domain.model.ShipmentPayload
 import com.example.fishy.ui.ErrorFeedback
 import com.example.fishy.ui.components.AccordionCard
 import com.example.fishy.ui.components.BatchControlPanel
@@ -137,7 +131,6 @@ import com.example.fishy.ui.components.CenteredDialogMessage
 import com.example.fishy.ui.components.CenteredDialogTitle
 import com.example.fishy.ui.components.ChecklistStatusBanner
 import com.example.fishy.ui.components.ColumnScrollIndicator
-import com.example.fishy.ui.components.DecimalNumberField
 import com.example.fishy.ui.components.DialogCancelConfirmActions
 import com.example.fishy.ui.components.DialogCenteredAction
 import com.example.fishy.ui.components.DialogCenteredFishyButton
@@ -155,7 +148,6 @@ import com.example.fishy.ui.components.transportTitle
 import com.example.fishy.ui.components.unloadReceptionTitle
 import com.example.fishy.ui.theme.Error
 import com.example.fishy.ui.theme.FishyAccent
-import com.example.fishy.ui.theme.ProgressGreen
 import com.example.fishy.ui.theme.Success
 import com.example.fishy.ui.theme.Warning
 import com.example.fishy.ui.theme.isLightTheme

@@ -25,13 +25,7 @@ val ProgressRed = Color(0xFFF44336)
 val ProgressOrange = Color(0xFFFF9800)
 val ProgressYellow = Color(0xFFFFEB3B)
 val ProgressGreen = Color(0xFF4CAF50)
-val SyntaxVar = Color(0xFF64B5F6)
-val SyntaxText = Color(0xFFBDBDBD)
 val PlaceholderGrey = Color(0xFF757575)
-/** Forecast placeholder row — mid grey, not background and not red. */
-val ForecastRowGrey = Color(0xFF3E3E3E)
-/** Forecasted places digits — darker muted grey, readable on ForecastRowGrey. */
-val ForecastPlacesGrey = Color(0xFF2A2A2A)
 
 /** Brand / accent (filled buttons, dark-theme links). */
 val FishyAccent = Color(0xFF45BBBB)
