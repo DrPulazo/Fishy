@@ -14,8 +14,8 @@
     <string name="back">Back</string>
     <string name="coming_soon">Coming soon</string>
     <string name="about_title">About</string>
-    <string name="about_version">Version 2.1.3</string>
-    <string name="about_body">Shipment tracking for fish cargo receivers.\nFishy 2.1.3</string>
+    <string name="about_version">Version 2.1.4</string>
+    <string name="about_body">Shipment tracking for fish cargo receivers.\nFishy 2.1.4</string>
     <string name="about_deepseek">Built with help from\nthe DeepSeek AI chatbot.</string>
     <string name="about_budget_title">Development budget:</string>
     <string name="about_budget_beer">A case of beer</string>
@@ -71,7 +71,7 @@
     <string name="reset_report">Reset to generated</string>
     <string name="report">Report</string>
     <string name="checklist">Checklist</string>
-    <string name="checklist_prep">Preparation</string>
+    <string name="checklist_prep">Preparation checklist</string>
     <string name="checklist_shipment">Shipment progress checklist</string>
     <string name="checklist_incomplete_title">Checklist incomplete</string>
     <string name="checklist_incomplete_finish_msg">Finish shipment?</string>

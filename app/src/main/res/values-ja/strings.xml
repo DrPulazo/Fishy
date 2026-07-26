@@ -14,8 +14,8 @@
     <string name="back">戻る</string>
     <string name="coming_soon">近日公開</string>
     <string name="about_title">について</string>
-    <string name="about_version">バージョン 2.1.3</string>
-    <string name="about_body">魚の貨物受信機の出荷追跡。\nFishy 2.1.3</string>
+    <string name="about_version">バージョン 2.1.4</string>
+    <string name="about_body">魚の貨物受信機の出荷追跡。\nFishy 2.1.4</string>
     <string name="about_deepseek">DeepSeek AI チャットボット \n の助けを借りて構築されました。</string>
     <string name="about_budget_title">開発予算:</string>
     <string name="about_budget_beer">ビール 1 ケース</string>
@@ -71,7 +71,7 @@
     <string name="reset_report">生成されたものにリセット</string>
     <string name="report">報告</string>
     <string name="checklist">チェックリスト</string>
-    <string name="checklist_prep">準備</string>
+    <string name="checklist_prep">準備チェックリスト</string>
     <string name="checklist_shipment">出荷進捗チェックリスト</string>
     <string name="checklist_incomplete_title">チェックリスト未完了</string>
     <string name="checklist_incomplete_finish_msg">出荷を完了しますか？</string>

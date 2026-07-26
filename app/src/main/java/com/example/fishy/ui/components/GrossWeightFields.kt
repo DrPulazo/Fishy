@@ -19,15 +19,23 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import com.example.fishy.R
 import com.example.fishy.domain.format.QuantityFormatters
+import com.example.fishy.domain.format.ThousandsGroupingVisualTransformation
 import com.example.fishy.domain.model.GrossWeightMath
 import com.example.fishy.domain.model.Product
 
@@ -74,24 +82,15 @@ fun ProductWeightQuantityFields(
                 isError = tareError,
                 thousandsSeparator = thousandsSeparator
             )
-            OutlinedTextField(
-                value = if (product.quantity > 0) {
-                    QuantityFormatters.formatInteger(product.quantity, thousandsSeparator)
-                } else {
-                    ""
-                },
-                onValueChange = { value ->
-                    onQuantityChange(
-                        value.replace(" ", "").replace("\u00A0", "").toIntOrNull() ?: 0
-                    )
-                },
+            IntegerQuantityField(
+                value = product.quantity,
+                onValueChange = onQuantityChange,
                 label = { Text(stringResource(R.string.quantity_short), style = labelStyle) },
                 modifier = Modifier
                     .weight(0.33f)
                     .defaultMinSize(minWidth = 0.dp),
                 textStyle = textStyle,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                singleLine = true
+                thousandsSeparator = thousandsSeparator
             )
             ComputedMassField(
                 value = QuantityFormatters.formatWeight(product.totalWeight, thousandsSeparator),
@@ -111,24 +110,15 @@ fun ProductWeightQuantityFields(
         verticalArrangement = Arrangement.spacedBy(3.dp)
     ) {
         TwoEqualFieldsRow {
-            OutlinedTextField(
-                value = if (product.quantity > 0) {
-                    QuantityFormatters.formatInteger(product.quantity, thousandsSeparator)
-                } else {
-                    ""
-                },
-                onValueChange = { value ->
-                    onQuantityChange(
-                        value.replace(" ", "").replace("\u00A0", "").toIntOrNull() ?: 0
-                    )
-                },
+            IntegerQuantityField(
+                value = product.quantity,
+                onValueChange = onQuantityChange,
                 label = { Text(stringResource(R.string.quantity_short), style = labelStyle) },
                 modifier = Modifier
                     .weight(1f)
                     .defaultMinSize(minWidth = 0.dp),
                 textStyle = textStyle,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                singleLine = true
+                thousandsSeparator = thousandsSeparator
             )
             DecimalNumberField(
                 value = product.grossCoefficient,
@@ -186,6 +176,60 @@ fun ProductWeightQuantityFields(
         }
     }
 }
+
+/**
+ * Integer qty field: raw digits in state; optional thousands grouping via VisualTransformation.
+ */
+@Composable
+private fun IntegerQuantityField(
+    value: Int,
+    onValueChange: (Int) -> Unit,
+    label: @Composable (() -> Unit)?,
+    modifier: Modifier = Modifier,
+    textStyle: TextStyle = TextStyle.Default,
+    thousandsSeparator: Boolean = false
+) {
+    var focused by remember { mutableStateOf(false) }
+    var text by remember {
+        mutableStateOf(formatIntegerInput(value))
+    }
+
+    LaunchedEffect(value, focused, thousandsSeparator) {
+        if (!focused) {
+            text = formatIntegerInput(value)
+        }
+    }
+
+    OutlinedTextField(
+        value = text,
+        onValueChange = { raw ->
+            val digits = sanitizeIntegerInput(raw)
+            text = digits
+            onValueChange(digits.toIntOrNull() ?: 0)
+        },
+        modifier = modifier.onFocusChanged { state ->
+            focused = state.isFocused
+            if (state.isFocused) {
+                text = sanitizeIntegerInput(text)
+            }
+        },
+        label = label,
+        textStyle = textStyle,
+        singleLine = true,
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+        visualTransformation = if (thousandsSeparator) {
+            ThousandsGroupingVisualTransformation()
+        } else {
+            VisualTransformation.None
+        }
+    )
+}
+
+private fun formatIntegerInput(value: Int): String =
+    if (value > 0) value.toString() else ""
+
+private fun sanitizeIntegerInput(raw: String): String =
+    raw.replace(" ", "").replace("\u00A0", "").filter { it.isDigit() }
 
 /**
  * Read-only mass. Optional calculator sits under the value so long numbers cover it

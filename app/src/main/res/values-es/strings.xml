@@ -14,8 +14,8 @@
     <string name="back">Atrás</string>
     <string name="coming_soon">Sección en desarrollo</string>
     <string name="about_title">Acerca de la aplicación</string>
-    <string name="about_version">Versión 2.1.3</string>
-    <string name="about_body">Registro y planificación de envíos para receptores de cargas de pescado.\nFishy 2.1.3</string>
+    <string name="about_version">Versión 2.1.4</string>
+    <string name="about_body">Registro y planificación de envíos para receptores de cargas de pescado.\nFishy 2.1.4</string>
     <string name="about_deepseek">Desarrollado con la colaboración\ndel chatbot de IA DeepSeek.</string>
     <string name="about_budget_title">Presupuesto de desarrollo:</string>
     <string name="about_budget_beer">Una caja de cerveza</string>
@@ -71,7 +71,7 @@
     <string name="reset_report">Restablecer al original</string>
     <string name="report">Informe</string>
     <string name="checklist">Lista de verificación</string>
-    <string name="checklist_prep">Preparación</string>
+    <string name="checklist_prep">Lista de preparación</string>
     <string name="checklist_shipment">Lista de progreso del envío</string>
     <string name="checklist_incomplete_title">Lista de verificación incompleta</string>
     <string name="checklist_incomplete_finish_msg">¿Finalizar el envío?</string>

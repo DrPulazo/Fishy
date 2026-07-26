@@ -469,16 +469,6 @@ class ShipmentViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun setChecklistReminderEnabled(v: Boolean) {
-        val current = _payload.value
-        val allDone = current.checklist.isNotEmpty() && current.checklist.all { it.isCompleted }
-        if (v && allDone) {
-            viewModelScope.launch {
-                _events.emit(
-                    ShipmentUiEvent.Toast(app.getString(R.string.checklist_reminders_all_done))
-                )
-            }
-            return
-        }
         update { it.copy(checklistReminderEnabled = v) }
     }
 

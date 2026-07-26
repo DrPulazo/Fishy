@@ -12,11 +12,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.VisualTransformation
 import com.example.fishy.domain.format.QuantityFormatters
+import com.example.fishy.domain.format.ThousandsGroupingVisualTransformation
 
 /**
  * Decimal weight/tare field that keeps intermediate input like `12,` without resetting,
- * and replaces `.` with `,` while typing. Optional thousands grouping when unfocused.
+ * and replaces `.` with `,` while typing. Optional thousands grouping via VisualTransformation.
  */
 @Composable
 fun DecimalNumberField(
@@ -32,12 +34,13 @@ fun DecimalNumberField(
 ) {
     var focused by remember { mutableStateOf(false) }
     var text by remember {
-        mutableStateOf(QuantityFormatters.formatWeightInput(value, thousandsSeparator))
+        // Buffer never stores grouping spaces (VT draws them when enabled).
+        mutableStateOf(QuantityFormatters.formatWeightInput(value, thousandsSeparator = false))
     }
 
     LaunchedEffect(value, focused, thousandsSeparator) {
         if (!focused) {
-            text = QuantityFormatters.formatWeightInput(value, thousandsSeparator)
+            text = QuantityFormatters.formatWeightInput(value, thousandsSeparator = false)
         }
     }
 
@@ -49,12 +52,22 @@ fun DecimalNumberField(
             val parsed = QuantityFormatters.parseDecimalInput(sanitized)
             if (parsed != null) onValueChange(parsed)
         },
-        modifier = modifier.onFocusChanged { focused = it.isFocused },
+        modifier = modifier.onFocusChanged { state ->
+            focused = state.isFocused
+            if (state.isFocused) {
+                text = QuantityFormatters.sanitizeDecimalInput(text)
+            }
+        },
         label = label,
         textStyle = textStyle,
         isError = isError,
         enabled = enabled,
         singleLine = singleLine,
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+        visualTransformation = if (thousandsSeparator) {
+            ThousandsGroupingVisualTransformation()
+        } else {
+            VisualTransformation.None
+        }
     )
 }

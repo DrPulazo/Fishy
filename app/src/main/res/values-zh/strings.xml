@@ -14,8 +14,8 @@
     <string name="back">返回</string>
     <string name="coming_soon">即将推出</string>
     <string name="about_title">关于应用</string>
-    <string name="about_version">版本 2.1.3</string>
-    <string name="about_body">鱼类货物收货发货管理。\nFishy 2.1.3</string>
+    <string name="about_version">版本 2.1.4</string>
+    <string name="about_body">鱼类货物收货发货管理。\nFishy 2.1.4</string>
     <string name="about_deepseek">在 DeepSeek AI\n助手协助下开发。</string>
     <string name="about_budget_title">开发预算：</string>
     <string name="about_budget_beer">一箱啤酒</string>
@@ -71,7 +71,7 @@
     <string name="reset_report">重置为生成内容</string>
     <string name="report">报告</string>
     <string name="checklist">检查清单</string>
-    <string name="checklist_prep">准备</string>
+    <string name="checklist_prep">准备清单</string>
     <string name="checklist_shipment">发货进度检查清单</string>
     <string name="checklist_incomplete_title">清单未完成</string>
     <string name="checklist_incomplete_finish_msg">完成发货？</string>

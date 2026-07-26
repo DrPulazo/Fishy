@@ -1,9 +1,8 @@
 package com.example.fishy.feature.shipment
 
+import android.os.SystemClock
 import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -90,6 +89,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.remember
@@ -158,6 +159,11 @@ private enum class CompletePlacesMismatch {
 
 /** Min sweep so a near-zero pie does not draw a hairline tick. */
 private const val ReminderPieMinSweepDeg = 2f
+/** Discrete progress steps (no per-frame tween between ticks). */
+private const val ReminderPieTickMs = 1_000L
+
+private fun checklistReminderIntervalMs(intervalMin: Int): Long =
+    intervalMin.coerceIn(5, 60) * 60_000L
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -209,12 +215,38 @@ fun ShipmentScreen(
     val notesBringIntoView = remember { BringIntoViewRequester() }
     val lifecycleState by LocalLifecycleOwner.current.lifecycle.currentStateAsState()
     val isResumed = lifecycleState.isAtLeast(Lifecycle.State.RESUMED)
-    val checklistIncomplete = payload.checklist.any { !it.isCompleted }
-    val reminderTimerActive = payload.checklistReminderEnabled &&
-        checklistIncomplete &&
-        !showChecklist &&
-        isResumed
-    var reminderProgress by remember { mutableFloatStateOf(0f) }
+    val reminderChromeVisible = payload.checklistReminderEnabled && payload.checklist.isNotEmpty()
+    val reminderTimerActive = reminderChromeVisible && !showChecklist && isResumed
+    var reminderPieProgress by remember { mutableFloatStateOf(0f) }
+    var reminderCycleIndex by remember { mutableIntStateOf(0) }
+    var reminderAdvanceCycle by remember { mutableStateOf(false) }
+    var reminderCycleStartElapsed by remember { mutableLongStateOf(0L) }
+    var reminderCycleRunning by remember { mutableStateOf(false) }
+    var reminderPauseBeganElapsed by remember { mutableLongStateOf(0L) }
+
+    LaunchedEffect(payload.checklistReminderEnabled) {
+        if (!payload.checklistReminderEnabled) {
+            reminderCycleIndex = 0
+            reminderAdvanceCycle = false
+            reminderCycleRunning = false
+            reminderPauseBeganElapsed = 0L
+            reminderPieProgress = 0f
+        }
+    }
+    LaunchedEffect(payload.checklistReminderIntervalMin) {
+        reminderCycleIndex = 0
+        reminderAdvanceCycle = false
+        reminderCycleRunning = false
+        reminderPauseBeganElapsed = 0L
+        reminderPieProgress = 0f
+    }
+    LaunchedEffect(mode, draftId, scheduledId) {
+        reminderCycleIndex = 0
+        reminderAdvanceCycle = false
+        reminderCycleRunning = false
+        reminderPauseBeganElapsed = 0L
+        reminderPieProgress = 0f
+    }
 
     // Home / switch-app / overlay: flush draft immediately (don't wait for 3s debounce).
     LaunchedEffect(isResumed) {
@@ -224,30 +256,54 @@ fun ShipmentScreen(
     LaunchedEffect(
         payload.checklistReminderEnabled,
         payload.checklistReminderIntervalMin,
-        checklistIncomplete,
+        payload.checklist.isNotEmpty(),
         showChecklist,
         isResumed
     ) {
-        if (!reminderTimerActive) {
-            reminderProgress = 0f
+        if (!reminderChromeVisible) {
+            reminderPieProgress = 0f
+            reminderCycleRunning = false
+            reminderPauseBeganElapsed = 0L
             return@LaunchedEffect
         }
-        val intervalMs = payload.checklistReminderIntervalMin.coerceIn(5, 60) * 60_000L
-        val anim = Animatable(0f)
-        try {
-            anim.animateTo(
-                targetValue = 1f,
-                animationSpec = tween(
-                    durationMillis = intervalMs.toInt(),
-                    easing = LinearEasing
-                )
-            ) {
-                reminderProgress = value
+        // Checklist open or app paused: freeze pie + wall-clock, do not reset.
+        if (!reminderTimerActive) {
+            if (reminderCycleRunning && reminderPauseBeganElapsed == 0L) {
+                reminderPauseBeganElapsed = SystemClock.elapsedRealtime()
             }
-            ErrorFeedback.vibrateStrong(context)
-            showChecklist = true
-        } finally {
-            reminderProgress = 0f
+            return@LaunchedEffect
+        }
+        if (reminderAdvanceCycle) {
+            reminderCycleIndex += 1
+            reminderAdvanceCycle = false
+            reminderCycleRunning = false
+            reminderPauseBeganElapsed = 0L
+        }
+        val intervalMs = checklistReminderIntervalMs(payload.checklistReminderIntervalMin)
+        if (!reminderCycleRunning) {
+            reminderCycleStartElapsed = SystemClock.elapsedRealtime()
+            reminderCycleRunning = true
+            reminderPauseBeganElapsed = 0L
+            reminderPieProgress = 0f
+        } else if (reminderPauseBeganElapsed != 0L) {
+            // Shift cycle start so elapsed stays where it was when paused.
+            reminderCycleStartElapsed += SystemClock.elapsedRealtime() - reminderPauseBeganElapsed
+            reminderPauseBeganElapsed = 0L
+        }
+        while (true) {
+            val elapsed = SystemClock.elapsedRealtime() - reminderCycleStartElapsed
+            val remaining = intervalMs - elapsed
+            if (remaining <= 0L) {
+                reminderPieProgress = 1f
+                ErrorFeedback.vibrateStrong(context)
+                reminderAdvanceCycle = true
+                reminderCycleRunning = false
+                reminderPauseBeganElapsed = 0L
+                showChecklist = true
+                break
+            }
+            reminderPieProgress = (elapsed.toFloat() / intervalMs).coerceIn(0f, 1f)
+            delay(minOf(ReminderPieTickMs, remaining))
         }
     }
 
@@ -322,10 +378,12 @@ fun ShipmentScreen(
                         }
                     },
                     actions = {
-                        val pieSweep = reminderProgress * 360f
-                        val showReminderPie = reminderTimerActive && pieSweep >= ReminderPieMinSweepDeg
+                        val pieProgress = reminderPieProgress
+                        val pieSweep = pieProgress * 360f
+                        val showWedge = pieSweep >= ReminderPieMinSweepDeg
+                        val oddCycle = reminderCycleIndex % 2 == 1
                         // Light: darken; dark: lighten — readable on Error/Warning fills.
-                        val pieColor = if (isLightTheme()) {
+                        val scrimColor = if (isLightTheme()) {
                             Color.Black.copy(alpha = 0.38f)
                         } else {
                             Color.White.copy(alpha = 0.36f)
@@ -339,8 +397,8 @@ fun ShipmentScreen(
                                     .semantics { contentDescription = checklistCd },
                                 contentAlignment = Alignment.Center
                             ) {
-                                if (showReminderPie) {
-                                    // Status face + pie + stroke ✓ (weight matched to CheckBox cutout).
+                                if (reminderChromeVisible) {
+                                    // Face always status; cycles alternate which layer grows.
                                     Canvas(modifier = Modifier.fillMaxSize()) {
                                         val inset = 3.dp.toPx()
                                         val corner = 2.dp.toPx()
@@ -368,14 +426,36 @@ fun ShipmentScreen(
                                             val cx = faceLeft + faceSide * 0.5f
                                             val cy = faceTop + faceSide * 0.5f
                                             val origin = Offset(cx - radius, cy - radius)
-                                            drawArc(
-                                                color = pieColor,
-                                                startAngle = -90f,
-                                                sweepAngle = pieSweep,
-                                                useCenter = true,
-                                                topLeft = origin,
-                                                size = Size(radius * 2f, radius * 2f)
-                                            )
+                                            val arcSize = Size(radius * 2f, radius * 2f)
+                                            if (oddCycle) {
+                                                // Dimmed base, bright status wedge grows back.
+                                                drawRoundRect(
+                                                    color = scrimColor,
+                                                    topLeft = Offset(faceLeft, faceTop),
+                                                    size = Size(faceSide, faceSide),
+                                                    cornerRadius = CornerRadius(corner)
+                                                )
+                                                if (showWedge) {
+                                                    drawArc(
+                                                        color = animatedChecklistColor,
+                                                        startAngle = -90f,
+                                                        sweepAngle = pieSweep,
+                                                        useCenter = true,
+                                                        topLeft = origin,
+                                                        size = arcSize
+                                                    )
+                                                }
+                                            } else if (showWedge) {
+                                                // Bright face, scrim wedge grows.
+                                                drawArc(
+                                                    color = scrimColor,
+                                                    startAngle = -90f,
+                                                    sweepAngle = pieSweep,
+                                                    useCenter = true,
+                                                    topLeft = origin,
+                                                    size = arcSize
+                                                )
+                                            }
                                         }
                                         val checkPath = Path().apply {
                                             moveTo(
@@ -1908,7 +1988,7 @@ private fun ChecklistDialog(vm: ShipmentViewModel, onDismiss: () -> Unit) {
                         OutlinedTextField(
                             value = stringResource(
                                 R.string.checklist_reminder_interval_min,
-                                payload.checklistReminderIntervalMin
+                                payload.checklistReminderIntervalMin.coerceIn(5, 60)
                             ),
                             onValueChange = {},
                             readOnly = true,

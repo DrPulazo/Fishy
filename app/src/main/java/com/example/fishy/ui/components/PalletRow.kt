@@ -42,12 +42,14 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.fishy.R
 import com.example.fishy.domain.calc.ShipmentCalculator
 import com.example.fishy.domain.format.QuantityFormatters
+import com.example.fishy.domain.format.ThousandsGroupingVisualTransformation
 import com.example.fishy.domain.model.Pallet
 import com.example.fishy.ui.theme.forecastPlacesColor
 import com.example.fishy.ui.theme.forecastRowBackground
@@ -118,7 +120,7 @@ fun PalletRow(
     var draftPlaces by remember(pallet.id) { mutableStateOf("") }
     var placesFocused by remember { mutableStateOf(false) }
     var placesText by remember(pallet.id) {
-        mutableStateOf(QuantityFormatters.formatWeightInput(pallet.places, thousandsSeparator))
+        mutableStateOf(QuantityFormatters.formatWeightInput(pallet.places, thousandsSeparator = false))
     }
     val interactionSource = remember { MutableInteractionSource() }
     val focused by interactionSource.collectIsFocusedAsState()
@@ -149,7 +151,7 @@ fun PalletRow(
 
     LaunchedEffect(pallet.places, placesFocused, clearingPlaceholder, thousandsSeparator) {
         if (!placesFocused && !(pallet.isPlaceholder && clearingPlaceholder)) {
-            placesText = QuantityFormatters.formatWeightInput(pallet.places, thousandsSeparator)
+            placesText = QuantityFormatters.formatWeightInput(pallet.places, thousandsSeparator = false)
         }
     }
 
@@ -231,10 +233,15 @@ fun PalletRow(
                     .focusRequester(focusRequester)
                     .onFocusChanged { state ->
                         placesFocused = state.isFocused
-                        if (state.isFocused && pallet.isPlaceholder) {
-                            clearingPlaceholder = true
-                            draftPlaces = ""
-                            placesText = ""
+                        if (state.isFocused) {
+                            if (pallet.isPlaceholder) {
+                                clearingPlaceholder = true
+                                draftPlaces = ""
+                                placesText = ""
+                            } else {
+                                // Strip grouping NBSP so edits don't jump the cursor.
+                                placesText = QuantityFormatters.sanitizeDecimalInput(placesText)
+                            }
                         }
                     },
                 interactionSource = interactionSource,
@@ -248,7 +255,12 @@ fun PalletRow(
                     focusedTextColor = placesTextColor,
                     unfocusedTextColor = placesTextColor,
                     disabledTextColor = placesTextColor
-                )
+                ),
+                visualTransformation = if (thousandsSeparator) {
+                    ThousandsGroupingVisualTransformation()
+                } else {
+                    VisualTransformation.None
+                }
             )
             if (doubleControl) {
                 Box(
