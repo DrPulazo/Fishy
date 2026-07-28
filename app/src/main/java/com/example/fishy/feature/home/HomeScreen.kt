@@ -121,25 +121,21 @@ fun HomeScreen(
     fun openAboutDialog() {
         if (isRussianLanguageActive(settings.language)) {
             val current = settings.aboutOpenCount.coerceIn(0, 11)
-            // 0→1 always (first tease); 1→11 at ~33%; 11→12 at 50%.
+            // 0→1 and 1→2 always; 2→11 at ~33%; 11→12 at 50%.
             val advanceChance = when (current) {
-                0 -> 1f
+                0, 1 -> 1f
                 11 -> 0.5f
                 else -> 1f / 3f
             }
-            if (kotlin.random.Random.nextFloat() < advanceChance) {
-                val next = current + 1
-                aboutBeerVisit = next.coerceAtMost(12)
-                // After the 12th visit (clickable dozen), cycle resets to 0.
-                val stored = if (next >= 12) 0 else next
-                scope.launch {
-                    settingsRepo.update { it.copy(aboutOpenCount = stored) }
-                }
-                if (aboutBeerVisit >= 12) {
-                    ErrorFeedback.vibrate(context)
-                }
-            } else {
-                aboutBeerVisit = current
+            val advanced = kotlin.random.Random.nextFloat() < advanceChance
+            val next = if (advanced) (current + 1).coerceAtMost(12) else current
+            val stored = if (advanced && next >= 12) 0 else next.coerceAtMost(11)
+            aboutBeerVisit = next
+            scope.launch {
+                settingsRepo.update { it.copy(aboutOpenCount = stored) }
+            }
+            if (next >= 12) {
+                ErrorFeedback.vibrate(context)
             }
         } else {
             aboutBeerVisit = 0

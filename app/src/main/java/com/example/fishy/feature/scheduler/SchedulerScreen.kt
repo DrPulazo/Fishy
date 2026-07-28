@@ -64,6 +64,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -140,6 +141,9 @@ private data class ReminderDraft(
     val id: Long,
     val atMillis: Long
 )
+
+private fun List<ReminderDraft>.sortedByAt(): List<ReminderDraft> =
+    sortedBy { it.atMillis }
 
 private enum class ChecklistStatus {
     COMPLETED, PARTIAL, NONE, EMPTY
@@ -874,6 +878,7 @@ private fun ScheduledEditorDialog(
             val loaded = repo.getReminders(initial.id)
             reminders = if (loaded.isNotEmpty()) {
                 loaded.map { ReminderDraft(localKey = it.id, id = it.id, atMillis = it.atMillis) }
+                    .sortedByAt()
             } else {
                 emptyList()
             }
@@ -910,7 +915,7 @@ private fun ScheduledEditorDialog(
     fun setReminderTime(localKey: Long, updated: Long) {
         reminders = reminders.map {
             if (it.localKey == localKey) it.copy(atMillis = updated) else it
-        }
+        }.sortedByAt()
         errorReminderKeys = errorReminderKeys - localKey
     }
 
@@ -958,7 +963,7 @@ private fun ScheduledEditorDialog(
         }
         val key = nextLocalKey
         nextLocalKey -= 1
-        reminders = reminders + ReminderDraft(localKey = key, id = 0L, atMillis = at)
+        reminders = (reminders + ReminderDraft(localKey = key, id = 0L, atMillis = at)).sortedByAt()
         scrollToAddReminder()
     }
 
@@ -1177,6 +1182,7 @@ private fun ScheduledEditorDialog(
                     }
                     if (notify) {
                         reminders.forEachIndexed { index, draft ->
+                            key(draft.localKey) {
                             val reminderCal = Calendar.getInstance().apply { timeInMillis = draft.atMillis }
                             val reminderTime =
                                 "%02d:%02d".format(
@@ -1241,6 +1247,7 @@ private fun ScheduledEditorDialog(
                                 if (index < reminders.lastIndex) {
                                     HorizontalDivider()
                                 }
+                            }
                             }
                         }
                         if (reminders.size < MAX_PREP_REMINDERS) {
