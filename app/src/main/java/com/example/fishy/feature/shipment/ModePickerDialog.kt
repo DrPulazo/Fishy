@@ -33,10 +33,13 @@ import com.example.fishy.ui.components.DialogCenteredAction
 @Composable
 fun ModePickerDialog(
     onDismiss: () -> Unit,
-    onConfirm: (ShipmentMode) -> Unit
+    onConfirm: (ShipmentMode) -> Unit,
+    initialMode: ShipmentMode = ShipmentMode.MONO,
+    confirmText: String? = null
 ) {
-    var selected by remember { mutableStateOf(ShipmentMode.MONO) }
+    var selected by remember { mutableStateOf(initialMode) }
     var hintMode by remember { mutableStateOf<ShipmentMode?>(null) }
+    val resolvedConfirmText = confirmText ?: stringResource(R.string.create)
 
     val options = listOf(
         ShipmentMode.MONO to (R.string.mode_mono to R.string.mode_mono_hint),
@@ -88,7 +91,7 @@ fun ModePickerDialog(
             DialogCancelConfirmActions(
                 onCancel = onDismiss,
                 onConfirm = { onConfirm(selected) },
-                confirmText = stringResource(R.string.create)
+                confirmText = resolvedConfirmText
             )
         }
     )

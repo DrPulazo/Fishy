@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Fishy</string>
+    <string name="app_name">Фишка</string>
     <string name="home_title">Fishy</string>
     <string name="home_title_ru">ФИШКА</string>
     <string name="nav_new_shipment">НОВАЯ ОТГРУЗКА</string>
@@ -14,8 +14,8 @@
     <string name="back">Назад</string>
     <string name="coming_soon">Раздел в разработке</string>
     <string name="about_title">О приложении</string>
-    <string name="about_version">Версия 2.1.4</string>
-    <string name="about_body">Учёт и планирование отгрузок для приёмщиков рыбных грузов.\nFishy 2.1.4</string>
+    <string name="about_version">Версия 2.1.5</string>
+    <string name="about_body">Учёт и планирование отгрузок для приёмщиков рыбных грузов.\nFishy 2.1.5</string>
     <string name="about_deepseek">Разработано при содействии\nИИ чат-бота DeepSeek.</string>
     <string name="about_budget_title">Бюджет разработки:</string>
     <string name="about_budget_beer">Ящик пива</string>
@@ -114,6 +114,7 @@
     <string name="thousands_separator">Разряды чисел</string>
     <string name="floating_fab">Плавающая кнопка</string>
     <string name="simplified_counter">Упрощённый счётчик</string>
+    <string name="settings_vibration">Вибрация</string>
     <string name="quick_pallet_places_required">Укажите количество мест</string>
     <string name="wipe_data">УДАЛИТЬ ДАННЫЕ</string>
     <string name="wipe_data_title">Удалить данные?</string>
@@ -298,8 +299,8 @@
     <string name="copy_default">Копия</string>
     <string name="notifications">Уведомления</string>
     <string name="reminders">Напоминания</string>
-    <string name="reminders_add">Добавить напоминание</string>
-    <string name="notify_enable">Включить напоминания</string>
+    <string name="reminders_add">Добавить уведомление</string>
+    <string name="notify_enable">Включить уведомления</string>
     <string name="notify_cd">Напоминания включены</string>
     <string name="notify_off_cd">Напоминания выключены</string>
     <string name="notify_datetime">Дата и время: %1$s</string>
@@ -501,7 +502,7 @@
     <string name="faq_double_control_title">Двойной контроль</string>
     <string name="faq_double_control_body">Напротив каждого поддона появляется отметка «Завезён». Фактическое загруженное количество мест считается только по поддонам, отмеченным как завезённые.</string>
     <string name="faq_forecast_title">Предрасчёт поддонов</string>
-    <string name="faq_forecast_body">После ввода количества мест на первом поддоне приложение высчитывает ориентировочное количество поддонов и остаток.</string>
+    <string name="faq_forecast_body">После ввода количества мест на первом поддоне приложение высчитывает ориентировочное количество поддонов и остаток, отображая заготовки для ввода.</string>
     <string name="faq_batch_title">Контроль партий</string>
     <string name="faq_batch_body">Можно ввести лимиты по каждой позиции. Когда количество загруженных мест какой-либо позиции превышает лимит, появляется оповещение.</string>
     <string name="faq_gross_title">Масса брутто</string>
@@ -511,17 +512,15 @@
     <string name="faq_simple_counter_title">Упрощённый счётчик</string>
     <string name="faq_simple_counter_body">Появляется поле ввода «Количество мест на поддон» рядом с кнопкой «Добавить поддон»: число подставляется сразу при добавлении (и с кнопки, и с «+»).</string>
     <string name="faq_input_guard_title">Проверка ввода</string>
-    <string name="faq_input_guard_body">Если тара или количество мест на поддоне выше заданного порога — появится подтверждение. Предотвращает опечатки.</string>
+    <string name="faq_input_guard_body">Если тара или количество мест на поддоне выше заданного порога — появится запрос на подтверждение. Предотвращает возможные опечатки по типу лишней цифры.</string>
     <string name="faq_autospacing_title">Автопробел</string>
-    <string name="faq_autospacing_body">Номера контейнеров: ХХХХ1234567 → ХХХХ 1234567\nНомера автомобилей: Х123ХХ456 → Х 123 ХХ / 456\nРазряды чисел: 10000 → 10 000</string>
-    <string name="faq_prep_checklist_title">Чек-лист «Подготовка» (в расписании)</string>
+    <string name="faq_autospacing_body">Номера контейнеров:\nХХХХ1234567 → ХХХХ 1234567\nНомера автомобилей:\nХ123ХХ456 → Х 123 ХХ / 456\nРазряды чисел:\n10000 → 10 000</string>
+    <string name="faq_prep_checklist_title">Чек-лист подготовки (в расписании)</string>
     <string name="faq_prep_checklist_body">Список того, что надо сделать до начала работы. Статус виден на карточке запланированной отгрузки и в уведомлении. При начале работы невыполненные пункты чек-листа подготовки переносятся в чек-лист отгрузки.</string>
     <string name="faq_schedule_reminders_title">Напоминания в расписании</string>
     <string name="faq_schedule_reminders_body">В карточке запланированной отгрузки можно задать одно или несколько напоминаний на нужное время. По нажатию на уведомление открывается чек-лист подготовки.</string>
-    <string name="faq_shipment_checklist_title">«Чек-лист хода отгрузки» (в отгрузке)</string>
-    <string name="faq_shipment_checklist_body">Список того, что надо сделать во время работы. Если чек-лист не выполнен, перед завершением отгрузки появится предупреждение.</string>
-    <string name="faq_shipment_checklist_reminders_title">Напоминания чек-листа отгрузки</string>
-    <string name="faq_shipment_checklist_reminders_body">В чек-листе отгрузки можно включить периодические напоминания. Они срабатывают, пока экран отгрузки открыт, и помогают не забыть незавершённые пункты.</string>
+    <string name="faq_shipment_checklist_title">Чек-лист хода отгрузки (в отгрузке)</string>
+    <string name="faq_shipment_checklist_body">Список того, что надо сделать во время работы. Если чек-лист не выполнен, перед завершением отгрузки появится предупреждение. Напоминания работают только на экране текущей отгрузки, а таймер напоминания обнуляется при выходе.</string>
     <string name="faq_start_schedule_title">Старт из расписания</string>
     <string name="faq_start_schedule_body">Кнопка «Начать» в уведомлении создаёт отгрузку по заготовке из расписания – со всеми заранее заполненными данными.</string>
     <string name="faq_drafts_title">Черновики и дубликаты</string>

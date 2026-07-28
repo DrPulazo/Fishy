@@ -5,17 +5,27 @@ import android.os.Build
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
+import com.example.fishy.FishyApp
 
 /** Short haptic for validation / blocking errors. */
 object ErrorFeedback {
     fun vibrate(context: Context) {
+        if (!isUserEnabled()) return
         vibrateOneShot(context, durationMs = 50)
     }
 
-    /** Stronger haptic for checklist reminders during an active shipment. */
-    fun vibrateStrong(context: Context) {
+    /**
+     * Stronger haptic (checklist reminders, wipe-data).
+     * @param ignoreUserSetting when true (wipe dialogs), always vibrates.
+     */
+    fun vibrateStrong(context: Context, ignoreUserSetting: Boolean = false) {
+        if (!ignoreUserSetting && !isUserEnabled()) return
         vibrateOneShot(context, durationMs = 350)
     }
+
+    private fun isUserEnabled(): Boolean =
+        runCatching { FishyApp.instance.settingsRepository.vibrationEnabledCached }
+            .getOrDefault(true)
 
     private fun vibrateOneShot(context: Context, durationMs: Long) {
         val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {

@@ -1,5 +1,11 @@
 package com.example.fishy.feature.home
 
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -19,8 +25,18 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -93,13 +109,9 @@ fun EasterEggScreen(onBack: () -> Unit) {
                     textAlign = TextAlign.Start
                 )
                 Spacer(modifier = Modifier.height(28.dp))
-                Text(
+                ShimmerRunesText(
                     text = EASTER_EGG_RUNES,
                     color = runesColor,
-                    fontSize = 34.sp,
-                    fontWeight = FontWeight.Bold,
-                    textAlign = TextAlign.Center,
-                    lineHeight = 42.sp,
                     modifier = Modifier.fillMaxWidth()
                 )
                 Spacer(modifier = Modifier.height(16.dp))
@@ -113,4 +125,52 @@ fun EasterEggScreen(onBack: () -> Unit) {
             )
         }
     }
+}
+
+/** Looping light band across the closing turquoise runes. */
+@Composable
+private fun ShimmerRunesText(
+    text: String,
+    color: Color,
+    modifier: Modifier = Modifier
+) {
+    var textWidthPx by remember { mutableFloatStateOf(0f) }
+    val transition = rememberInfiniteTransition(label = "easterRunesShimmer")
+    val t by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 2200, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "easterRunesShimmerT"
+    )
+    val brush = remember(t, textWidthPx, color) {
+        if (textWidthPx <= 0f) {
+            SolidColor(color)
+        } else {
+            val band = textWidthPx * 0.45f
+            val startX = -band + (textWidthPx + band) * t
+            Brush.linearGradient(
+                colors = listOf(
+                    color,
+                    Color.White.copy(alpha = 0.92f),
+                    color
+                ),
+                start = Offset(startX, 0f),
+                end = Offset(startX + band, 0f)
+            )
+        }
+    }
+    Text(
+        text = text,
+        style = TextStyle(
+            brush = brush,
+            fontSize = 34.sp,
+            fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.Center,
+            lineHeight = 42.sp
+        ),
+        modifier = modifier.onSizeChanged { textWidthPx = it.width.toFloat() }
+    )
 }

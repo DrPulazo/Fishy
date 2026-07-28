@@ -43,6 +43,8 @@ data class FishySettings(
     val floatingFabEnabled: Boolean = true,
     /** Prefill places when adding pallets (field above «Add pallet» + FAB). */
     val simplifiedCounterEnabled: Boolean = false,
+    /** In-app haptics (errors, delete confirms, etc.). Wipe-data dialogs always vibrate. */
+    val vibrationEnabled: Boolean = true,
     val defaultBatchWarnThreshold: Int = 5,
     /** How many About opens while Russian UI is active before the next visit (0..11). Resets after 12. */
     val aboutOpenCount: Int = 0,
@@ -65,6 +67,14 @@ data class FishySettings(
 
 class SettingsRepository(private val context: Context) {
 
+    /**
+     * Hot cache for [ErrorFeedback] (main-thread vibrate checks without collecting Flow).
+     * Updated on every [update] / read of preferences.
+     */
+    @Volatile
+    var vibrationEnabledCached: Boolean = true
+        private set
+
     private object Keys {
         val theme = stringPreferencesKey("theme")
         val language = stringPreferencesKey("language")
@@ -77,6 +87,7 @@ class SettingsRepository(private val context: Context) {
         val thousandsSeparator = booleanPreferencesKey("thousands_separator")
         val floatingFab = booleanPreferencesKey("floating_fab")
         val simplifiedCounter = booleanPreferencesKey("simplified_counter")
+        val vibration = booleanPreferencesKey("vibration_enabled")
         val batchWarn = intPreferencesKey("batch_warn")
         val aboutOpenCount = intPreferencesKey("about_open_count")
         val eulaAcceptedVersion = intPreferencesKey("eula_accepted_version")
@@ -87,7 +98,7 @@ class SettingsRepository(private val context: Context) {
     }
 
     val settings: Flow<FishySettings> = context.dataStore.data.map { prefs ->
-        prefs.toFishySettings()
+        prefs.toFishySettings().also { vibrationEnabledCached = it.vibrationEnabled }
     }
 
     suspend fun update(transform: (FishySettings) -> FishySettings) {
@@ -105,7 +116,9 @@ class SettingsRepository(private val context: Context) {
             prefs[Keys.thousandsSeparator] = next.thousandsSeparatorEnabled
             prefs[Keys.floatingFab] = next.floatingFabEnabled
             prefs[Keys.simplifiedCounter] = next.simplifiedCounterEnabled
+            prefs[Keys.vibration] = next.vibrationEnabled
             prefs[Keys.batchWarn] = next.defaultBatchWarnThreshold
+            vibrationEnabledCached = next.vibrationEnabled
             prefs[Keys.aboutOpenCount] = next.aboutOpenCount
             prefs[Keys.eulaAcceptedVersion] = next.eulaAcceptedVersion
             prefs[Keys.fabDragTipSeen] = next.fabDragTipSeen
@@ -145,6 +158,7 @@ class SettingsRepository(private val context: Context) {
             thousandsSeparatorEnabled = this[Keys.thousandsSeparator] ?: false,
             floatingFabEnabled = this[Keys.floatingFab] ?: true,
             simplifiedCounterEnabled = this[Keys.simplifiedCounter] ?: false,
+            vibrationEnabled = this[Keys.vibration] ?: true,
             defaultBatchWarnThreshold = this[Keys.batchWarn] ?: 5,
             aboutOpenCount = this[Keys.aboutOpenCount] ?: 0,
             eulaAcceptedVersion = this[Keys.eulaAcceptedVersion] ?: 0,

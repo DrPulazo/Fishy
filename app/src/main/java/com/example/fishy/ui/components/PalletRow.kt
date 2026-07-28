@@ -18,7 +18,6 @@ import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -31,14 +30,22 @@ import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
@@ -57,6 +64,12 @@ import kotlinx.coroutines.delay
 
 /** Shared horizontal rhythm: left inset == gap between columns. */
 private val PalletColGap = 12.dp
+
+/** Half of ProductCard pallet list spacedBy(4.dp) — strips meet in the gap. */
+private val PalletStripGapExtend = 2.dp
+
+/** Swipe fraction at which the hint strip is fully error-colored. */
+private const val StripRedSaturationAt = 0.25f
 
 @Composable
 fun PalletTableHeader(doubleControl: Boolean) {
@@ -113,7 +126,8 @@ fun PalletRow(
     onDelete: () -> Unit,
     requestFocus: Boolean = false,
     onFocusHandled: () -> Unit = {},
-    thousandsSeparator: Boolean = false
+    thousandsSeparator: Boolean = false,
+    onPlacesFocusChange: (Boolean) -> Unit = {}
 ) {
     var showDelete by remember { mutableStateOf(false) }
     var clearingPlaceholder by remember(pallet.id) { mutableStateOf(false) }
@@ -164,6 +178,7 @@ fun PalletRow(
     } else {
         MaterialTheme.colorScheme.onSurface
     }
+    val placeholderEnter = rememberPlaceholderEnter(pallet.isPlaceholder)
 
     val dismissState = rememberSwipeToDismissBoxState(
         confirmValueChange = {
@@ -174,15 +189,30 @@ fun PalletRow(
         }
     )
 
+    // progress is only between anchors and jumps; use horizontal offset / width.
+    var rowWidthPx by remember { mutableFloatStateOf(0f) }
+    val offsetPx = runCatching { dismissState.requireOffset() }.getOrDefault(Float.NaN)
+    val swipeFraction = when {
+        rowWidthPx <= 0f || offsetPx.isNaN() || offsetPx >= 0f -> 0f
+        else -> (-offsetPx / rowWidthPx).coerceIn(0f, 1f)
+    }
+    val colorT = (swipeFraction / StripRedSaturationAt).coerceIn(0f, 1f)
+    val stripIdle = MaterialTheme.colorScheme.onSurfaceVariant
+    val stripActive = MaterialTheme.colorScheme.error
+    val stripColor = lerp(stripIdle, stripActive, colorT)
+    val dismissBg = lerp(Color.Transparent, stripActive, colorT)
+    val dismissIconTint = MaterialTheme.colorScheme.onError.copy(alpha = colorT)
+
     SwipeToDismissBox(
         state = dismissState,
+        modifier = Modifier.onSizeChanged { rowWidthPx = it.width.toFloat() },
         enableDismissFromStartToEnd = false,
         backgroundContent = {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .fillMaxHeight()
-                    .background(MaterialTheme.colorScheme.error)
+                    .background(dismissBg)
                     .padding(16.dp),
                 horizontalArrangement = Arrangement.End,
                 verticalAlignment = Alignment.CenterVertically
@@ -190,13 +220,14 @@ fun PalletRow(
                 Icon(
                     Icons.Default.Delete,
                     contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onError
+                    tint = dismissIconTint
                 )
             }
         }
     ) {
         Row(
             modifier = Modifier
+                .then(placeholderEnter)
                 .fillMaxWidth()
                 .height(IntrinsicSize.Min)
                 .background(
@@ -233,6 +264,7 @@ fun PalletRow(
                     .focusRequester(focusRequester)
                     .onFocusChanged { state ->
                         placesFocused = state.isFocused
+                        onPlacesFocusChange(state.isFocused)
                         if (state.isFocused) {
                             if (pallet.isPlaceholder) {
                                 clearingPlaceholder = true
@@ -267,7 +299,7 @@ fun PalletRow(
                     modifier = Modifier.weight(1f),
                     contentAlignment = Alignment.Center
                 ) {
-                    Checkbox(
+                    FishyPulseCheckbox(
                         checked = pallet.isImported,
                         onCheckedChange = { onToggleImported() },
                         enabled = !pallet.isPlaceholder,
@@ -279,7 +311,15 @@ fun PalletRow(
                 modifier = Modifier
                     .width(3.dp)
                     .fillMaxHeight()
-                    .background(MaterialTheme.colorScheme.error.copy(alpha = 0.65f))
+                    .graphicsLayer { clip = false }
+                    .drawBehind {
+                        val extend = PalletStripGapExtend.toPx()
+                        drawRect(
+                            color = stripColor,
+                            topLeft = Offset(0f, -extend),
+                            size = Size(size.width, size.height + extend * 2)
+                        )
+                    }
             )
         }
     }

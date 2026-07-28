@@ -36,7 +36,7 @@ import java.util.Locale
 fun DatePickerField(
     selectedDateMillis: Long,
     onDateSelected: (Long) -> Unit,
-    label: String,
+    label: String? = null,
     modifier: Modifier = Modifier,
     isError: Boolean = false
 ) {
@@ -62,7 +62,7 @@ fun DatePickerField(
         OutlinedTextField(
             value = dateFormatter.format(Date(selectedDateMillis)),
             onValueChange = {},
-            label = { Text(label, style = formLabelStyleOrDefault()) },
+            label = label?.let { { Text(it, style = formLabelStyleOrDefault()) } },
             textStyle = formTextStyleOrDefault(),
             readOnly = true,
             enabled = false,

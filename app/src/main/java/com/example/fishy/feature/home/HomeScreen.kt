@@ -28,6 +28,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -59,6 +60,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -119,11 +121,11 @@ fun HomeScreen(
     fun openAboutDialog() {
         if (isRussianLanguageActive(settings.language)) {
             val current = settings.aboutOpenCount.coerceIn(0, 11)
-            // 0→1 always; 1→2 at 10%; from 2 onward always.
+            // 0→1 always (first tease); 1→11 at ~33%; 11→12 at 50%.
             val advanceChance = when (current) {
                 0 -> 1f
-                1 -> 0.1f
-                else -> 1f
+                11 -> 0.5f
+                else -> 1f / 3f
             }
             if (kotlin.random.Random.nextFloat() < advanceChance) {
                 val next = current + 1
@@ -219,8 +221,10 @@ fun HomeScreen(
                             Image(
                                 painter = painterResource(id = R.drawable.fishylogo),
                                 contentDescription = null,
+                                contentScale = ContentScale.Fit,
                                 modifier = Modifier
-                                    .size(innerLayout.logoSize)
+                                    .height(innerLayout.logoSize)
+                                    .aspectRatio(667f / 1024f)
                                     .clickable {
                                         if (!isRussianLanguageActive(settings.language)) {
                                             return@clickable

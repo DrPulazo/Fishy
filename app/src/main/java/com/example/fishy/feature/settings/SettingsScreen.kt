@@ -49,6 +49,7 @@ import com.example.fishy.FishyApp
 import com.example.fishy.R
 import com.example.fishy.data.settings.AppLanguage
 import com.example.fishy.domain.format.QuantityFormatters
+import com.example.fishy.ui.ErrorFeedback
 import com.example.fishy.ui.components.CenteredDialogMessage
 import com.example.fishy.ui.components.CenteredDialogTitle
 import com.example.fishy.ui.components.ColumnScrollIndicator
@@ -130,7 +131,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                         .fillMaxSize()
                         .padding(end = 8.dp)
                         .verticalScroll(settingsScroll),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                    verticalArrangement = Arrangement.spacedBy(11.dp)
                 ) {
                 ExposedDropdownMenuBox(
                     expanded = languageMenuOpen,
@@ -315,6 +316,17 @@ fun SettingsScreen(onBack: () -> Unit) {
                         )
                     }
                 }
+
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                    Text(stringResource(R.string.settings_vibration), modifier = Modifier.weight(1f))
+                    Switch(
+                        checked = settings.vibrationEnabled,
+                        onCheckedChange = { v ->
+                            scope.launch { settingsRepo.update { it.copy(vibrationEnabled = v) } }
+                        },
+                        colors = fishySwitchColors()
+                    )
+                }
             }
                 ColumnScrollIndicator(
                     scrollState = settingsScroll,
@@ -352,10 +364,14 @@ fun SettingsScreen(onBack: () -> Unit) {
                     wipeConfirmText = ""
                     wipeStep = WipeDialogStep.TypeConfirm
                 },
-                onDismiss = { wipeStep = WipeDialogStep.None }
+                onDismiss = { wipeStep = WipeDialogStep.None },
+                strongHaptic = true
             )
         }
         WipeDialogStep.TypeConfirm -> {
+            LaunchedEffect(Unit) {
+                ErrorFeedback.vibrateStrong(context, ignoreUserSetting = true)
+            }
             AlertDialog(
                 onDismissRequest = { wipeStep = WipeDialogStep.None },
                 containerColor = MaterialTheme.colorScheme.background,

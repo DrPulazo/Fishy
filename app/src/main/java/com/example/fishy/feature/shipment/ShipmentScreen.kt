@@ -2,6 +2,7 @@ package com.example.fishy.feature.shipment
 
 import android.os.SystemClock
 import android.widget.Toast
+import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -137,6 +138,7 @@ import com.example.fishy.ui.components.DialogCenteredAction
 import com.example.fishy.ui.components.DialogCenteredFishyButton
 import com.example.fishy.ui.components.DictionaryAutocomplete
 import com.example.fishy.ui.components.FillProgressBar
+import com.example.fishy.ui.components.FishyPulseCheckbox
 import com.example.fishy.ui.components.FishySentenceKeyboardOptions
 import com.example.fishy.ui.components.ProductWeightQuantityFields
 import com.example.fishy.ui.components.PalletRow
@@ -180,6 +182,7 @@ fun ShipmentScreen(
     val settings by vm.settings.collectAsState()
     val settingsReady by vm.settingsReady.collectAsState()
     val quickPlacesByKey by vm.quickPlacesByKey.collectAsState()
+    val fabSuccessTick by vm.fabSuccessTick.collectAsState()
     val sessionKey by vm.sessionKey.collectAsState()
     val customers by vm.customers.collectAsState()
     val ports by vm.ports.collectAsState()
@@ -679,6 +682,7 @@ fun ShipmentScreen(
                     items(payload.products, key = { it.id }) { product ->
                         ProductCard(
                             product = product,
+                            modifier = Modifier.animateItem(),
                             initiallyExpanded = sectionExpanded(resumeDraft, activeProductId, product.id),
                             forceExpandToken = focusPalletTarget
                                 ?.takeIf { it.productId == product.id },
@@ -710,7 +714,10 @@ fun ShipmentScreen(
                             grossWeightEnabled = payload.grossWeightEnabled,
                             simplifiedCounterEnabled = settings.simplifiedCounterEnabled,
                             quickPlacesText = quickPlacesByKey[quickPlacesStorageKey(product)].orEmpty(),
-                            onQuickPlacesChange = { vm.setQuickPlacesText(product, it) }
+                            onQuickPlacesChange = { vm.setQuickPlacesText(product, it) },
+                            onPalletPlacesFocus = { focused ->
+                                vm.setPalletPlacesFocused(product.id, focused)
+                            }
                         )
                     }
                     item {
@@ -736,6 +743,7 @@ fun ShipmentScreen(
                             titleColor = if (done) Success else MaterialTheme.colorScheme.onSurface,
                             initiallyExpanded = sectionExpanded(resumeDraft, activeVehicleId, vehicle.id),
                             forceExpandToken = focusPalletTarget?.takeIf { focusInVehicle },
+                            modifier = Modifier.animateItem(),
                             trailing = {
                                 IconButton(onClick = {
                                     pendingDelete = PendingDelete(
@@ -815,7 +823,10 @@ fun ShipmentScreen(
                                         grossWeightEnabled = payload.grossWeightEnabled,
                                         simplifiedCounterEnabled = settings.simplifiedCounterEnabled,
                                         quickPlacesText = quickPlacesByKey[quickPlacesStorageKey(product)].orEmpty(),
-                                        onQuickPlacesChange = { vm.setQuickPlacesText(product, it) }
+                                        onQuickPlacesChange = { vm.setQuickPlacesText(product, it) },
+                                        onPalletPlacesFocus = { focused ->
+                                            vm.setPalletPlacesFocused(product.id, focused)
+                                        }
                                     )
                                 }
                                 FishyButton(
@@ -868,6 +879,7 @@ fun ShipmentScreen(
                             titleColor = if (done) Success else MaterialTheme.colorScheme.onSurface,
                             initiallyExpanded = sectionExpanded(resumeDraft, activePortId, group.id),
                             forceExpandToken = focusPalletTarget?.takeIf { focusInPort },
+                            modifier = Modifier.animateItem(),
                             trailing = {
                                 IconButton(onClick = {
                                     pendingDelete = PendingDelete(
@@ -954,7 +966,10 @@ fun ShipmentScreen(
                                         grossWeightEnabled = payload.grossWeightEnabled,
                                         simplifiedCounterEnabled = settings.simplifiedCounterEnabled,
                                         quickPlacesText = quickPlacesByKey[quickPlacesStorageKey(product)].orEmpty(),
-                                        onQuickPlacesChange = { vm.setQuickPlacesText(product, it) }
+                                        onQuickPlacesChange = { vm.setQuickPlacesText(product, it) },
+                                        onPalletPlacesFocus = { focused ->
+                                            vm.setPalletPlacesFocused(product.id, focused)
+                                        }
                                     )
                                 }
                                 FishyButton(
@@ -1003,6 +1018,7 @@ fun ShipmentScreen(
                             title = receptionTitle,
                             initiallyExpanded = sectionExpanded(resumeDraft, activeReceptionId, reception.id),
                             forceExpandToken = focusPalletTarget?.takeIf { focusInReception },
+                            modifier = Modifier.animateItem(),
                             trailing = {
                                 IconButton(onClick = {
                                     pendingDelete = PendingDelete(
@@ -1150,7 +1166,10 @@ fun ShipmentScreen(
                                             grossWeightEnabled = payload.grossWeightEnabled,
                                             simplifiedCounterEnabled = settings.simplifiedCounterEnabled,
                                             quickPlacesText = quickPlacesByKey[quickPlacesStorageKey(product)].orEmpty(),
-                                            onQuickPlacesChange = { vm.setQuickPlacesText(product, it) }
+                                            onQuickPlacesChange = { vm.setQuickPlacesText(product, it) },
+                                            onPalletPlacesFocus = { focused ->
+                                                vm.setPalletPlacesFocused(product.id, focused)
+                                            }
                                         )
                                     }
                                     FishyButton(
@@ -1323,7 +1342,10 @@ fun ShipmentScreen(
                     animationSpec = tween(150)
                 )
             ) {
-                DraggableAddPalletFab(onClick = { vm.smartAddPallet() })
+                DraggableAddPalletFab(
+                    onClick = { vm.smartAddPallet() },
+                    successTick = fabSuccessTick
+                )
             }
             ShipmentCoachOverlay(
                 showFabTip = showFabCoachTip,
@@ -1646,7 +1668,9 @@ private fun ProductCard(
     grossWeightEnabled: Boolean = false,
     simplifiedCounterEnabled: Boolean = false,
     quickPlacesText: String = "",
-    onQuickPlacesChange: (String) -> Unit = {}
+    onQuickPlacesChange: (String) -> Unit = {},
+    onPalletPlacesFocus: (Boolean) -> Unit = {},
+    modifier: Modifier = Modifier
 ) {
     val rem = ShipmentCalculator.remainder(product, doubleControl, unload)
     val title = productAccordionTitle(product, stringResource(R.string.new_product))
@@ -1680,6 +1704,14 @@ private fun ProductCard(
         animationSpec = tween(200),
         label = "productStatus"
     )
+    val scope = rememberCoroutineScope()
+    val footerBringIntoView = remember { BringIntoViewRequester() }
+    val scrollFooterIntoView: () -> Unit = {
+        scope.launch {
+            delay(80)
+            footerBringIntoView.bringIntoView()
+        }
+    }
 
     AccordionCard(
         title = title,
@@ -1688,6 +1720,7 @@ private fun ProductCard(
         subtitleColor = subtitleColor,
         initiallyExpanded = initiallyExpanded,
         forceExpandToken = forceExpandToken,
+        modifier = modifier,
         trailing = {
             IconButton(onClick = onDeleteProduct) {
                 Icon(
@@ -1744,29 +1777,25 @@ private fun ProductCard(
             showCalculatedIcon = true
         )
         if (product.pallets.isNotEmpty()) {
-            PalletTableHeader(doubleControl = doubleControl)
-            product.pallets.forEach { pallet ->
-                PalletRow(
-                    pallet = pallet,
-                    doubleControl = doubleControl,
-                    onPlacesChange = { onPlaces(pallet.id, it) },
-                    onToggleImported = { onToggleImport(pallet.id) },
-                    onDelete = { onDeletePallet(pallet.id) },
-                    requestFocus = focusPalletId == pallet.id,
-                    onFocusHandled = onFocusHandled,
-                    thousandsSeparator = thousandsSeparator
-                )
+            Column(
+                modifier = Modifier.animateContentSize(),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                PalletTableHeader(doubleControl = doubleControl)
+                product.pallets.forEach { pallet ->
+                    PalletRow(
+                        pallet = pallet,
+                        doubleControl = doubleControl,
+                        onPlacesChange = { onPlaces(pallet.id, it) },
+                        onToggleImported = { onToggleImport(pallet.id) },
+                        onDelete = { onDeletePallet(pallet.id) },
+                        requestFocus = focusPalletId == pallet.id,
+                        onFocusHandled = onFocusHandled,
+                        thousandsSeparator = thousandsSeparator,
+                        onPlacesFocusChange = onPalletPlacesFocus
+                    )
+                }
             }
-        }
-
-        val footerBringIntoView = remember { BringIntoViewRequester() }
-        val realPalletCount = product.pallets.count { !it.isPlaceholder }
-        var prevRealPalletCount by remember { mutableStateOf(realPalletCount) }
-        LaunchedEffect(realPalletCount) {
-            if (realPalletCount > prevRealPalletCount && simplifiedCounterEnabled) {
-                footerBringIntoView.bringIntoView()
-            }
-            prevRealPalletCount = realPalletCount
         }
 
         Column(modifier = Modifier.bringIntoViewRequester(footerBringIntoView)) {
@@ -1866,7 +1895,10 @@ private fun ProductCard(
                         )
                     }
                     FishyButton(
-                        onClick = onAddPallet,
+                        onClick = {
+                            onAddPallet()
+                            scrollFooterIntoView()
+                        },
                         modifier = Modifier
                             .weight(1f)
                             .requiredHeight(counterRowHeight)
@@ -1881,7 +1913,13 @@ private fun ProductCard(
                     }
                 }
             } else {
-                FishyButton(onClick = onAddPallet, modifier = Modifier.fillMaxWidth()) {
+                FishyButton(
+                    onClick = {
+                        onAddPallet()
+                        scrollFooterIntoView()
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
                     Text(stringResource(R.string.add_pallet))
                 }
             }
@@ -1924,12 +1962,13 @@ private fun ChecklistDialog(vm: ShipmentViewModel, onDismiss: () -> Unit) {
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(end = 8.dp)
-                                .verticalScroll(listScroll),
+                                .verticalScroll(listScroll)
+                                .animateContentSize(),
                             verticalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
                             payload.checklist.forEach { task ->
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Checkbox(
+                                    FishyPulseCheckbox(
                                         checked = task.isCompleted,
                                         onCheckedChange = { vm.toggleChecklist(task.id) },
                                         colors = fishyCheckboxColors()

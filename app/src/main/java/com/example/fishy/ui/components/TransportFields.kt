@@ -106,7 +106,9 @@ fun TransportFields(
                 },
                 label = { Text(stringResource(R.string.wagon_label), style = labelStyle) },
                 textStyle = textStyle,
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .shakeOnError(hasWagonError),
                 singleLine = true,
                 keyboardOptions = CapsKeyboard,
                 isError = hasWagonError,
@@ -142,7 +144,9 @@ fun TransportFields(
                 },
                 label = { Text(stringResource(R.string.container_label), style = labelStyle) },
                 textStyle = textStyle,
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .shakeOnError(hasContainerError),
                 singleLine = true,
                 keyboardOptions = CapsKeyboard,
                 isError = hasContainerError,
@@ -300,7 +304,9 @@ fun UnloadReceptionFields(
                 },
                 label = { Text(stringResource(R.string.wagon_label), style = labelStyle) },
                 textStyle = textStyle,
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .shakeOnError(hasWagonError),
                 singleLine = true,
                 keyboardOptions = CapsKeyboard,
                 isError = hasWagonError,
@@ -336,7 +342,9 @@ fun UnloadReceptionFields(
                 },
                 label = { Text(stringResource(R.string.container_label), style = labelStyle) },
                 textStyle = textStyle,
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .shakeOnError(hasContainerError),
                 singleLine = true,
                 keyboardOptions = CapsKeyboard,
                 isError = hasContainerError,

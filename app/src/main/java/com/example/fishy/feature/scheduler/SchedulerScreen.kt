@@ -6,6 +6,7 @@ import android.os.Build
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Arrangement
@@ -48,13 +49,12 @@ import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExposedDropdownMenuBox
-import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -71,6 +71,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -111,6 +112,7 @@ import com.example.fishy.ui.components.FabContentClearance
 import com.example.fishy.ui.components.FabEndInsetForScrollbar
 import com.example.fishy.ui.components.FishyButton
 import com.example.fishy.ui.components.FishyFloatingActionButton
+import com.example.fishy.ui.components.FishyPulseCheckbox
 import com.example.fishy.ui.components.FishySentenceKeyboardOptions
 import com.example.fishy.ui.components.LazyListScrollIndicator
 import com.example.fishy.ui.components.LocalAccordionTitleStyle
@@ -118,6 +120,7 @@ import com.example.fishy.ui.components.LocalFormTextStyle
 import com.example.fishy.ui.components.TimePickerField
 import com.example.fishy.ui.components.fishyCheckboxColors
 import com.example.fishy.ui.components.fishySwitchColors
+import com.example.fishy.feature.shipment.ModePickerDialog
 import com.example.fishy.ui.components.formLabelStyleOrDefault
 import com.example.fishy.ui.components.formTextStyleOrDefault
 import com.example.fishy.ui.theme.Error
@@ -251,6 +254,7 @@ fun SchedulerScreen(
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     var showEditor by remember { mutableStateOf(false) }
+    var showNewModePicker by remember { mutableStateOf(false) }
     var editing by remember { mutableStateOf<ScheduledShipmentEntity?>(null) }
     var editorScrollToNotifications by remember { mutableStateOf(false) }
     var checklistFor by remember { mutableStateOf<Long?>(null) }
@@ -281,6 +285,10 @@ fun SchedulerScreen(
     }
 
     fun openNewEditor() {
+        showNewModePicker = true
+    }
+
+    fun openNewEditorWithMode(mode: ShipmentMode) {
         val tomorrowStart = Calendar.getInstance().apply {
             add(Calendar.DAY_OF_YEAR, 1)
             set(Calendar.HOUR_OF_DAY, 12)
@@ -288,9 +296,12 @@ fun SchedulerScreen(
             set(Calendar.SECOND, 0)
             set(Calendar.MILLISECOND, 0)
         }
+        val payload = emptyPayloadForMode(mode)
         editing = ScheduledShipmentEntity(
             scheduledDateMillis = tomorrowStart.timeInMillis,
             scheduledTime = "13:00",
+            mode = mode.name,
+            payloadJson = FishyJson.encodePayload(payload),
             notificationEnabled = true,
             notificationAtMillis = null
         )
@@ -427,6 +438,18 @@ fun SchedulerScreen(
                 )
             }
         }
+    }
+
+    if (showNewModePicker) {
+        ModePickerDialog(
+            initialMode = ShipmentMode.MONO,
+            confirmText = stringResource(R.string.action_select),
+            onDismiss = { showNewModePicker = false },
+            onConfirm = { mode ->
+                showNewModePicker = false
+                openNewEditorWithMode(mode)
+            }
+        )
     }
 
     if (showEditor && editing != null) {
@@ -799,7 +822,6 @@ private fun ScheduledEditorDialog(
             )
         )
     }
-    var modeExpanded by remember { mutableStateOf(false) }
     var time by remember { mutableStateOf(initial.scheduledTime) }
     var dateMillis by remember { mutableLongStateOf(initial.scheduledDateMillis) }
     var notify by remember { mutableStateOf(initial.notificationEnabled) }
@@ -942,25 +964,23 @@ private fun ScheduledEditorDialog(
 
     LaunchedEffect(scrollToNotifications, remindersReady) {
         if (!scrollToNotifications || !remindersReady) return@LaunchedEffect
-        if (!notify) {
-            if (!enableRemindersOrFail()) {
-                notificationsBringIntoView.bringIntoView()
-                return@LaunchedEffect
-            }
-        }
         delay(80)
-        addReminderBringIntoView.bringIntoView()
+        if (notify) {
+            addReminderBringIntoView.bringIntoView()
+        } else {
+            notificationsBringIntoView.bringIntoView()
+        }
     }
 
     val dateFmt = remember { SimpleDateFormat("dd.MM.yyyy", Locale.getDefault()) }
     val notifyFmt = remember { SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.getDefault()) }
 
-    val modeOptions = listOf(
-        ShipmentMode.MONO to stringResource(R.string.mode_mono),
-        ShipmentMode.MULTI_VEHICLE to stringResource(R.string.mode_multi_vehicle),
-        ShipmentMode.MULTI_PORT to stringResource(R.string.mode_multi_port),
-        ShipmentMode.UNLOAD to stringResource(R.string.mode_unload)
-    )
+    val modeLabel = when (payload.mode) {
+        ShipmentMode.MONO -> stringResource(R.string.mode_mono)
+        ShipmentMode.MULTI_VEHICLE -> stringResource(R.string.mode_multi_vehicle)
+        ShipmentMode.MULTI_PORT -> stringResource(R.string.mode_multi_port)
+        ShipmentMode.UNLOAD -> stringResource(R.string.mode_unload)
+    }
 
     AlertDialog(
         onDismissRequest = { requestDismiss() },
@@ -1062,41 +1082,26 @@ private fun ScheduledEditorDialog(
                     .verticalScroll(editorScrollState),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                ExposedDropdownMenuBox(
-                    expanded = modeExpanded,
-                    onExpandedChange = { modeExpanded = it }
-                ) {
-                    OutlinedTextField(
-                        value = modeOptions.first { it.first == payload.mode }.second,
-                        onValueChange = {},
-                        readOnly = true,
-                        label = {
-                            Text(
-                                stringResource(R.string.mode_field),
-                                style = formLabelStyleOrDefault()
-                            )
-                        },
-                        textStyle = formTextStyleOrDefault(),
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = modeExpanded) },
-                        modifier = Modifier
-                            .menuAnchor()
-                            .fillMaxWidth()
-                    )
-                    ExposedDropdownMenu(
-                        expanded = modeExpanded,
-                        onDismissRequest = { modeExpanded = false }
-                    ) {
-                        modeOptions.forEach { (value, label) ->
-                            DropdownMenuItem(
-                                text = { Text(label) },
-                                onClick = {
-                                    payload = switchPayloadMode(payload, value)
-                                    modeExpanded = false
-                                }
-                            )
-                        }
-                    }
-                }
+                OutlinedTextField(
+                    value = modeLabel,
+                    onValueChange = {},
+                    readOnly = true,
+                    enabled = false,
+                    label = {
+                        Text(
+                            stringResource(R.string.mode_field),
+                            style = formLabelStyleOrDefault()
+                        )
+                    },
+                    textStyle = formTextStyleOrDefault(),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        disabledTextColor = MaterialTheme.colorScheme.onSurface,
+                        disabledBorderColor = MaterialTheme.colorScheme.outline,
+                        disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        disabledContainerColor = Color.Transparent
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                )
 
                 DatePickerField(
                     selectedDateMillis = dateMillis,
@@ -1184,13 +1189,44 @@ private fun ScheduledEditorDialog(
                             ) {
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
-                                    verticalAlignment = Alignment.CenterVertically
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
-                                    Text(
-                                        stringResource(R.string.notify_preview, notifyFmt.format(Date(draft.atMillis))),
-                                        modifier = Modifier.weight(1f),
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                                    DatePickerField(
+                                        selectedDateMillis = draft.atMillis,
+                                        onDateSelected = { newDate ->
+                                            val c = Calendar.getInstance().apply { timeInMillis = draft.atMillis }
+                                            val h = c.get(Calendar.HOUR_OF_DAY)
+                                            val m = c.get(Calendar.MINUTE)
+                                            val updated = Calendar.getInstance().apply {
+                                                timeInMillis = newDate
+                                                set(Calendar.HOUR_OF_DAY, h)
+                                                set(Calendar.MINUTE, m)
+                                                set(Calendar.SECOND, 0)
+                                                set(Calendar.MILLISECOND, 0)
+                                            }.timeInMillis
+                                            setReminderTime(draft.localKey, updated)
+                                        },
+                                        modifier = Modifier.weight(1.1f),
+                                        isError = rowError
+                                    )
+                                    TimePickerField(
+                                        time = reminderTime,
+                                        onTimeChange = { newTime ->
+                                            val parts = newTime.split(":")
+                                            val h = parts.getOrNull(0)?.toIntOrNull() ?: 9
+                                            val m = parts.getOrNull(1)?.toIntOrNull() ?: 0
+                                            val updated = Calendar.getInstance().apply {
+                                                timeInMillis = draft.atMillis
+                                                set(Calendar.HOUR_OF_DAY, h)
+                                                set(Calendar.MINUTE, m)
+                                                set(Calendar.SECOND, 0)
+                                                set(Calendar.MILLISECOND, 0)
+                                            }.timeInMillis
+                                            setReminderTime(draft.localKey, updated)
+                                        },
+                                        modifier = Modifier.weight(0.9f),
+                                        isError = rowError
                                     )
                                     IconButton(
                                         onClick = { pendingReminderDelete = draft }
@@ -1202,42 +1238,6 @@ private fun ScheduledEditorDialog(
                                         )
                                     }
                                 }
-                                DatePickerField(
-                                    selectedDateMillis = draft.atMillis,
-                                    onDateSelected = { newDate ->
-                                        val c = Calendar.getInstance().apply { timeInMillis = draft.atMillis }
-                                        val h = c.get(Calendar.HOUR_OF_DAY)
-                                        val m = c.get(Calendar.MINUTE)
-                                        val updated = Calendar.getInstance().apply {
-                                            timeInMillis = newDate
-                                            set(Calendar.HOUR_OF_DAY, h)
-                                            set(Calendar.MINUTE, m)
-                                            set(Calendar.SECOND, 0)
-                                            set(Calendar.MILLISECOND, 0)
-                                        }.timeInMillis
-                                        setReminderTime(draft.localKey, updated)
-                                    },
-                                    label = stringResource(R.string.notify_date_field),
-                                    isError = rowError
-                                )
-                                TimePickerField(
-                                    time = reminderTime,
-                                    onTimeChange = { newTime ->
-                                        val parts = newTime.split(":")
-                                        val h = parts.getOrNull(0)?.toIntOrNull() ?: 9
-                                        val m = parts.getOrNull(1)?.toIntOrNull() ?: 0
-                                        val updated = Calendar.getInstance().apply {
-                                            timeInMillis = draft.atMillis
-                                            set(Calendar.HOUR_OF_DAY, h)
-                                            set(Calendar.MINUTE, m)
-                                            set(Calendar.SECOND, 0)
-                                            set(Calendar.MILLISECOND, 0)
-                                        }.timeInMillis
-                                        setReminderTime(draft.localKey, updated)
-                                    },
-                                    label = stringResource(R.string.notify_time_field),
-                                    isError = rowError
-                                )
                                 if (index < reminders.lastIndex) {
                                     HorizontalDivider()
                                 }
@@ -1489,7 +1489,7 @@ private fun ScheduledChecklistDialog(scheduledId: Long, onDismiss: () -> Unit) {
                         ) {
                             items.forEach { item ->
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Checkbox(
+                                    FishyPulseCheckbox(
                                         checked = item.isCompleted,
                                         onCheckedChange = {
                                             scope.launch {
@@ -1594,10 +1594,13 @@ private fun PayloadChecklistDialog(
                 ChecklistStatusBanner(completed = completed, total = total)
 
                 if (checklist.isNotEmpty()) {
-                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Column(
+                        modifier = Modifier.animateContentSize(),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
                         checklist.forEach { task ->
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Checkbox(
+                                FishyPulseCheckbox(
                                     checked = task.isCompleted,
                                     onCheckedChange = { checked ->
                                         onChange(

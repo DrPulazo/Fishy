@@ -1,5 +1,6 @@
 package com.example.fishy.ui.components
 
+import android.app.TimePickerDialog
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -17,13 +18,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import com.example.fishy.R
-import android.app.TimePickerDialog
 
 @Composable
 fun TimePickerField(
     time: String,
     onTimeChange: (String) -> Unit,
-    label: String,
+    label: String? = null,
     modifier: Modifier = Modifier,
     isError: Boolean = false
 ) {
@@ -40,7 +40,7 @@ fun TimePickerField(
         OutlinedTextField(
             value = time,
             onValueChange = {},
-            label = { Text(label, style = formLabelStyleOrDefault()) },
+            label = label?.let { { Text(it, style = formLabelStyleOrDefault()) } },
             textStyle = formTextStyleOrDefault(),
             readOnly = true,
             enabled = false,

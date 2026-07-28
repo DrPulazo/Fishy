@@ -1,9 +1,13 @@
 package com.example.fishy.ui.components
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
@@ -29,6 +33,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
@@ -59,7 +64,8 @@ private const val DefaultYFraction = 2f / 3f
 @Composable
 fun DraggableAddPalletFab(
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    successTick: Long = 0L
 ) {
     val context = LocalContext.current
     val density = LocalDensity.current
@@ -85,6 +91,7 @@ fun DraggableAddPalletFab(
     var userDragged by remember { mutableStateOf(false) }
     var savedX by remember { mutableFloatStateOf(0f) }
     var savedY by remember { mutableFloatStateOf(0f) }
+    var dragging by remember { mutableStateOf(false) }
 
     LaunchedEffect(sized, maxX, maxY, settings.fabPosXFraction, settings.fabPosYFraction) {
         if (!sized) return@LaunchedEffect
@@ -101,6 +108,25 @@ fun DraggableAddPalletFab(
     val posX = if (userDragged) savedX.coerceIn(0f, maxX) else defaultX
     val posY = if (userDragged) savedY.coerceIn(0f, maxY) else defaultY
     val interactionSource = remember { MutableInteractionSource() }
+    val pressed by interactionSource.collectIsPressedAsState()
+
+    val pressScale by animateFloatAsState(
+        targetValue = when {
+            dragging -> 1.05f
+            pressed -> 0.92f
+            else -> 1f
+        },
+        animationSpec = tween(100),
+        label = "fabPressScale"
+    )
+    val bumpScale = remember { Animatable(1f) }
+    LaunchedEffect(successTick) {
+        if (successTick == 0L) return@LaunchedEffect
+        bumpScale.snapTo(1f)
+        bumpScale.animateTo(1.08f, tween(90))
+        bumpScale.animateTo(1f, tween(90))
+    }
+    val shadowElevation = if (dragging) 10.dp else 4.dp
 
     fun persistPosition(x: Float, y: Float) {
         if (maxX <= 0f || maxY <= 0f) return
@@ -126,12 +152,18 @@ fun DraggableAddPalletFab(
                 .offset { IntOffset(posX.roundToInt(), posY.roundToInt()) }
                 .size(HaloSize)
                 .alpha(if (sized) 1f else 0f)
+                .graphicsLayer {
+                    val s = pressScale * bumpScale.value
+                    scaleX = s
+                    scaleY = s
+                }
                 .pointerInput(maxX, maxY, marginPx, defaultX, defaultY) {
                     val startX = defaultX
                     val startY = defaultY
                     detectDragGesturesAfterLongPress(
                         onDragStart = {
                             ErrorFeedback.vibrate(context)
+                            dragging = true
                             // Seed before first move; do not key pointerInput on userDragged —
                             // flipping it mid-gesture would cancel the current drag.
                             if (!userDragged) {
@@ -151,9 +183,11 @@ fun DraggableAddPalletFab(
                             savedY = (savedY + dragAmount.y).coerceIn(0f, maxY)
                         },
                         onDragEnd = {
+                            dragging = false
                             persistPosition(savedX, savedY)
                         },
                         onDragCancel = {
+                            dragging = false
                             persistPosition(savedX, savedY)
                         }
                     )
@@ -175,7 +209,7 @@ fun DraggableAddPalletFab(
             Box(
                 modifier = Modifier
                     .size(FabSize)
-                    .shadow(4.dp, CircleShape)
+                    .shadow(shadowElevation, CircleShape)
                     .clip(CircleShape)
                     .background(FishyAccent),
                 contentAlignment = Alignment.Center

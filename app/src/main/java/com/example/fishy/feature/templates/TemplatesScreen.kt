@@ -1,5 +1,6 @@
 package com.example.fishy.feature.templates
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -57,7 +58,7 @@ import com.example.fishy.ui.components.HintedScrollableTabs
 import com.example.fishy.ui.components.LazyListScrollIndicator
 import kotlinx.coroutines.launch
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun TemplatesScreen(onBack: () -> Unit) {
     val types = listOf(
@@ -155,6 +156,7 @@ fun TemplatesScreen(onBack: () -> Unit) {
                         items(list, key = { it.id }) { item ->
                             Card(
                                 modifier = Modifier
+                                    .animateItem()
                                     .fillMaxWidth()
                                     .padding(vertical = 4.dp)
                                     .clickable {

@@ -1,5 +1,6 @@
 package com.example.fishy.feature.history
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -41,7 +42,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun HistoryScreen(
     shipmentKey: String,
@@ -107,7 +108,7 @@ fun HistoryScreen(
                             SectionHeader(stringResource(R.string.history_section_milestones))
                         }
                         items(milestones, key = { "m-${it.id}" }) { event ->
-                            HistoryEventCard(event, fmt, emphasizeTime = false)
+                            HistoryEventCard(event, fmt, emphasizeTime = false, modifier = Modifier.animateItem())
                         }
                     }
                     if (palletEvents.isNotEmpty()) {
@@ -115,7 +116,7 @@ fun HistoryScreen(
                             SectionHeader(stringResource(R.string.history_section_pallets))
                         }
                         items(palletEvents, key = { "p-${it.id}" }) { event ->
-                            HistoryEventCard(event, fmt, emphasizeTime = true)
+                            HistoryEventCard(event, fmt, emphasizeTime = true, modifier = Modifier.animateItem())
                         }
                     }
                     if (otherEvents.isNotEmpty()) {
@@ -123,7 +124,7 @@ fun HistoryScreen(
                             SectionHeader(stringResource(R.string.history_section_other))
                         }
                         items(otherEvents, key = { "o-${it.id}" }) { event ->
-                            HistoryEventCard(event, fmt, emphasizeTime = false)
+                            HistoryEventCard(event, fmt, emphasizeTime = false, modifier = Modifier.animateItem())
                         }
                     }
                 }
@@ -152,11 +153,12 @@ private fun SectionHeader(title: String) {
 private fun HistoryEventCard(
     event: ShipmentEventEntity,
     fmt: SimpleDateFormat,
-    emphasizeTime: Boolean
+    emphasizeTime: Boolean,
+    modifier: Modifier = Modifier
 ) {
     val type = parseType(event.type)
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
             containerColor = if (emphasizeTime) {
                 MaterialTheme.colorScheme.surfaceContainerHigh

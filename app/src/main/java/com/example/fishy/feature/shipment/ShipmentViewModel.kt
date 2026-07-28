@@ -76,6 +76,12 @@ class ShipmentViewModel(application: Application) : AndroidViewModel(application
     private val _sessionKey = MutableStateFlow("session_${System.currentTimeMillis()}")
     val sessionKey: StateFlow<String> = _sessionKey.asStateFlow()
 
+    /** Product whose pallet places field currently has keyboard focus (FAB teleport gate). */
+    private var focusedPalletProductId: Long? = null
+
+    private val _fabSuccessTick = MutableStateFlow(0L)
+    val fabSuccessTick: StateFlow<Long> = _fabSuccessTick.asStateFlow()
+
     private val confirmedGuards = mutableSetOf<String>()
     private var autoSaveJob: Job? = null
     private var manualSaveJob: Job? = null
@@ -620,13 +626,14 @@ class ShipmentViewModel(application: Application) : AndroidViewModel(application
     /**
      * Simplified counter: stamp next forecast placeholder with draft places, or add a new real
      * pallet (first add with places triggers forecast like typing on the first row).
+     * @return false if draft places were missing/invalid (toast already shown).
      */
-    private fun stampNextPlaceholderOrAdd(productId: Long) {
-        val product = findProduct(productId) ?: return
+    private fun stampNextPlaceholderOrAdd(productId: Long): Boolean {
+        val product = findProduct(productId) ?: return false
         val places = parseQuickPlacesDraft(product)
         if (places == null) {
             rejectQuickPlacesRequired()
-            return
+            return false
         }
         if (_payload.value.palletForecastEnabled && product.pallets.any { it.isPlaceholder }) {
             val lastRealIndex = product.pallets.indexOfLast { !it.isPlaceholder }
@@ -635,11 +642,12 @@ class ShipmentViewModel(application: Application) : AndroidViewModel(application
             if (next != null) {
                 touchLastUsedProduct(productId)
                 updatePalletPlaces(productId, next.id, places)
-                return
+                return true
             }
         }
         touchLastUsedProduct(productId)
         addPalletWithPlaces(productId, places, focusAfter = false)
+        return true
     }
 
     private fun batchPlacesUsed(payload: ShipmentPayload, product: Product): Double {
@@ -729,9 +737,12 @@ class ShipmentViewModel(application: Application) : AndroidViewModel(application
                 scheduleForecastIfEligible(productId)
             }
             if (focusAfter && places == 0.0) {
+                notifyFabSuccess()
                 val palletId = newPalletId ?: return
-                viewModelScope.launch {
-                    _events.emit(ShipmentUiEvent.FocusPalletPlaces(productId, palletId))
+                if (shouldFocusAfterFab(productId)) {
+                    viewModelScope.launch {
+                        _events.emit(ShipmentUiEvent.FocusPalletPlaces(productId, palletId))
+                    }
                 }
             }
         }
@@ -1224,6 +1235,7 @@ class ShipmentViewModel(application: Application) : AndroidViewModel(application
      * FAB: if forecast placeholders exist, focus the next pallet after the last real one
      * (keep placeholders). Otherwise add a new real pallet and focus it.
      * With simplified counter: stamp draft places onto next placeholder or add first + forecast.
+     * Focus/scroll only when the places field of this product is focused and DC is off.
      */
     private fun focusOrAddPallet(productId: Long) {
         flushPendingForecast(productId)
@@ -1231,7 +1243,7 @@ class ShipmentViewModel(application: Application) : AndroidViewModel(application
             ?: return
         val s = settings.value
         if (s.simplifiedCounterEnabled) {
-            stampNextPlaceholderOrAdd(productId)
+            if (stampNextPlaceholderOrAdd(productId)) notifyFabSuccess()
             return
         }
         if (_payload.value.palletForecastEnabled && product.pallets.any { it.isPlaceholder }) {
@@ -1240,13 +1252,49 @@ class ShipmentViewModel(application: Application) : AndroidViewModel(application
                 ?: product.pallets.firstOrNull { it.isPlaceholder }
             if (next != null) {
                 touchLastUsedProduct(productId)
-                viewModelScope.launch {
-                    _events.emit(ShipmentUiEvent.FocusPalletPlaces(productId, next.id))
+                notifyFabSuccess()
+                if (shouldFocusAfterFab(productId)) {
+                    viewModelScope.launch {
+                        _events.emit(ShipmentUiEvent.FocusPalletPlaces(productId, next.id))
+                    }
                 }
                 return
             }
         }
         addPalletWithPlaces(productId, places = 0.0, focusAfter = true)
+    }
+
+    fun setPalletPlacesFocused(productId: Long, focused: Boolean) {
+        if (focused) {
+            focusedPalletProductId = productId
+        } else if (focusedPalletProductId == productId) {
+            focusedPalletProductId = null
+        }
+    }
+
+    private fun notifyFabSuccess() {
+        _fabSuccessTick.update { it + 1 }
+    }
+
+    private fun shouldFocusAfterFab(productId: Long): Boolean {
+        if (effectiveDoubleControlForProduct(productId)) return false
+        return focusedPalletProductId == productId
+    }
+
+    private fun effectiveDoubleControlForProduct(productId: Long): Boolean {
+        val p = _payload.value
+        return when (p.mode) {
+            ShipmentMode.MONO -> p.doubleControlEnabled
+            ShipmentMode.MULTI_VEHICLE -> {
+                val vehicle = p.multiVehicles.find { v -> v.products.any { it.id == productId } }
+                p.doubleControlEnabled || (vehicle?.doubleControlEnabled == true)
+            }
+            ShipmentMode.MULTI_PORT -> {
+                val group = p.multiPorts.find { g -> g.products.any { it.id == productId } }
+                p.doubleControlEnabled || (group?.doubleControlEnabled == true)
+            }
+            ShipmentMode.UNLOAD -> false
+        }
     }
 
     private fun touchLastUsedProduct(productId: Long) {
