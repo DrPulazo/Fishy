@@ -11,6 +11,7 @@ import androidx.compose.material.icons.filled.Error
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -35,6 +36,7 @@ import com.example.fishy.domain.model.Transport
 import com.example.fishy.domain.validation.ContainerWagonValidator
 import com.example.fishy.domain.validation.ValidationState
 import com.example.fishy.ui.ErrorFeedback
+import com.example.fishy.ui.theme.Warning
 
 private val CapsKeyboard = KeyboardOptions(capitalization = KeyboardCapitalization.Characters)
 
@@ -49,6 +51,20 @@ private fun VibrateOnTransportError(hasError: Boolean) {
         wasError = hasError
     }
 }
+
+/** Yellow/amber outline while container (1..10) or wagon (1..7) length is incomplete. */
+@Composable
+private fun incompleteNumberFieldColors(incomplete: Boolean) =
+    if (incomplete) {
+        OutlinedTextFieldDefaults.colors(
+            focusedBorderColor = Warning,
+            unfocusedBorderColor = Warning,
+            focusedLabelColor = Warning,
+            unfocusedLabelColor = Warning
+        )
+    } else {
+        OutlinedTextFieldDefaults.colors()
+    }
 
 /**
  * Transport fields matching v1 UX:
@@ -82,6 +98,8 @@ fun TransportFields(
         containerValidation is ValidationState.InvalidWithSuggestion
     val hasWagonError = wagonValidation is ValidationState.Invalid ||
         wagonValidation is ValidationState.InvalidWithSuggestion
+    val wagonIncomplete = !hasWagonError && wagonValidation is ValidationState.InProgress
+    val containerIncomplete = !hasContainerError && containerValidation is ValidationState.InProgress
     val invalidMsg = stringResource(R.string.invalid_number)
     VibrateOnTransportError(hasContainerError || hasWagonError)
 
@@ -112,6 +130,7 @@ fun TransportFields(
                 singleLine = true,
                 keyboardOptions = CapsKeyboard,
                 isError = hasWagonError,
+                colors = incompleteNumberFieldColors(wagonIncomplete),
                 trailingIcon = {
                     if (hasWagonError) {
                         Icon(
@@ -150,6 +169,7 @@ fun TransportFields(
                 singleLine = true,
                 keyboardOptions = CapsKeyboard,
                 isError = hasContainerError,
+                colors = incompleteNumberFieldColors(containerIncomplete),
                 visualTransformation = if (autoSpaceContainers) {
                     ContainerSpaceVisualTransformation()
                 } else {
@@ -271,6 +291,8 @@ fun UnloadReceptionFields(
         containerValidation is ValidationState.InvalidWithSuggestion
     val hasWagonError = wagonValidation is ValidationState.Invalid ||
         wagonValidation is ValidationState.InvalidWithSuggestion
+    val wagonIncomplete = !hasWagonError && wagonValidation is ValidationState.InProgress
+    val containerIncomplete = !hasContainerError && containerValidation is ValidationState.InProgress
     val invalidMsg = stringResource(R.string.invalid_number)
     val textStyle = formTextStyleOrDefault()
     val labelStyle = formLabelStyleOrDefault()
@@ -310,6 +332,7 @@ fun UnloadReceptionFields(
                 singleLine = true,
                 keyboardOptions = CapsKeyboard,
                 isError = hasWagonError,
+                colors = incompleteNumberFieldColors(wagonIncomplete),
                 trailingIcon = {
                     if (hasWagonError) {
                         Icon(
@@ -348,6 +371,7 @@ fun UnloadReceptionFields(
                 singleLine = true,
                 keyboardOptions = CapsKeyboard,
                 isError = hasContainerError,
+                colors = incompleteNumberFieldColors(containerIncomplete),
                 visualTransformation = if (autoSpaceContainers) {
                     ContainerSpaceVisualTransformation()
                 } else {

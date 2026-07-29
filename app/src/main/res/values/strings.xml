@@ -14,8 +14,8 @@
     <string name="back">Назад</string>
     <string name="coming_soon">Раздел в разработке</string>
     <string name="about_title">О приложении</string>
-    <string name="about_version">Версия 2.1.5</string>
-    <string name="about_body">Учёт и планирование отгрузок для приёмщиков рыбных грузов.\nFishy 2.1.5</string>
+    <string name="about_version">Версия 2.2.0</string>
+    <string name="about_body">Учёт и планирование отгрузок для приёмщиков рыбных грузов.\nFishy 2.2.0</string>
     <string name="about_deepseek">Разработано при содействии\nИИ чат-бота DeepSeek.</string>
     <string name="about_budget_title">Бюджет разработки:</string>
     <string name="about_budget_beer">Ящик пива</string>

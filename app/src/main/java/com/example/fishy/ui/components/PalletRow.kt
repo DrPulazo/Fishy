@@ -91,7 +91,9 @@ fun PalletTableHeader(doubleControl: Boolean) {
             modifier = Modifier.weight(1f)
         )
         Text(
-            text = stringResource(R.string.places_count),
+            text = stringResource(
+                if (doubleControl) R.string.quantity_short else R.string.places_count
+            ),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1,

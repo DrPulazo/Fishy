@@ -14,8 +14,8 @@
     <string name="back">뒤쪽에</string>
     <string name="coming_soon">곧 출시 예정</string>
     <string name="about_title">에 대한</string>
-    <string name="about_version">버전 2.1.5</string>
-    <string name="about_body">생선 화물 수신기에 대한 배송 추적.\nFishy 2.1.5</string>
+    <string name="about_version">버전 2.2.0</string>
+    <string name="about_body">생선 화물 수신기에 대한 배송 추적.\nFishy 2.2.0</string>
     <string name="about_deepseek">\n DeepSeek AI 챗봇의 도움을 받아 구축되었습니다.</string>
     <string name="about_budget_title">개발 예산:</string>
     <string name="about_budget_beer">맥주 한 케이스</string>
