@@ -58,10 +58,14 @@ interface ScheduledShipmentDao {
     @Query("SELECT * FROM scheduled_shipments WHERE id = :id LIMIT 1")
     suspend fun getById(id: Long): ScheduledShipmentEntity?
 
+    @Query("SELECT * FROM scheduled_shipments WHERE linkedDraftId = :draftId LIMIT 1")
+    suspend fun findByLinkedDraftId(draftId: Long): ScheduledShipmentEntity?
+
     @Query(
         """
         SELECT * FROM scheduled_shipments
         WHERE isCompleted = 0
+          AND linkedDraftId IS NULL
           AND (
             startNotificationSent = 0
             OR (
@@ -163,6 +167,15 @@ interface DictionaryDao {
 
     @Query("SELECT * FROM dictionary_items WHERE type = :type AND value = :value LIMIT 1")
     suspend fun findByTypeAndValue(type: String, value: String): DictionaryEntity?
+
+    @Query(
+        """
+        SELECT * FROM dictionary_items
+        WHERE type = :type AND LOWER(value) = LOWER(:value)
+        LIMIT 1
+        """
+    )
+    suspend fun findByTypeAndValueIgnoreCase(type: String, value: String): DictionaryEntity?
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(item: DictionaryEntity): Long

@@ -171,8 +171,12 @@ fun FishyNavHost(
                     openPrepChecklistId = pendingPrepChecklistId,
                     onPrepChecklistConsumed = { pendingPrepChecklistId = null },
                     onBack = { navController.popBackStackWhenResumed() },
-                    onStartShipment = { scheduledId ->
-                        navController.navigate("shipment_from_scheduled/$scheduledId")
+                    onStartShipment = { scheduledId, linkedDraftId ->
+                        if (linkedDraftId != null && linkedDraftId > 0L) {
+                            navController.navigate(FishyRoute.EditShipment.create(linkedDraftId))
+                        } else {
+                            navController.navigate("shipment_from_scheduled/$scheduledId")
+                        }
                     }
                 )
             }

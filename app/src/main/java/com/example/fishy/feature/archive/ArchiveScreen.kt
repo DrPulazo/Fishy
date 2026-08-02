@@ -66,6 +66,7 @@ import com.example.fishy.domain.model.ShipmentMode
 import com.example.fishy.domain.model.ShipmentFilters
 import com.example.fishy.domain.model.ShipmentPayload
 import com.example.fishy.domain.model.ShipmentSummaries
+import com.example.fishy.domain.model.SummaryStrings
 import com.example.fishy.ui.ErrorFeedback
 import com.example.fishy.ui.components.CenteredEmptyBody
 import com.example.fishy.ui.components.ConfirmDeleteDialog
@@ -496,8 +497,10 @@ private fun ArchiveShipmentCard(
         if (fromSummary.isNotEmpty()) fromSummary
         else listOfNotNull(payload?.vessel?.trim()?.takeIf { it.isNotBlank() })
     }
-    val transportCounts = remember(payload) {
-        payload?.let { ShipmentSummaries.transportCountsRu(it) }.orEmpty()
+    val context = LocalContext.current
+    val summaryCopy = remember(context) { SummaryStrings.from(context.resources) }
+    val transportCounts = remember(payload, summaryCopy) {
+        payload?.let { ShipmentSummaries.transportCountsRu(it, summaryCopy) }.orEmpty()
     }
     val products = remember(payload) {
         payload?.let { ShipmentSummaries.productNames(it) }.orEmpty()

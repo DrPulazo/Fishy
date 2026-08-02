@@ -219,7 +219,7 @@ class ShipmentViewModel(application: Application) : AndroidViewModel(application
     fun loadDraft(id: Long) {
         viewModelScope.launch {
             val entity = repo.getShipment(id) ?: return@launch
-            scheduledSourceId = null
+            scheduledSourceId = repo.findScheduledByLinkedDraft(id)?.id
             autoSaveJob?.cancel()
             _draftId.value = id
             _sessionKey.value = "draft_$id"
@@ -234,6 +234,23 @@ class ShipmentViewModel(application: Application) : AndroidViewModel(application
     fun loadFromScheduled(scheduledId: Long) {
         viewModelScope.launch {
             val scheduled = repo.getScheduled(scheduledId) ?: return@launch
+            val linkedDraft = scheduled.linkedDraftId
+            if (linkedDraft != null) {
+                val draftEntity = repo.getShipment(linkedDraft)
+                if (draftEntity != null) {
+                    scheduledSourceId = scheduledId
+                    autoSaveJob?.cancel()
+                    _draftId.value = linkedDraft
+                    _sessionKey.value = "draft_$linkedDraft"
+                    val decoded = FishyJson.decodePayload(draftEntity.payloadJson)
+                    val payload = decoded.copy(checklistEnabled = true)
+                    _payload.value = payload
+                    baselinePayloadJson = FishyJson.encodePayload(payload)
+                    return@launch
+                }
+                // Stale link: clear and fall through to a fresh start from the plan.
+                repo.clearScheduleLinkByDraft(linkedDraft)
+            }
             val base = ensurePayloadStructure(
                 decodeScheduledPayload(
                     scheduled.payloadJson,
@@ -267,7 +284,6 @@ class ShipmentViewModel(application: Application) : AndroidViewModel(application
             )
             if (payload.hasShipmentCargoContent()) {
                 saveDraftInternal(force = true)
-                finishScheduledSource()
             } else {
                 scheduleAutoSave()
             }
@@ -279,6 +295,12 @@ class ShipmentViewModel(application: Application) : AndroidViewModel(application
         repo.markScheduledCompleted(id)
         FishyApp.instance.notificationScheduler.cancel(id)
         scheduledSourceId = null
+    }
+
+    private suspend fun linkScheduledSourceToDraft(draftId: Long) {
+        val schedId = scheduledSourceId ?: return
+        repo.linkScheduledDraft(schedId, draftId)
+        FishyApp.instance.notificationScheduler.cancel(schedId)
     }
 
     private fun update(block: (ShipmentPayload) -> ShipmentPayload) {
@@ -357,6 +379,7 @@ class ShipmentViewModel(application: Application) : AndroidViewModel(application
             )
             if (completing.get() || gen != saveGeneration.get()) return
             _draftId.value = id
+            linkScheduledSourceToDraft(id)
             val newKey = "draft_$id"
             if (previousKey != newKey) {
                 repo.rekeyEvents(previousKey, newKey)
@@ -406,12 +429,14 @@ class ShipmentViewModel(application: Application) : AndroidViewModel(application
 
     fun addToDictionary(type: DictionaryType, value: String) {
         viewModelScope.launch {
-            repo.addDictionary(type, value)
-            _events.emit(
-                ShipmentUiEvent.Toast(
-                    getApplication<Application>().getString(R.string.dict_added, value.trim())
+            val inserted = repo.addDictionary(type, value)
+            if (inserted) {
+                _events.emit(
+                    ShipmentUiEvent.Toast(
+                        getApplication<Application>().getString(R.string.dict_added, value.trim())
+                    )
                 )
-            )
+            }
         }
     }
 

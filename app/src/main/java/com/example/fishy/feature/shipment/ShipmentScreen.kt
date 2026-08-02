@@ -123,6 +123,11 @@ import com.example.fishy.domain.model.BatchLimit
 import com.example.fishy.domain.model.DictionaryType
 import com.example.fishy.domain.model.Product
 import com.example.fishy.domain.model.ShipmentMode
+import com.example.fishy.domain.model.ShipmentPayload
+import com.example.fishy.domain.model.ShipmentSummaries
+import com.example.fishy.domain.model.Transport
+import com.example.fishy.domain.validation.ContainerWagonValidator
+import com.example.fishy.domain.validation.ValidationState
 import com.example.fishy.ui.ErrorFeedback
 import com.example.fishy.ui.components.AccordionCard
 import com.example.fishy.ui.components.BatchControlPanel
@@ -155,10 +160,6 @@ import com.example.fishy.ui.theme.Success
 import com.example.fishy.ui.theme.Warning
 import com.example.fishy.ui.theme.isLightTheme
 
-private enum class CompletePlacesMismatch {
-    None, Over, Under
-}
-
 /** Min sweep so a near-zero pie does not draw a hairline tick. */
 private const val ReminderPieMinSweepDeg = 2f
 /** Discrete progress steps (no per-frame tween between ticks). */
@@ -166,6 +167,49 @@ private const val ReminderPieTickMs = 1_000L
 
 private fun checklistReminderIntervalMs(intervalMin: Int): Long =
     intervalMin.coerceIn(5, 60) * 60_000L
+
+private fun transportNumberNeedsWarning(transport: Transport): Boolean {
+    val wagon = transport.wagonNumber.trim()
+    if (wagon.isNotEmpty()) {
+        when (ContainerWagonValidator.validateWagonNumberLive(wagon)) {
+            ValidationState.Invalid,
+            is ValidationState.InvalidWithSuggestion,
+            ValidationState.InProgress -> return true
+            else -> Unit
+        }
+    }
+    val container = transport.containerNumber.trim()
+    if (container.isNotEmpty()) {
+        when (ContainerWagonValidator.validateContainerNumberLive(container)) {
+            ValidationState.Invalid,
+            is ValidationState.InvalidWithSuggestion,
+            ValidationState.InProgress -> return true
+            else -> Unit
+        }
+    }
+    return false
+}
+
+private fun buildCompleteWarnings(
+    payload: ShipmentPayload,
+    context: android.content.Context
+): List<String> {
+    val warnings = mutableListOf<String>()
+    if (ShipmentSummaries.allTransports(payload).any { transportNumberNeedsWarning(it) }) {
+        warnings += context.getString(R.string.complete_confirm_transport)
+    }
+    if (payload.checklist.any { !it.isCompleted }) {
+        warnings += context.getString(R.string.complete_confirm_checklist)
+    }
+    val totals = ShipmentCalculator.totals(payload)
+    when {
+        totals.places > totals.quantity ->
+            warnings += context.getString(R.string.complete_confirm_places_over)
+        totals.places < totals.quantity ->
+            warnings += context.getString(R.string.complete_confirm_places_under)
+    }
+    return warnings
+}
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -205,8 +249,7 @@ fun ShipmentScreen(
     var batchPanelExpanded by remember { mutableStateOf(true) }
     var batchEditor by remember { mutableStateOf<BatchLimit?>(null) }
     var showCompleteConfirm by remember { mutableStateOf(false) }
-    var showIncompleteChecklistConfirm by remember { mutableStateOf(false) }
-    var completePlacesMismatch by remember { mutableStateOf(CompletePlacesMismatch.None) }
+    var completeConfirmMessage by remember { mutableStateOf("") }
     var guardDialog by remember { mutableStateOf<ShipmentUiEvent.GuardConfirm?>(null) }
     var alertDialogMessage by remember { mutableStateOf<String?>(null) }
     var pendingDelete by remember { mutableStateOf<PendingDelete?>(null) }
@@ -1296,24 +1339,14 @@ fun ShipmentScreen(
                     }
                     FishyButton(
                         onClick = {
-                            if (payload.checklist.any { !it.isCompleted }) {
+                            val warnings = buildCompleteWarnings(payload, context)
+                            if (warnings.isNotEmpty()) {
                                 ErrorFeedback.vibrate(context)
-                                showIncompleteChecklistConfirm = true
+                                completeConfirmMessage = warnings.joinToString("\n") { "• $it" }
                             } else {
-                                val totals = ShipmentCalculator.totals(payload)
-                                completePlacesMismatch = when {
-                                    totals.places > totals.quantity -> {
-                                        ErrorFeedback.vibrate(context)
-                                        CompletePlacesMismatch.Over
-                                    }
-                                    totals.places < totals.quantity -> {
-                                        ErrorFeedback.vibrate(context)
-                                        CompletePlacesMismatch.Under
-                                    }
-                                    else -> CompletePlacesMismatch.None
-                                }
-                                showCompleteConfirm = true
+                                completeConfirmMessage = context.getString(R.string.complete_confirm_msg)
                             }
+                            showCompleteConfirm = true
                         },
                         modifier = Modifier.fillMaxWidth()
                     ) {
@@ -1384,43 +1417,12 @@ fun ShipmentScreen(
         )
     }
 
-    if (showIncompleteChecklistConfirm) {
-        ConfirmSaveDialog(
-            title = stringResource(R.string.checklist_incomplete_title),
-            message = stringResource(R.string.checklist_incomplete_finish_msg),
-            confirmText = stringResource(R.string.action_finish),
-            onConfirm = {
-                showIncompleteChecklistConfirm = false
-                val totals = ShipmentCalculator.totals(payload)
-                completePlacesMismatch = when {
-                    totals.places > totals.quantity -> {
-                        ErrorFeedback.vibrate(context)
-                        CompletePlacesMismatch.Over
-                    }
-                    totals.places < totals.quantity -> {
-                        ErrorFeedback.vibrate(context)
-                        CompletePlacesMismatch.Under
-                    }
-                    else -> CompletePlacesMismatch.None
-                }
-                showCompleteConfirm = true
-            },
-            onDismiss = {
-                showIncompleteChecklistConfirm = false
-                showChecklist = true
-            }
-        )
-    }
-
     if (showCompleteConfirm) {
-        val messageRes = when (completePlacesMismatch) {
-            CompletePlacesMismatch.Over -> R.string.complete_confirm_places_over
-            CompletePlacesMismatch.Under -> R.string.complete_confirm_places_under
-            CompletePlacesMismatch.None -> R.string.complete_confirm_msg
-        }
         ConfirmSaveDialog(
             title = stringResource(R.string.complete_confirm_title),
-            message = stringResource(messageRes),
+            message = completeConfirmMessage,
+            confirmText = stringResource(R.string.action_finish),
+            messageTextAlign = TextAlign.Start,
             onConfirm = {
                 showCompleteConfirm = false
                 vm.complete()

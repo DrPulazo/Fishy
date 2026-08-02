@@ -114,6 +114,7 @@ class FishyRepository(private val db: FishyDatabase) {
     }
 
     suspend fun deleteShipment(id: Long) {
+        clearScheduleLinkByDraft(id)
         shipments.deleteById(id)
         events.deleteByKey(id.toString())
         events.deleteByKey("draft_$id")
@@ -133,6 +134,7 @@ class FishyRepository(private val db: FishyDatabase) {
 
     fun observeScheduled() = scheduled.observeAll()
     suspend fun getScheduled(id: Long) = scheduled.getById(id)
+    suspend fun findScheduledByLinkedDraft(draftId: Long) = scheduled.findByLinkedDraftId(draftId)
     suspend fun upsertScheduled(entity: ScheduledShipmentEntity) = scheduled.upsert(entity)
     suspend fun deleteScheduled(id: Long) {
         scheduled.deleteChecklistForShipment(id)
@@ -142,8 +144,29 @@ class FishyRepository(private val db: FishyDatabase) {
     suspend fun markScheduledCompleted(id: Long) {
         val entity = scheduled.getById(id) ?: return
         if (entity.isCompleted) return
-        scheduled.update(entity.copy(isCompleted = true, updatedAtMillis = System.currentTimeMillis()))
+        scheduled.update(
+            entity.copy(
+                isCompleted = true,
+                linkedDraftId = null,
+                updatedAtMillis = System.currentTimeMillis()
+            )
+        )
     }
+
+    suspend fun linkScheduledDraft(scheduledId: Long, draftId: Long) {
+        val entity = scheduled.getById(scheduledId) ?: return
+        scheduled.update(
+            entity.copy(linkedDraftId = draftId, updatedAtMillis = System.currentTimeMillis())
+        )
+    }
+
+    suspend fun clearScheduleLinkByDraft(draftId: Long) {
+        val entity = scheduled.findByLinkedDraftId(draftId) ?: return
+        scheduled.update(
+            entity.copy(linkedDraftId = null, updatedAtMillis = System.currentTimeMillis())
+        )
+    }
+
     suspend fun pendingNotifications() = scheduled.getPendingNotifications()
     suspend fun allScheduledIds() = scheduled.getAllIds()
     suspend fun updateScheduled(entity: ScheduledShipmentEntity) = scheduled.update(entity)
@@ -228,17 +251,23 @@ class FishyRepository(private val db: FishyDatabase) {
     }
 
     fun observeDictionary(type: DictionaryType) = dictionary.observeByType(type.key)
-    suspend fun addDictionary(type: DictionaryType, value: String) {
+
+    /**
+     * @return true if a new dictionary row was inserted; false if empty, existing (case-insensitive), or only lastUsed bumped.
+     */
+    suspend fun addDictionary(type: DictionaryType, value: String): Boolean {
         val trimmed = value.trim()
-        if (trimmed.isEmpty()) return
+        if (trimmed.isEmpty()) return false
         val now = System.currentTimeMillis()
-        val existing = dictionary.findByTypeAndValue(type.key, trimmed)
-        if (existing != null) {
+        val existing = dictionary.findByTypeAndValueIgnoreCase(type.key, trimmed)
+        return if (existing != null) {
             dictionary.insert(existing.copy(lastUsedAtMillis = now))
+            false
         } else {
             dictionary.insert(
                 DictionaryEntity(type = type.key, value = trimmed, lastUsedAtMillis = now)
             )
+            true
         }
     }
 
@@ -248,7 +277,7 @@ class FishyRepository(private val db: FishyDatabase) {
         val trimmed = entity.value.trim()
         if (trimmed.isEmpty()) return
         val now = System.currentTimeMillis()
-        val existing = dictionary.findByTypeAndValue(entity.type, trimmed)
+        val existing = dictionary.findByTypeAndValueIgnoreCase(entity.type, trimmed)
         if (existing != null && existing.id != entity.id) {
             // Rename collided with another row — keep the other, drop this id.
             if (entity.id > 0L) dictionary.deleteById(entity.id)

@@ -36,6 +36,8 @@ data class ScheduledShipmentEntity(
     /** True after the start-time reminder has been delivered. */
     val startNotificationSent: Boolean = false,
     val isCompleted: Boolean = false,
+    /** Draft shipment id while this plan is in progress; null = not started. */
+    val linkedDraftId: Long? = null,
     val createdAtMillis: Long = System.currentTimeMillis(),
     val updatedAtMillis: Long = System.currentTimeMillis()
 )

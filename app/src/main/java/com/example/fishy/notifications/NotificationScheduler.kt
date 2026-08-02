@@ -65,6 +65,11 @@ class NotificationScheduler(
             cancelSuspendUnlocked(shipmentId)
             return@withLock
         }
+        // In-progress plan (draft linked): keep card, but do not fire or re-arm reminders.
+        if (initial.linkedDraftId != null) {
+            cancelSuspendUnlocked(shipmentId)
+            return@withLock
+        }
 
         val now = System.currentTimeMillis()
         var shipment = initial
@@ -274,6 +279,10 @@ class NotificationScheduler(
             }
         }
 
+        /** Activity PendingIntent for prep taps — unique per reminder row, not slot. */
+        fun prepActivityRequestCode(reminderId: Long): Int =
+            (1_200_000_000L + (reminderId % 100_000_000L)).toInt()
+
         fun notifyId(shipmentId: Long, kind: ScheduledNotifKind, reminderId: Long = 0L): Int = when (kind) {
             ScheduledNotifKind.PREP -> (100_000_000L + (reminderId % 100_000_000L)).toInt()
             ScheduledNotifKind.START -> (shipmentId + 1_000_000L).toInt()
@@ -349,8 +358,7 @@ private fun showPrepNotification(
     }
     val pi = PendingIntent.getActivity(
         context,
-        NotificationScheduler.requestCode(shipment.id, ScheduledNotifKind.PREP, prepSlot = 0) +
-            (reminderId % 16).toInt(),
+        NotificationScheduler.prepActivityRequestCode(reminderId),
         open,
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
     )

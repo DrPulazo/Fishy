@@ -75,7 +75,10 @@ object ShipmentSummaries {
     }
 
     /** Counts by type: «2 контейнера, 1 вагон». */
-    fun transportCountsRu(payload: ShipmentPayload): String {
+    fun transportCountsRu(
+        payload: ShipmentPayload,
+        copy: SummaryStrings = SummaryStrings.Russian
+    ): String {
         var wagons = 0
         var containers = 0
         var trucks = 0
@@ -88,9 +91,15 @@ object ShipmentSummaries {
             }
         }
         val parts = mutableListOf<String>()
-        if (containers > 0) parts += ruCount(containers, "контейнер", "контейнера", "контейнеров")
-        if (wagons > 0) parts += ruCount(wagons, "вагон", "вагона", "вагонов")
-        if (trucks > 0) parts += ruCount(trucks, "авто", "авто", "авто")
+        if (containers > 0) {
+            parts += ruCount(containers, copy.container.first, copy.container.second, copy.container.third)
+        }
+        if (wagons > 0) {
+            parts += ruCount(wagons, copy.wagon.first, copy.wagon.second, copy.wagon.third)
+        }
+        if (trucks > 0) {
+            parts += ruCount(trucks, copy.truck.first, copy.truck.second, copy.truck.third)
+        }
         return parts.joinToString(", ")
     }
 
@@ -98,19 +107,25 @@ object ShipmentSummaries {
      * MULTI_VEHICLE schedule card: one kind → «N контейнеров»; mixed → «N транспортов».
      * Empty / untyped slots are ignored.
      */
-    fun scheduleTransportLine(payload: ShipmentPayload): String? {
+    fun scheduleTransportLine(
+        payload: ShipmentPayload,
+        copy: SummaryStrings = SummaryStrings.Russian
+    ): String? {
         if (payload.mode != ShipmentMode.MULTI_VEHICLE) return null
         val kinds = payload.multiVehicles.mapNotNull { transportKind(it.transport) }
         if (kinds.isEmpty()) return null
         val distinct = kinds.distinct()
         return if (distinct.size == 1) {
             when (distinct.first()) {
-                TransportKind.CONTAINER -> ruCount(kinds.size, "контейнер", "контейнера", "контейнеров")
-                TransportKind.WAGON -> ruCount(kinds.size, "вагон", "вагона", "вагонов")
-                TransportKind.TRUCK -> ruCount(kinds.size, "авто", "авто", "авто")
+                TransportKind.CONTAINER ->
+                    ruCount(kinds.size, copy.container.first, copy.container.second, copy.container.third)
+                TransportKind.WAGON ->
+                    ruCount(kinds.size, copy.wagon.first, copy.wagon.second, copy.wagon.third)
+                TransportKind.TRUCK ->
+                    ruCount(kinds.size, copy.truck.first, copy.truck.second, copy.truck.third)
             }
         } else {
-            ruCount(kinds.size, "транспорт", "транспорта", "транспортов")
+            ruCount(kinds.size, copy.transport.first, copy.transport.second, copy.transport.third)
         }
     }
 
@@ -118,56 +133,73 @@ object ShipmentSummaries {
         ShipmentCalculator.totals(payload).targetWeight
 
     /**
-     * Body lines for a scheduled-shipment list card (RU-first declensions).
+     * Body lines for a scheduled-shipment list card.
      * Order depends on [ShipmentPayload.mode]; blank sections omitted.
      */
     fun scheduleCardBodyLines(
         payload: ShipmentPayload,
-        thousandsSeparator: Boolean = false
+        thousandsSeparator: Boolean = false,
+        copy: SummaryStrings = SummaryStrings.Russian
     ): List<String> = buildList {
-        addAll(scheduleLocationLines(payload))
-        scheduleTransportLine(payload)?.let { add(it) }
-        scheduleProductLine(payload)?.let { add(it) }
+        addAll(scheduleLocationLines(payload, copy))
+        scheduleTransportLine(payload, copy)?.let { add(it) }
+        scheduleProductLine(payload, copy)?.let { add(it) }
         val tonnage = schedulePlannedTonnageKg(payload)
         if (tonnage > 0.0) {
             val formatted = QuantityFormatters.formatWeight(tonnage, thousandsSeparator)
-            add("Тоннаж: $formatted кг")
+            add(copy.tonnageFmt.format(formatted))
         }
     }
 
-    fun scheduleLocationLines(payload: ShipmentPayload): List<String> = when (payload.mode) {
+    fun scheduleLocationLines(
+        payload: ShipmentPayload,
+        copy: SummaryStrings = SummaryStrings.Russian
+    ): List<String> = when (payload.mode) {
         ShipmentMode.MONO, ShipmentMode.MULTI_VEHICLE -> {
             val port = payload.port.trim()
-            if (port.isBlank()) emptyList() else listOf("Порт: $port")
+            if (port.isBlank()) emptyList() else listOf(copy.portFmt.format(port))
         }
         ShipmentMode.MULTI_PORT -> cappedNumberedList(
             items = payload.multiPorts.map { it.port.trim() }.filter { it.isNotBlank() },
-            singularLabel = { i, name -> "Порт $i: $name" },
-            moreWord = Triple("порт", "порта", "портов")
+            singularLabel = { i, name -> copy.portNumberedFmt.format(i, name) },
+            moreWord = copy.portWord,
+            moreFmt = copy.moreFmt
         )
         ShipmentMode.UNLOAD -> {
             val names = payload.unloadReceptions.map { it.name.trim() }.filter { it.isNotBlank() }
             when {
                 names.isEmpty() -> emptyList()
-                names.size == 1 -> listOf("Точка приёма: ${names.first()}")
+                names.size == 1 -> listOf(copy.receptionFmt.format(names.first()))
                 else -> cappedNumberedList(
                     items = names,
-                    singularLabel = { i, name -> "Точка приёма $i: $name" },
-                    moreWord = Triple("точка", "точки", "точек")
+                    singularLabel = { i, name -> copy.receptionNumberedFmt.format(i, name) },
+                    moreWord = copy.pointWord,
+                    moreFmt = copy.moreFmt
                 )
             }
         }
     }
 
-    fun scheduleProductLine(payload: ShipmentPayload): String? {
+    fun scheduleProductLine(
+        payload: ShipmentPayload,
+        copy: SummaryStrings = SummaryStrings.Russian
+    ): String? {
         val kinds = scheduleProductKinds(payload)
         return when {
             kinds.isEmpty() -> null
             kinds.size == 1 -> {
                 val name = kinds.first().name.trim()
-                if (name.isBlank()) null else "Продукция: $name"
+                if (name.isBlank()) null else copy.productFmt.format(name)
             }
-            else -> ruCount(kinds.size, "вид", "вида", "видов") + " продукции"
+            else -> {
+                val counted = ruCount(
+                    kinds.size,
+                    copy.kindWord.first,
+                    copy.kindWord.second,
+                    copy.kindWord.third
+                )
+                copy.productKindsFmt.format(counted)
+            }
         }
     }
 
@@ -184,14 +216,15 @@ object ShipmentSummaries {
     private fun cappedNumberedList(
         items: List<String>,
         singularLabel: (index: Int, name: String) -> String,
-        moreWord: Triple<String, String, String>
+        moreWord: Triple<String, String, String>,
+        moreFmt: String
     ): List<String> {
         if (items.isEmpty()) return emptyList()
         val shown = items.take(SCHEDULE_LIST_CAP)
         val lines = shown.mapIndexed { index, name -> singularLabel(index + 1, name) }.toMutableList()
         val rest = items.size - shown.size
         if (rest > 0) {
-            lines += "Ещё " + ruCount(rest, moreWord.first, moreWord.second, moreWord.third)
+            lines += moreFmt.format(ruCount(rest, moreWord.first, moreWord.second, moreWord.third))
         }
         return lines
     }
@@ -280,9 +313,9 @@ object ShipmentSummaries {
      */
     fun firstPlusRestRu(
         names: List<String>,
-        one: String = "порт",
-        few: String = "порта",
-        many: String = "портов"
+        one: String = SummaryStrings.Russian.portWord.first,
+        few: String = SummaryStrings.Russian.portWord.second,
+        many: String = SummaryStrings.Russian.portWord.third
     ): String? {
         val cleaned = names.map { it.trim() }.filter { it.isNotBlank() }
         if (cleaned.isEmpty()) return null

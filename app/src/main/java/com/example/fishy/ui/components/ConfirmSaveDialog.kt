@@ -21,10 +21,18 @@ fun CenteredDialogTitle(text: String) {
 
 @Composable
 fun CenteredDialogMessage(text: String) {
+    DialogMessage(text = text, textAlign = TextAlign.Center)
+}
+
+@Composable
+fun DialogMessage(
+    text: String,
+    textAlign: TextAlign = TextAlign.Center
+) {
     Text(
         text = text,
         modifier = Modifier.fillMaxWidth(),
-        textAlign = TextAlign.Center
+        textAlign = textAlign
     )
 }
 
@@ -34,14 +42,15 @@ fun ConfirmSaveDialog(
     message: String,
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
-    confirmText: String = stringResource(R.string.save)
+    confirmText: String = stringResource(R.string.save),
+    messageTextAlign: TextAlign = TextAlign.Center
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = MaterialTheme.colorScheme.background,
         title = { CenteredDialogTitle(title) },
         text = if (message.isNotBlank()) {
-            { CenteredDialogMessage(message) }
+            { DialogMessage(text = message, textAlign = messageTextAlign) }
         } else {
             null
         },

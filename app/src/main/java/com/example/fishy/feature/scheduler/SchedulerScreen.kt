@@ -72,6 +72,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -96,6 +97,7 @@ import com.example.fishy.domain.model.DictionaryType
 import com.example.fishy.domain.model.ShipmentEventType
 import com.example.fishy.domain.model.ShipmentMode
 import com.example.fishy.domain.model.ShipmentSummaries
+import com.example.fishy.domain.model.SummaryStrings
 import com.example.fishy.notifications.NotificationScheduler
 import com.example.fishy.ui.ErrorFeedback
 import com.example.fishy.ui.components.BatchEntryDialog
@@ -246,7 +248,7 @@ private fun reminderErrorRes(error: ReminderTimeError): Int = when (error) {
 @Composable
 fun SchedulerScreen(
     onBack: () -> Unit,
-    onStartShipment: (Long) -> Unit,
+    onStartShipment: (scheduledId: Long, linkedDraftId: Long?) -> Unit,
     openPrepChecklistId: Long? = null,
     onPrepChecklistConsumed: () -> Unit = {}
 ) {
@@ -323,9 +325,13 @@ fun SchedulerScreen(
                 notificationSent = false,
                 startNotificationSent = false,
                 isCompleted = false,
+                linkedDraftId = null,
                 createdAtMillis = now,
                 updatedAtMillis = now
             )
+            val oldStart = NotificationScheduler.scheduledStartMillis(item)
+            val newStart = NotificationScheduler.scheduledStartMillis(copy)
+            val delta = newStart - oldStart
             val newId = repo.upsertScheduled(copy)
             val checklist = repo.getChecklist(item.id)
             checklist.forEachIndexed { index, row ->
@@ -345,11 +351,12 @@ fun SchedulerScreen(
                     ScheduledReminderEntity(
                         id = 0,
                         scheduledShipmentId = newId,
-                        atMillis = row.atMillis,
+                        atMillis = row.atMillis + delta,
                         sent = false,
                         sortOrder = index
                     )
-                }
+                }.filter { it.atMillis > now }
+                    .mapIndexed { index, row -> row.copy(sortOrder = index) }
             )
             repo.log("sched_$newId", ShipmentEventType.DUPLICATED, "sched#${item.id}")
             val saved = copy.copy(id = newId)
@@ -427,7 +434,21 @@ fun SchedulerScreen(
                                 showEditor = true
                             },
                             onOpenChecklist = { checklistFor = item.id },
-                            onStart = { pendingStart = item },
+                            onStart = {
+                                val draftId = item.linkedDraftId
+                                if (draftId != null) {
+                                    scope.launch {
+                                        if (repo.getShipment(draftId) != null) {
+                                            onStartShipment(item.id, draftId)
+                                        } else {
+                                            repo.clearScheduleLinkByDraft(draftId)
+                                            pendingStart = item
+                                        }
+                                    }
+                                } else {
+                                    pendingStart = item
+                                }
+                            },
                             onDuplicate = { duplicate(item) },
                             onDelete = { pendingDelete = item },
                             modifier = Modifier.animateItem()
@@ -566,7 +587,7 @@ fun SchedulerScreen(
                     onConfirm = {
                         val id = item.id
                         pendingStart = null
-                        onStartShipment(id)
+                        onStartShipment(id, null)
                     },
                     confirmText = stringResource(R.string.start)
                 )
@@ -593,7 +614,17 @@ private fun ScheduledShipmentCard(
     val checklist by repo.observeChecklist(item.id).collectAsState(initial = emptyList())
     val status = remember(checklist) { checklistStatusOf(checklist) }
     var showMenu by remember { mutableStateOf(false) }
-    val bodyLines = remember(item.payloadJson, item.mode, item.customer, item.port, item.vessel, thousandsSeparator) {
+    val context = LocalContext.current
+    val summaryCopy = remember(context) { SummaryStrings.from(context.resources) }
+    val bodyLines = remember(
+        item.payloadJson,
+        item.mode,
+        item.customer,
+        item.port,
+        item.vessel,
+        thousandsSeparator,
+        summaryCopy
+    ) {
         val payload = decodeScheduledPayload(
             item.payloadJson,
             item.mode,
@@ -601,7 +632,7 @@ private fun ScheduledShipmentCard(
             item.port,
             item.vessel
         )
-        ShipmentSummaries.scheduleCardBodyLines(payload, thousandsSeparator)
+        ShipmentSummaries.scheduleCardBodyLines(payload, thousandsSeparator, summaryCopy)
     }
 
     Card(
@@ -623,7 +654,14 @@ private fun ScheduledShipmentCard(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
-                    if (isDuplicated) {
+                    if (item.linkedDraftId != null) {
+                        Text(
+                            stringResource(R.string.schedule_status_started),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f),
+                            modifier = Modifier.padding(top = 2.dp)
+                        )
+                    } else if (isDuplicated) {
                         Text(
                             stringResource(R.string.draft_duplicated_badge),
                             style = MaterialTheme.typography.labelMedium,
@@ -783,14 +821,42 @@ private fun ScheduledShipmentCard(
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                     )
                 }
-                FishyButton(onClick = onStart, modifier = Modifier.height(36.dp)) {
-                    Icon(
-                        Icons.Default.PlayArrow,
-                        contentDescription = stringResource(R.string.start),
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(stringResource(R.string.start))
+                FishyButton(
+                    onClick = onStart,
+                    modifier = Modifier.height(36.dp),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp)
+                ) {
+                    // Same width for Start/Continue; icon+label stay tight and centered.
+                    val startLabel = stringResource(R.string.start)
+                    val continueLabel = stringResource(R.string.schedule_continue)
+                    val label =
+                        if (item.linkedDraftId != null) continueLabel else startLabel
+                    Box(contentAlignment = Alignment.Center) {
+                        Row(
+                            modifier = Modifier.alpha(0f),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                Icons.Default.PlayArrow,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Box {
+                                Text(startLabel)
+                                Text(continueLabel)
+                            }
+                        }
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                Icons.Default.PlayArrow,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(label)
+                        }
+                    }
                 }
             }
         }
@@ -1133,7 +1199,15 @@ private fun ScheduledEditorDialog(
                     autoSpaceVehicles = settings.effectiveAutoSpaceVehicles,
                     thousandsSeparator = settings.effectiveThousandsSeparator,
                     onAddToDictionary = { type, value ->
-                        scope.launch { repo.addDictionary(type, value) }
+                        scope.launch {
+                            if (repo.addDictionary(type, value)) {
+                                Toast.makeText(
+                                    context,
+                                    context.getString(R.string.dict_added, value.trim()),
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            }
+                        }
                     },
                     onRequestDelete = { title, message, onConfirm ->
                         pendingDelete = PendingSchedulerDelete(title, message, onConfirm)
@@ -1437,7 +1511,15 @@ private fun ScheduledEditorDialog(
                 batchEditor = null
             },
             onAddToDictionary = { type, value ->
-                scope.launch { repo.addDictionary(type, value) }
+                scope.launch {
+                    if (repo.addDictionary(type, value)) {
+                        Toast.makeText(
+                            context,
+                            context.getString(R.string.dict_added, value.trim()),
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
+                }
             },
             isNew = payload.batchLimits.none { it.id == editing.id }
         )
