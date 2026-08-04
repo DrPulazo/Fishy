@@ -25,6 +25,7 @@ class ShipmentDuplicatorTest {
                 )
             ),
             notes = "Important note",
+            accordionExpanded = mapOf("product:1" to true),
             checklist = listOf(
                 ChecklistTask(title = "Check seal", isCompleted = true, completedAtMillis = 1L)
             )
@@ -45,6 +46,7 @@ class ShipmentDuplicatorTest {
         assertFalse(copy.checklist.single().isCompleted)
         assertEquals(null, copy.checklist.single().completedAtMillis)
         assertEquals(null, copy.completedAtMillis)
+        assertEquals(emptyMap<String, Boolean>(), copy.accordionExpanded)
     }
 
     @Test

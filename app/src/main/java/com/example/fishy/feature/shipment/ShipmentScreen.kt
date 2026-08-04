@@ -86,6 +86,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -98,6 +99,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.currentStateAsState
 import kotlinx.coroutines.delay
@@ -233,6 +235,7 @@ fun ShipmentScreen(
     val vessels by vm.vessels.collectAsState()
     val productsDict by vm.productsDict.collectAsState()
     val manufacturers by vm.manufacturers.collectAsState()
+    val accordionMap by vm.accordionExpanded.collectAsState()
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val leaveScreen: () -> Unit = {
@@ -243,6 +246,17 @@ fun ShipmentScreen(
     }
 
     BackHandler(onBack = leaveScreen)
+
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_STOP) {
+                vm.onShipmentScreenStop()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     var showChecklist by remember { mutableStateOf(false) }
     var showSettingsMenu by remember { mutableStateOf(false) }
@@ -390,10 +404,7 @@ fun ShipmentScreen(
 
     val progress = ShipmentCalculator.progressPercent(payload)
     val resumeDraft = draftId != null
-    val activeProductId = payload.lastUsedProductId ?: payload.products.lastOrNull()?.id
-    val activeVehicleId = payload.lastUsedVehicleId ?: payload.multiVehicles.lastOrNull()?.id
-    val activePortId = payload.lastUsedPortId ?: payload.multiPorts.lastOrNull()?.id
-    val activeReceptionId = payload.lastUsedUnloadReceptionId ?: payload.unloadReceptions.lastOrNull()?.id
+    fun acc(key: String): Boolean = accordionMap[key] ?: !resumeDraft
     val batchStatuses = ShipmentCalculator.batchStatuses(payload, payload.batchWarnThreshold)
     val checklistIconColor = when {
         payload.checklist.isEmpty() -> MaterialTheme.colorScheme.onSurfaceVariant
@@ -652,7 +663,8 @@ fun ShipmentScreen(
             item {
                 AccordionCard(
                     title = stringResource(R.string.info_loading),
-                    initiallyExpanded = !resumeDraft
+                    expanded = acc("info"),
+                    onExpandedChange = { vm.setAccordionExpanded("info", it) }
                 ) {
                     DictionaryAutocomplete(
                         label = stringResource(R.string.customer),
@@ -708,7 +720,8 @@ fun ShipmentScreen(
                 item {
                     AccordionCard(
                         title = stringResource(R.string.transport_section),
-                        initiallyExpanded = !resumeDraft
+                        expanded = acc("transport"),
+                        onExpandedChange = { vm.setAccordionExpanded("transport", it) }
                     ) {
                         TransportFields(
                             transport = payload.transport,
@@ -726,7 +739,8 @@ fun ShipmentScreen(
                         ProductCard(
                             product = product,
                             modifier = Modifier.animateItem(),
-                            initiallyExpanded = sectionExpanded(resumeDraft, activeProductId, product.id),
+                            expanded = acc("product:${product.id}"),
+                            onExpandedChange = { vm.setAccordionExpanded("product:${product.id}", it) },
                             forceExpandToken = focusPalletTarget
                                 ?.takeIf { it.productId == product.id },
                             focusPalletId = focusPalletTarget
@@ -784,7 +798,8 @@ fun ShipmentScreen(
                                 settings.effectiveAutoSpaceVehicles
                             ),
                             titleColor = if (done) Success else MaterialTheme.colorScheme.onSurface,
-                            initiallyExpanded = sectionExpanded(resumeDraft, activeVehicleId, vehicle.id),
+                            expanded = acc("vehicle:${vehicle.id}"),
+                            onExpandedChange = { vm.setAccordionExpanded("vehicle:${vehicle.id}", it) },
                             forceExpandToken = focusPalletTarget?.takeIf { focusInVehicle },
                             modifier = Modifier.animateItem(),
                             trailing = {
@@ -804,7 +819,10 @@ fun ShipmentScreen(
                         ) {
                             AccordionCard(
                                 title = stringResource(R.string.transport_section),
-                                initiallyExpanded = !resumeDraft || vehicle.id == activeVehicleId
+                                expanded = acc("vehicle:${vehicle.id}/transport"),
+                                onExpandedChange = {
+                                    vm.setAccordionExpanded("vehicle:${vehicle.id}/transport", it)
+                                }
                             ) {
                                 TransportFields(
                                     transport = vehicle.transport,
@@ -817,17 +835,18 @@ fun ShipmentScreen(
                             }
                             AccordionCard(
                                 title = stringResource(R.string.products_section),
-                                initiallyExpanded = !resumeDraft || vehicle.id == activeVehicleId,
+                                expanded = acc("vehicle:${vehicle.id}/products"),
+                                onExpandedChange = {
+                                    vm.setAccordionExpanded("vehicle:${vehicle.id}/products", it)
+                                },
                                 forceExpandToken = focusPalletTarget?.takeIf { focusInVehicle }
                             ) {
                                 vehicle.products.forEach { product ->
+                                    val pKey = "vehicle:${vehicle.id}/product:${product.id}"
                                     ProductCard(
                                         product = product,
-                                        initiallyExpanded = sectionExpanded(
-                                            resumeDraft && vehicle.id == activeVehicleId,
-                                            payload.lastUsedProductId ?: vehicle.products.lastOrNull()?.id,
-                                            product.id
-                                        ),
+                                        expanded = acc(pKey),
+                                        onExpandedChange = { vm.setAccordionExpanded(pKey, it) },
                                         forceExpandToken = focusPalletTarget
                                             ?.takeIf { it.productId == product.id },
                                         focusPalletId = focusPalletTarget
@@ -881,7 +900,10 @@ fun ShipmentScreen(
                             }
                             AccordionCard(
                                 title = stringResource(R.string.totals_by_transport),
-                                initiallyExpanded = !resumeDraft || vehicle.id == activeVehicleId
+                                expanded = acc("vehicle:${vehicle.id}/totals"),
+                                onExpandedChange = {
+                                    vm.setAccordionExpanded("vehicle:${vehicle.id}/totals", it)
+                                }
                             ) {
                                 TotalsBlock(
                                     totals = vTotals,
@@ -906,8 +928,8 @@ fun ShipmentScreen(
                         val portSubtitle = if (group.products.isNotEmpty()) {
                             stringResource(
                                 R.string.port_products_summary,
-                                group.products.size,
-                                QuantityFormatters.formatCount(
+                                ShipmentCalculator.formatKindsRu(group.products.size),
+                                ShipmentCalculator.formatPlacesRu(
                                     gTotals.places,
                                     settings.effectiveThousandsSeparator
                                 )
@@ -920,7 +942,8 @@ fun ShipmentScreen(
                             title = portTitle,
                             subtitle = portSubtitle,
                             titleColor = if (done) Success else MaterialTheme.colorScheme.onSurface,
-                            initiallyExpanded = sectionExpanded(resumeDraft, activePortId, group.id),
+                            expanded = acc("port:${group.id}"),
+                            onExpandedChange = { vm.setAccordionExpanded("port:${group.id}", it) },
                             forceExpandToken = focusPalletTarget?.takeIf { focusInPort },
                             modifier = Modifier.animateItem(),
                             trailing = {
@@ -960,17 +983,18 @@ fun ShipmentScreen(
                             )
                             AccordionCard(
                                 title = stringResource(R.string.products_section),
-                                initiallyExpanded = !resumeDraft || group.id == activePortId,
+                                expanded = acc("port:${group.id}/products"),
+                                onExpandedChange = {
+                                    vm.setAccordionExpanded("port:${group.id}/products", it)
+                                },
                                 forceExpandToken = focusPalletTarget?.takeIf { focusInPort }
                             ) {
                                 group.products.forEach { product ->
+                                    val pKey = "port:${group.id}/product:${product.id}"
                                     ProductCard(
                                         product = product,
-                                        initiallyExpanded = sectionExpanded(
-                                            resumeDraft && group.id == activePortId,
-                                            payload.lastUsedProductId ?: group.products.lastOrNull()?.id,
-                                            product.id
-                                        ),
+                                        expanded = acc(pKey),
+                                        onExpandedChange = { vm.setAccordionExpanded(pKey, it) },
                                         forceExpandToken = focusPalletTarget
                                             ?.takeIf { it.productId == product.id },
                                         focusPalletId = focusPalletTarget
@@ -1024,7 +1048,10 @@ fun ShipmentScreen(
                             }
                             AccordionCard(
                                 title = stringResource(R.string.totals_by_port),
-                                initiallyExpanded = !resumeDraft || group.id == activePortId
+                                expanded = acc("port:${group.id}/totals"),
+                                onExpandedChange = {
+                                    vm.setAccordionExpanded("port:${group.id}/totals", it)
+                                }
                             ) {
                                 TotalsBlock(
                                     totals = gTotals,
@@ -1059,7 +1086,10 @@ fun ShipmentScreen(
                         } == true
                         AccordionCard(
                             title = receptionTitle,
-                            initiallyExpanded = sectionExpanded(resumeDraft, activeReceptionId, reception.id),
+                            expanded = acc("reception:${reception.id}"),
+                            onExpandedChange = {
+                                vm.setAccordionExpanded("reception:${reception.id}", it)
+                            },
                             forceExpandToken = focusPalletTarget?.takeIf { focusInReception },
                             modifier = Modifier.animateItem(),
                             trailing = {
@@ -1079,7 +1109,10 @@ fun ShipmentScreen(
                         ) {
                             AccordionCard(
                                 title = stringResource(R.string.reception_point),
-                                initiallyExpanded = !resumeDraft || reception.id == activeReceptionId
+                                expanded = acc("reception:${reception.id}/point"),
+                                onExpandedChange = {
+                                    vm.setAccordionExpanded("reception:${reception.id}/point", it)
+                                }
                             ) {
                                 UnloadReceptionFields(
                                     warehouse = reception.name,
@@ -1110,7 +1143,13 @@ fun ShipmentScreen(
                                 } == true
                                 AccordionCard(
                                     title = inboundTitle,
-                                    initiallyExpanded = !resumeDraft || reception.id == activeReceptionId,
+                                    expanded = acc("reception:${reception.id}/inbound:${inbound.id}"),
+                                    onExpandedChange = {
+                                        vm.setAccordionExpanded(
+                                            "reception:${reception.id}/inbound:${inbound.id}",
+                                            it
+                                        )
+                                    },
                                     forceExpandToken = focusPalletTarget?.takeIf { focusInInbound },
                                     trailing = {
                                         IconButton(onClick = {
@@ -1162,13 +1201,12 @@ fun ShipmentScreen(
                                         autoSpaceVehicles = settings.effectiveAutoSpaceVehicles
                                     )
                                     inbound.products.forEach { product ->
+                                        val pKey =
+                                            "reception:${reception.id}/inbound:${inbound.id}/product:${product.id}"
                                         ProductCard(
                                             product = product,
-                                            initiallyExpanded = sectionExpanded(
-                                                resumeDraft && reception.id == activeReceptionId,
-                                                payload.lastUsedProductId ?: inbound.products.lastOrNull()?.id,
-                                                product.id
-                                            ),
+                                            expanded = acc(pKey),
+                                            onExpandedChange = { vm.setAccordionExpanded(pKey, it) },
                                             forceExpandToken = focusPalletTarget
                                                 ?.takeIf { it.productId == product.id },
                                             focusPalletId = focusPalletTarget
@@ -1228,7 +1266,15 @@ fun ShipmentScreen(
                                     )
                                     AccordionCard(
                                         title = stringResource(R.string.totals_by_transport),
-                                        initiallyExpanded = !resumeDraft || reception.id == activeReceptionId
+                                        expanded = acc(
+                                            "reception:${reception.id}/inbound:${inbound.id}/totals"
+                                        ),
+                                        onExpandedChange = {
+                                            vm.setAccordionExpanded(
+                                                "reception:${reception.id}/inbound:${inbound.id}/totals",
+                                                it
+                                            )
+                                        }
                                     ) {
                                         TotalsBlock(
                                             totals = inboundTotals,
@@ -1247,7 +1293,10 @@ fun ShipmentScreen(
                             }
                             AccordionCard(
                                 title = stringResource(R.string.totals_section),
-                                initiallyExpanded = !resumeDraft || reception.id == activeReceptionId
+                                expanded = acc("reception:${reception.id}/totals"),
+                                onExpandedChange = {
+                                    vm.setAccordionExpanded("reception:${reception.id}/totals", it)
+                                }
                             ) {
                                 TotalsBlock(
                                     totals = uTotals,
@@ -1273,7 +1322,8 @@ fun ShipmentScreen(
                 val totals = ShipmentCalculator.totals(payload)
                 AccordionCard(
                     title = stringResource(R.string.totals_overall),
-                    initiallyExpanded = !resumeDraft
+                    expanded = acc("totals"),
+                    onExpandedChange = { vm.setAccordionExpanded("totals", it) }
                 ) {
                     TotalsBlock(
                         totals = totals,
@@ -1289,7 +1339,8 @@ fun ShipmentScreen(
             item(key = "notes") {
                 AccordionCard(
                     title = stringResource(R.string.notes_section),
-                    initiallyExpanded = !resumeDraft
+                    expanded = acc("notes"),
+                    onExpandedChange = { vm.setAccordionExpanded("notes", it) }
                 ) {
                     val notesScroll = rememberScrollState()
                     Box(
@@ -1649,7 +1700,8 @@ private fun SettingsMenuSwitchRow(
 @Composable
 private fun ProductCard(
     product: Product,
-    initiallyExpanded: Boolean = true,
+    expanded: Boolean,
+    onExpandedChange: (Boolean) -> Unit,
     forceExpandToken: Any? = null,
     focusPalletId: Long? = null,
     onFocusHandled: () -> Unit = {},
@@ -1720,7 +1772,8 @@ private fun ProductCard(
         subtitle = subtitle,
         titleColor = titleColor,
         subtitleColor = subtitleColor,
-        initiallyExpanded = initiallyExpanded,
+        expanded = expanded,
+        onExpandedChange = onExpandedChange,
         forceExpandToken = forceExpandToken,
         modifier = modifier,
         trailing = {
@@ -2119,6 +2172,3 @@ private fun quickPlacesStorageKey(product: Product): String {
     }
     return ShipmentCalculator.batchKey(product)
 }
-
-private fun sectionExpanded(resumeDraft: Boolean, activeId: Long?, thisId: Long): Boolean =
-    !resumeDraft || activeId == thisId

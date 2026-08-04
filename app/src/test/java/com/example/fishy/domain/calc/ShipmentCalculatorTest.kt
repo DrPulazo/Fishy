@@ -12,6 +12,22 @@ import org.junit.Test
 class ShipmentCalculatorTest {
 
     @Test
+    fun formatKindsRuDeclension() {
+        assertEquals("1 вид", ShipmentCalculator.formatKindsRu(1))
+        assertEquals("2 вида", ShipmentCalculator.formatKindsRu(2))
+        assertEquals("5 видов", ShipmentCalculator.formatKindsRu(5))
+        assertEquals("21 вид", ShipmentCalculator.formatKindsRu(21))
+        assertEquals("12 видов", ShipmentCalculator.formatKindsRu(12))
+    }
+
+    @Test
+    fun formatPlacesRuDeclension() {
+        assertEquals("1 место", ShipmentCalculator.formatPlacesRu(1))
+        assertEquals("2 места", ShipmentCalculator.formatPlacesRu(2))
+        assertEquals("5 мест", ShipmentCalculator.formatPlacesRu(5))
+    }
+
+    @Test
     fun productTypesDistinctByNameBatchManufacturerTare() {
         val same = Product(
             name = "Минтай",

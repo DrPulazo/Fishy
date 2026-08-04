@@ -36,10 +36,11 @@ import androidx.compose.ui.unit.dp
 import com.example.fishy.FishyApp
 import com.example.fishy.R
 import com.example.fishy.data.serialization.FishyJson
+import com.example.fishy.domain.archive.ArchiveDetailFormatter
 import com.example.fishy.domain.calc.ShipmentCalculator
 import com.example.fishy.domain.format.QuantityFormatters
+import com.example.fishy.domain.model.ShipmentMode
 import com.example.fishy.domain.model.ShipmentPayload
-import com.example.fishy.domain.report.ReportGenerator
 import com.example.fishy.ui.ErrorFeedback
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
@@ -75,6 +76,9 @@ fun ShipmentDetailScreen(
     }
 
     val totals = ShipmentCalculator.totals(payload)
+    val notes = ArchiveDetailFormatter.notes(payload)
+    val showTopPort = payload.mode != ShipmentMode.MULTI_PORT && payload.port.isNotBlank()
+    val showTopVessel = payload.mode != ShipmentMode.MULTI_PORT && payload.vessel.isNotBlank()
 
     Scaffold(
         topBar = {
@@ -108,8 +112,12 @@ fun ShipmentDetailScreen(
                         color = MaterialTheme.colorScheme.error
                     )
                 } else {
-                Text(stringResource(R.string.port_prefix, payload.port))
-                Text(stringResource(R.string.vessel_prefix, payload.vessel))
+                if (showTopPort) {
+                    Text(stringResource(R.string.port_prefix, payload.port))
+                }
+                if (showTopVessel) {
+                    Text(stringResource(R.string.vessel_prefix, payload.vessel))
+                }
                 Text(stringResource(R.string.date_label, fmt.format(Date(payload.completedAtMillis ?: payload.createdAtMillis))))
                 Text(
                     stringResource(
@@ -136,7 +144,7 @@ fun ShipmentDetailScreen(
                     style = MaterialTheme.typography.titleLarge,
                     modifier = Modifier.padding(top = 12.dp)
                 )
-                ReportGenerator.transportProductBlocks(
+                ArchiveDetailFormatter.contentBlocks(
                     payload = payload,
                     formatContainerSpaces = settings.effectiveAutoSpaceContainers,
                     formatVehicleSpaces = settings.effectiveAutoSpaceVehicles,
@@ -150,6 +158,14 @@ fun ShipmentDetailScreen(
                             Text(line, style = MaterialTheme.typography.bodyMedium)
                         }
                     }
+                }
+                if (notes != null) {
+                    Text(
+                        stringResource(R.string.notes_section),
+                        style = MaterialTheme.typography.titleLarge,
+                        modifier = Modifier.padding(top = 12.dp)
+                    )
+                    Text(notes, style = MaterialTheme.typography.bodyMedium)
                 }
                 FishyButton(
                     onClick = { onOpenReport(shipmentId) },
@@ -198,4 +214,3 @@ fun ShipmentDetailScreen(
         }
     }
 }
-

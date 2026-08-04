@@ -1,6 +1,8 @@
 package com.example.fishy.feature.report
 
+import android.content.ClipData
 import android.content.Intent
+import android.widget.Toast
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -37,19 +39,25 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
+import androidx.core.content.FileProvider
 import com.example.fishy.FishyApp
 import com.example.fishy.R
 import com.example.fishy.data.serialization.FishyJson
 import com.example.fishy.data.settings.FishySettings
 import com.example.fishy.domain.model.ShipmentEventType
+import com.example.fishy.domain.report.ReportDocxBuilder
 import com.example.fishy.domain.report.ReportGenerator
 import com.example.fishy.domain.report.ReportTemplate
+import com.example.fishy.ui.ErrorFeedback
 import com.example.fishy.ui.components.ColumnScrollIndicator
 import com.example.fishy.ui.components.FishyButton
 import com.example.fishy.ui.components.FishySentenceKeyboardOptions
+import java.io.File
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -96,6 +104,42 @@ fun ReportScreen(
         editText = text
     }
 
+    fun shareDocx() {
+        scope.launch {
+            try {
+                val dateMillis = payload.completedAtMillis ?: payload.createdAtMillis
+                val fileName = ReportDocxBuilder.reportDocxFileName(dateMillis)
+                val file = withContext(Dispatchers.IO) {
+                    val bytes = ReportDocxBuilder.build(displayText)
+                    val out = File(context.cacheDir, fileName)
+                    out.writeBytes(bytes)
+                    out
+                }
+                val uri = FileProvider.getUriForFile(
+                    context,
+                    "${context.packageName}.fileprovider",
+                    file
+                )
+                val share = Intent(Intent.ACTION_SEND).apply {
+                    type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                    putExtra(Intent.EXTRA_STREAM, uri)
+                    clipData = ClipData.newUri(context.contentResolver, fileName, uri)
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                }
+                context.startActivity(
+                    Intent.createChooser(share, context.getString(R.string.export_docx))
+                )
+            } catch (_: Exception) {
+                ErrorFeedback.vibrate(context)
+                Toast.makeText(
+                    context,
+                    context.getString(R.string.export_docx_failed),
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+        }
+    }
+
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
@@ -111,14 +155,11 @@ fun ReportScreen(
                     }) {
                         Icon(Icons.Default.ContentCopy, contentDescription = null)
                     }
-                    IconButton(onClick = {
-                        val share = Intent(Intent.ACTION_SEND).apply {
-                            type = "text/plain"
-                            putExtra(Intent.EXTRA_TEXT, displayText)
-                        }
-                        context.startActivity(Intent.createChooser(share, context.getString(R.string.export_txt)))
-                    }) {
-                        Icon(Icons.Default.Share, contentDescription = null)
+                    IconButton(onClick = { shareDocx() }) {
+                        Icon(
+                            Icons.Default.Share,
+                            contentDescription = stringResource(R.string.export_docx)
+                        )
                     }
                 }
             )

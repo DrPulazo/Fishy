@@ -42,7 +42,8 @@ object ShipmentDuplicator {
             lastUsedVehicleId = null,
             lastUsedProductId = null,
             lastUsedPortId = null,
-            lastUsedUnloadReceptionId = null
+            lastUsedUnloadReceptionId = null,
+            accordionExpanded = emptyMap()
         )
     }
 

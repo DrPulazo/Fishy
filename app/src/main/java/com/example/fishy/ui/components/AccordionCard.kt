@@ -56,6 +56,11 @@ fun AccordionCard(
     subtitleColor: Color? = null,
     subtitle: String? = null,
     initiallyExpanded: Boolean = true,
+    /**
+     * When non-null, expansion is controlled by the caller (VM).
+     * When null, uses internal [rememberSaveable] state seeded by [initiallyExpanded].
+     */
+    expanded: Boolean? = null,
     /** When this value changes to a non-null token, the card expands (e.g. smart FAB focus). */
     forceExpandToken: Any? = null,
     titleStyle: TextStyle? = null,
@@ -63,10 +68,11 @@ fun AccordionCard(
     onExpandedChange: ((Boolean) -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    var expanded by rememberSaveable { mutableStateOf(initiallyExpanded) }
+    var uncontrolled by rememberSaveable { mutableStateOf(initiallyExpanded) }
+    val isExpanded = expanded ?: uncontrolled
     LaunchedEffect(forceExpandToken) {
         if (forceExpandToken != null) {
-            expanded = true
+            if (expanded == null) uncontrolled = true
             onExpandedChange?.invoke(true)
         }
     }
@@ -84,7 +90,7 @@ fun AccordionCard(
         ?: MaterialTheme.typography.titleMedium
 
     fun setExpanded(value: Boolean) {
-        expanded = value
+        if (expanded == null) uncontrolled = value
         onExpandedChange?.invoke(value)
     }
 
@@ -106,7 +112,7 @@ fun AccordionCard(
                         .weight(1f)
                         .clickable(
                             role = Role.Button,
-                            onClick = { setExpanded(!expanded) }
+                            onClick = { setExpanded(!isExpanded) }
                         )
                 ) {
                     Text(
@@ -124,16 +130,16 @@ fun AccordionCard(
                     }
                 }
                 trailing?.invoke()
-                IconButton(onClick = { setExpanded(!expanded) }) {
+                IconButton(onClick = { setExpanded(!isExpanded) }) {
                     Icon(
-                        if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                        if (isExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
                         contentDescription = null,
                         tint = titleColor
                     )
                 }
             }
             AnimatedVisibility(
-                visible = expanded,
+                visible = isExpanded,
                 enter = expandVertically(animationSpec = tween(AccordionAnimMs)) +
                     fadeIn(animationSpec = tween(AccordionFadeInMs)),
                 exit = shrinkVertically(animationSpec = tween(AccordionAnimMs)) +

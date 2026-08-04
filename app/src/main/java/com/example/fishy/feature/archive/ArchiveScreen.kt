@@ -557,7 +557,10 @@ private fun ArchiveShipmentCard(
                 }
                 if (ports.isNotEmpty()) {
                     Text(
-                        stringResource(R.string.port_prefix, ports.joinToString(", ")),
+                        stringResource(
+                            if (ports.size == 1) R.string.port_prefix else R.string.ports_prefix,
+                            ports.joinToString(", ")
+                        ),
                         style = MaterialTheme.typography.bodyMedium
                     )
                 }
@@ -577,7 +580,10 @@ private fun ArchiveShipmentCard(
                 }
                 if (productTypesCount > 1) {
                     Text(
-                        stringResource(R.string.product_types_count, productTypesCount),
+                        stringResource(
+                            R.string.product_types_count,
+                            ShipmentCalculator.formatKindsRu(productTypesCount)
+                        ),
                         style = MaterialTheme.typography.bodyMedium
                     )
                 } else {

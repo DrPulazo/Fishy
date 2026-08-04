@@ -273,6 +273,19 @@ object ShipmentCalculator {
         return "$num мест"
     }
 
+    /** «1 вид», «2 вида», «5 видов». */
+    fun formatKindsRu(n: Int): String {
+        val mod100 = abs(n) % 100
+        val mod10 = abs(n) % 10
+        val word = when {
+            mod100 in 11..14 -> "видов"
+            mod10 == 1 -> "вид"
+            mod10 in 2..4 -> "вида"
+            else -> "видов"
+        }
+        return "$n $word"
+    }
+
     private fun ruPlaces(n: Double): String = formatPlacesRu(n)
 
     fun applyForecastPlaceholders(product: Product): Product {

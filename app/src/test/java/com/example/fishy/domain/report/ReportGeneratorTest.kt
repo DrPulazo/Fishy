@@ -1,6 +1,7 @@
 package com.example.fishy.domain.report
 
 import com.example.fishy.domain.model.Pallet
+import com.example.fishy.domain.model.PortGroup
 import com.example.fishy.domain.model.Product
 import com.example.fishy.domain.model.ShipmentMode
 import com.example.fishy.domain.model.ShipmentPayload
@@ -289,6 +290,45 @@ class ReportGeneratorTest {
         )
         val report = ReportGenerator.generate(payload = payload, generatedAtMillis = 1_700_000_000_000L)
         assertEquals(2, report.lines().count { it.startsWith("Кета B") })
+    }
+
+    @Test
+    fun multiPortMergesIdenticalProductsAcrossPorts() {
+        val same = { places: Double ->
+            Product(
+                name = "Корюшка н/р",
+                batch = "",
+                manufacturer = "ООО «Весткамфиш»",
+                packageWeight = 20.0,
+                pallets = listOf(Pallet(places = places))
+            )
+        }
+        val payload = ShipmentPayload(
+            mode = ShipmentMode.MULTI_PORT,
+            transport = Transport(containerNumber = "TEMU9420988"),
+            multiPorts = listOf(
+                PortGroup(
+                    port = "Холодильник",
+                    products = listOf(same(614.0), Product(name = "Корюшка н/р", manufacturer = "ООО «Другое»", packageWeight = 20.0, pallets = listOf(Pallet(places = 2.0))))
+                ),
+                PortGroup(
+                    port = "Подвоз",
+                    products = listOf(same(1.0))
+                )
+            ),
+            createdAtMillis = 1_700_000_000_000L,
+            completedAtMillis = 1_700_000_000_000L
+        )
+        val report = ReportGenerator.generate(
+            payload = payload,
+            formatContainerSpaces = true,
+            generatedAtMillis = 1_700_000_000_000L
+        )
+        assertTrue(report.contains("TEMU 9420988"))
+        assertTrue(report.contains("Корюшка н/р (1/20) – ООО «Весткамфиш» - 615 мест – 12300 кг"))
+        assertEquals(1, report.lines().count { it.contains("Весткамфиш") })
+        assertTrue(report.contains("Корюшка н/р (1/20) – ООО «Другое» - 2 места – 40 кг"))
+        assertFalse(report.trimEnd().endsWith("\n"))
     }
 
     @Test

@@ -84,7 +84,6 @@ object ReportGenerator {
             append("Сгенерировано приложением «Фишка».")
             append("\n")
             append(dateTimeFmt.format(Date(generatedAtMillis)))
-            append("\n")
         }
 
         return convertQuotes(body)
@@ -221,7 +220,7 @@ object ReportGenerator {
      * Merge products that share name + batch + manufacturer + package tare.
      * Places (and thus mass in the report line) are summed. Order = first occurrence.
      */
-    internal fun mergeIdenticalProductsForReport(
+    fun mergeIdenticalProductsForReport(
         products: List<Product>,
         doubleControl: Boolean
     ): List<Product> {
@@ -283,8 +282,7 @@ object ReportGenerator {
         if (transportLine.isNotBlank()) {
             lines += transportLine
         }
-        products
-            .filter { it.name.isNotBlank() || it.batch.isNotBlank() || it.pallets.isNotEmpty() }
+        mergeIdenticalProductsForReport(products, doubleControl)
             .forEach { lines += formatProductLine(it, doubleControl, thousandsSeparator) }
         return lines.joinToString("\n")
     }

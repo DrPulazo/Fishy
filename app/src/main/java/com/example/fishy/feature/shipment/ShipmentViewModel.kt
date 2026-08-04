@@ -82,6 +82,10 @@ class ShipmentViewModel(application: Application) : AndroidViewModel(application
     private val _fabSuccessTick = MutableStateFlow(0L)
     val fabSuccessTick: StateFlow<Long> = _fabSuccessTick.asStateFlow()
 
+    /** Accordion open/closed for current shipment session (survives leave/return). */
+    private val _accordionExpanded = MutableStateFlow<Map<String, Boolean>>(emptyMap())
+    val accordionExpanded: StateFlow<Map<String, Boolean>> = _accordionExpanded.asStateFlow()
+
     private val confirmedGuards = mutableSetOf<String>()
     private var autoSaveJob: Job? = null
     private var manualSaveJob: Job? = null
@@ -179,6 +183,104 @@ class ShipmentViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
+    fun setAccordionExpanded(key: String, expanded: Boolean) {
+        val map = _accordionExpanded.value + (key to expanded)
+        _accordionExpanded.value = map
+        _payload.value = _payload.value.copy(accordionExpanded = map)
+        scheduleAutoSave()
+    }
+
+    /**
+     * On leave: for fully loaded sections, write false unless the user left them
+     * explicitly open (`true` in map). Flush so the next open restores after VM death.
+     */
+    fun onShipmentScreenStop() {
+        val payload = _payload.value
+        val current = _accordionExpanded.value
+        val collapse = linkedMapOf<String, Boolean>()
+        fun markIfDone(key: String, done: Boolean) {
+            if (done && current[key] != true) {
+                collapse[key] = false
+            }
+        }
+        when (payload.mode) {
+            ShipmentMode.MONO -> {
+                payload.products.forEach { p ->
+                    markIfDone("product:${p.id}", isProductLoaded(p, payload.doubleControlEnabled))
+                }
+            }
+            ShipmentMode.MULTI_PORT -> {
+                payload.multiPorts.forEach { group ->
+                    val dc = payload.doubleControlEnabled || group.doubleControlEnabled
+                    val totals = ShipmentCalculator.totalsForProducts(group.products, dc)
+                    val done = kotlin.math.abs(totals.remainder) < 1e-9 &&
+                        group.products.any { it.quantity > 0 }
+                    markIfDone("port:${group.id}", done)
+                    group.products.forEach { p ->
+                        markIfDone("port:${group.id}/product:${p.id}", isProductLoaded(p, dc))
+                    }
+                }
+            }
+            ShipmentMode.MULTI_VEHICLE -> {
+                payload.multiVehicles.forEach { vehicle ->
+                    val dc = payload.doubleControlEnabled || vehicle.doubleControlEnabled
+                    val totals = ShipmentCalculator.totalsForProducts(vehicle.products, dc)
+                    val done = kotlin.math.abs(totals.remainder) < 1e-9 &&
+                        vehicle.products.any { it.quantity > 0 }
+                    markIfDone("vehicle:${vehicle.id}", done)
+                    vehicle.products.forEach { p ->
+                        markIfDone("vehicle:${vehicle.id}/product:${p.id}", isProductLoaded(p, dc))
+                    }
+                }
+            }
+            ShipmentMode.UNLOAD -> {
+                payload.unloadReceptions.forEach { reception ->
+                    val products = reception.inbounds.flatMap { it.products }
+                    val totals = ShipmentCalculator.totalsForProducts(
+                        products,
+                        payload.doubleControlEnabled
+                    )
+                    val done = kotlin.math.abs(totals.remainder) < 1e-9 &&
+                        products.any { it.quantity > 0 }
+                    markIfDone("reception:${reception.id}", done)
+                    reception.inbounds.forEach { inbound ->
+                        inbound.products.forEach { p ->
+                            markIfDone(
+                                "reception:${reception.id}/inbound:${inbound.id}/product:${p.id}",
+                                isProductLoaded(p, payload.doubleControlEnabled, unload = true)
+                            )
+                        }
+                    }
+                }
+            }
+        }
+        if (collapse.isNotEmpty()) {
+            val map = current + collapse
+            _accordionExpanded.value = map
+            _payload.value = payload.copy(accordionExpanded = map)
+        } else if (payload.accordionExpanded != current) {
+            _payload.value = payload.copy(accordionExpanded = current)
+        }
+        viewModelScope.launch {
+            flushDraftAndAwait()
+        }
+    }
+
+    private fun applyAccordionFromPayload(payload: ShipmentPayload) {
+        _accordionExpanded.value = payload.accordionExpanded
+    }
+
+    private fun isProductLoaded(
+        product: Product,
+        doubleControl: Boolean,
+        unload: Boolean = false
+    ): Boolean {
+        if (product.quantity <= 0) return false
+        return kotlin.math.abs(
+            ShipmentCalculator.remainder(product, doubleControl, unload)
+        ) < 1e-9
+    }
+
     fun startNew(mode: ShipmentMode) {
         scheduledSourceId = null
         autoSaveJob?.cancel()
@@ -206,6 +308,7 @@ class ShipmentViewModel(application: Application) : AndroidViewModel(application
             )
         }
         _payload.value = payload
+        applyAccordionFromPayload(payload)
         baselinePayloadJson = FishyJson.encodePayload(payload)
         viewModelScope.launch {
             repo.log(
@@ -226,6 +329,7 @@ class ShipmentViewModel(application: Application) : AndroidViewModel(application
             val decoded = FishyJson.decodePayload(entity.payloadJson)
             val payload = decoded.copy(checklistEnabled = true)
             _payload.value = payload
+            applyAccordionFromPayload(payload)
             baselinePayloadJson = FishyJson.encodePayload(payload)
             // Do not log STARTED again — reopen should not spam the audit trail.
         }
@@ -245,6 +349,7 @@ class ShipmentViewModel(application: Application) : AndroidViewModel(application
                     val decoded = FishyJson.decodePayload(draftEntity.payloadJson)
                     val payload = decoded.copy(checklistEnabled = true)
                     _payload.value = payload
+                    applyAccordionFromPayload(payload)
                     baselinePayloadJson = FishyJson.encodePayload(payload)
                     return@launch
                 }
@@ -269,13 +374,15 @@ class ShipmentViewModel(application: Application) : AndroidViewModel(application
                 editedReportText = null,
                 batchWarnThreshold = settings.value.defaultBatchWarnThreshold,
                 checklistEnabled = true,
-                checklist = mergeShipmentChecklist(base.checklist, incompletePrep)
+                checklist = mergeShipmentChecklist(base.checklist, incompletePrep),
+                accordionExpanded = emptyMap()
             )
             autoSaveJob?.cancel()
             _draftId.value = null
             scheduledSourceId = scheduledId
             _sessionKey.value = "from_sched_$scheduledId"
             _payload.value = payload
+            applyAccordionFromPayload(payload)
             baselinePayloadJson = null
             repo.log(
                 _sessionKey.value,
@@ -690,7 +797,7 @@ class ShipmentViewModel(application: Application) : AndroidViewModel(application
                     app.getString(
                         R.string.batch_limit_exceeded,
                         product.batch.ifBlank { product.name }.ifBlank { "—" },
-                        QuantityFormatters.formatCount(availablePlaces.coerceAtLeast(0.0))
+                        ShipmentCalculator.formatPlacesRu(availablePlaces.coerceAtLeast(0.0))
                     )
                 )
             )
@@ -920,7 +1027,7 @@ class ShipmentViewModel(application: Application) : AndroidViewModel(application
                 msgRes,
                 pallet.palletNumber,
                 productLabel(product.name),
-                QuantityFormatters.formatCount(pallet.places)
+                ShipmentCalculator.formatPlacesRu(pallet.places)
             )
         )
     }
@@ -955,7 +1062,7 @@ class ShipmentViewModel(application: Application) : AndroidViewModel(application
                     R.string.history_msg_pallet_deleted,
                     removedNumber,
                     productLabel(productName),
-                    QuantityFormatters.formatCount(removedPlaces)
+                    ShipmentCalculator.formatPlacesRu(removedPlaces)
                 )
             )
             scheduleForecastIfEligible(productId)
@@ -1619,15 +1726,15 @@ class ShipmentViewModel(application: Application) : AndroidViewModel(application
                 R.string.history_msg_pallet_places_changed,
                 pending.palletNumber,
                 productLabel(pending.productName),
-                QuantityFormatters.formatCount(pending.oldPlaces),
-                QuantityFormatters.formatCount(pending.newPlaces)
+                ShipmentCalculator.formatPlacesRu(pending.oldPlaces),
+                ShipmentCalculator.formatPlacesRu(pending.newPlaces)
             )
         } else {
             app.getString(
                 R.string.history_msg_pallet_places,
                 pending.palletNumber,
                 productLabel(pending.productName),
-                QuantityFormatters.formatCount(pending.newPlaces)
+                ShipmentCalculator.formatPlacesRu(pending.newPlaces)
             )
         }
         repo.log(_sessionKey.value, ShipmentEventType.PALLET_PLACES, message)

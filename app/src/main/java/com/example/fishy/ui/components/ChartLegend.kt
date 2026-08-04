@@ -17,13 +17,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.fishy.domain.stats.StatLegendItem
 import com.example.fishy.domain.stats.StatisticsBreakdown
 import com.example.fishy.domain.stats.StatsChartColors
 import java.util.Locale
 
-private const val LegendColumns = 3
+private const val LegendColumns = 2
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -67,7 +68,8 @@ fun ChartLegend(
                     Text(
                         text = item.label + pct,
                         style = MaterialTheme.typography.labelSmall,
-                        maxLines = 1
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
             }
