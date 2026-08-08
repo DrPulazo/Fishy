@@ -64,6 +64,8 @@ fun AccordionCard(
     /** When this value changes to a non-null token, the card expands (e.g. smart FAB focus). */
     forceExpandToken: Any? = null,
     titleStyle: TextStyle? = null,
+    /** When false, title lines do not soft-wrap (transport plates with explicit \\n). */
+    titleSoftWrap: Boolean = true,
     trailing: (@Composable () -> Unit)? = null,
     onExpandedChange: ((Boolean) -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit
@@ -119,7 +121,8 @@ fun AccordionCard(
                         text = title,
                         style = resolvedTitleStyle,
                         fontWeight = FontWeight.Bold,
-                        color = titleColor
+                        color = titleColor,
+                        softWrap = titleSoftWrap
                     )
                     if (!subtitle.isNullOrBlank()) {
                         Text(

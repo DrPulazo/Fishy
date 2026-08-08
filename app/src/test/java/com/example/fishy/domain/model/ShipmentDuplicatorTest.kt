@@ -26,6 +26,7 @@ class ShipmentDuplicatorTest {
             ),
             notes = "Important note",
             accordionExpanded = mapOf("product:1" to true),
+            quickPlacesByKey = mapOf("id:1" to "40"),
             checklist = listOf(
                 ChecklistTask(title = "Check seal", isCompleted = true, completedAtMillis = 1L)
             )
@@ -47,6 +48,7 @@ class ShipmentDuplicatorTest {
         assertEquals(null, copy.checklist.single().completedAtMillis)
         assertEquals(null, copy.completedAtMillis)
         assertEquals(emptyMap<String, Boolean>(), copy.accordionExpanded)
+        assertEquals(emptyMap<String, String>(), copy.quickPlacesByKey)
     }
 
     @Test

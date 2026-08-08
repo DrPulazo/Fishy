@@ -101,6 +101,16 @@ class ReportGeneratorTest {
     }
 
     @Test
+    fun sealOnlyWithoutVehicleShowsNothingInReport() {
+        val line = ReportGenerator.formatTransportLine(
+            Transport(sealNumber = "ONLY"),
+            formatContainerSpaces = false,
+            formatVehicleSpaces = false
+        )
+        assertEquals("", line)
+    }
+
+    @Test
     fun productLineUsesPlacesDeclensionAndMass() {
         val line = ReportGenerator.formatProductLine(
             Product(

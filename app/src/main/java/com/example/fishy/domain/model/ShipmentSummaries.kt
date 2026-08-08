@@ -130,7 +130,7 @@ object ShipmentSummaries {
     }
 
     fun schedulePlannedTonnageKg(payload: ShipmentPayload): Double =
-        ShipmentCalculator.totals(payload).targetWeight
+        ShipmentCalculator.plannedTonnageKg(payload)
 
     /**
      * Body lines for a scheduled-shipment list card.
@@ -322,6 +322,18 @@ object ShipmentSummaries {
         if (cleaned.size == 1) return cleaned.first()
         val rest = cleaned.size - 1
         return "${cleaned.first()} + ${ruCount(rest, one, few, many)}"
+    }
+
+    /**
+     * Short variant: «first + N» without the word declension (порт/порта/портов).
+     * Useful for tighter notification strings.
+     */
+    fun firstPlusRestCountOnlyRu(names: List<String>): String? {
+        val cleaned = names.map { it.trim() }.filter { it.isNotBlank() }
+        if (cleaned.isEmpty()) return null
+        if (cleaned.size == 1) return cleaned.first()
+        val rest = cleaned.size - 1
+        return "${cleaned.first()} + $rest"
     }
 
     /**

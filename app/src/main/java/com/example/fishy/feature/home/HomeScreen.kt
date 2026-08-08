@@ -39,7 +39,7 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.outlined.DarkMode
-import androidx.compose.material.icons.outlined.Help
+import androidx.compose.material.icons.automirrored.outlined.Help
 import androidx.compose.material.icons.outlined.LightMode
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
@@ -69,6 +69,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.example.fishy.BuildConfig
 import com.example.fishy.FishyApp
 import com.example.fishy.R
 import com.example.fishy.data.settings.AppLanguage
@@ -318,11 +319,12 @@ fun HomeScreen(
             }
         }
 
+        // Burger left (Settings first, then FAQ / about); theme toggle top-right.
         Column(
             modifier = Modifier
-                .align(Alignment.TopEnd)
+                .align(Alignment.TopStart)
                 .statusBarsPadding()
-                .padding(end = 8.dp, top = 4.dp),
+                .padding(start = 8.dp, top = 4.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
@@ -362,32 +364,13 @@ fun HomeScreen(
                     }
                     IconButton(
                         onClick = {
-                            scope.launch {
-                                settingsRepo.update {
-                                    it.copy(
-                                        themeMode = if (darkThemeOn) ThemeMode.LIGHT else ThemeMode.DARK
-                                    )
-                                }
-                            }
-                        },
-                        modifier = Modifier.size(HomeTopBarIconSize)
-                    ) {
-                        Icon(
-                            imageVector = if (darkThemeOn) Icons.Outlined.DarkMode else Icons.Outlined.LightMode,
-                            contentDescription = stringResource(R.string.theme_toggle_cd),
-                            modifier = Modifier.size(32.dp),
-                            tint = menuIconTint
-                        )
-                    }
-                    IconButton(
-                        onClick = {
                             menuExpanded = false
                             onNavigateFaq()
                         },
                         modifier = Modifier.size(HomeTopBarIconSize)
                     ) {
                         Icon(
-                            Icons.Outlined.Help,
+                            Icons.AutoMirrored.Outlined.Help,
                             contentDescription = stringResource(R.string.faq_cd),
                             modifier = Modifier.size(32.dp),
                             tint = menuIconTint
@@ -408,6 +391,32 @@ fun HomeScreen(
                         )
                     }
                 }
+            }
+        }
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .statusBarsPadding()
+                .padding(end = 8.dp, top = 4.dp)
+        ) {
+            IconButton(
+                onClick = {
+                    scope.launch {
+                        settingsRepo.update {
+                            it.copy(
+                                themeMode = if (darkThemeOn) ThemeMode.LIGHT else ThemeMode.DARK
+                            )
+                        }
+                    }
+                },
+                modifier = Modifier.size(HomeTopBarIconSize)
+            ) {
+                Icon(
+                    imageVector = if (darkThemeOn) Icons.Outlined.DarkMode else Icons.Outlined.LightMode,
+                    contentDescription = stringResource(R.string.theme_toggle_cd),
+                    modifier = Modifier.size(32.dp),
+                    tint = menuIconTint
+                )
             }
         }
     }
@@ -440,7 +449,7 @@ fun HomeScreen(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text(
-                        text = stringResource(R.string.about_version),
+                        text = stringResource(R.string.about_version, BuildConfig.VERSION_NAME),
                         textAlign = TextAlign.Center,
                         modifier = Modifier.padding(bottom = 12.dp)
                     )

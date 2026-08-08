@@ -27,7 +27,6 @@ import com.example.fishy.ui.components.FishyButton
 import com.example.fishy.ui.components.TransportFields
 import com.example.fishy.ui.components.UnloadReceptionFields
 import com.example.fishy.ui.components.transportTitle
-import com.example.fishy.ui.components.unloadReceptionTitle
 
 @Composable
 fun ScheduledUnloadPrefill(
@@ -48,12 +47,9 @@ fun ScheduledUnloadPrefill(
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         payload.unloadReceptions.forEach { reception ->
-            val receptionTitle = unloadReceptionTitle(
-                reception.name,
-                reception.transport,
-                autoSpaceContainers,
-                autoSpaceVehicles
-            )
+            val receptionTitle = reception.name.trim().ifBlank {
+                stringResource(R.string.reception_point)
+            }
             AccordionCard(
                 title = receptionTitle,
                 trailing = {
@@ -111,13 +107,15 @@ fun ScheduledUnloadPrefill(
                     val inboundTitle = transportTitle(
                         inbound.transport,
                         autoSpaceContainers,
-                        autoSpaceVehicles
+                        autoSpaceVehicles,
+                        positionsSeparator = "\n"
                     ).let { t ->
                         if (t != stringResource(R.string.new_transport)) t
                         else stringResource(R.string.unload_source)
                     }
                     AccordionCard(
                         title = inboundTitle,
+                        titleSoftWrap = false,
                         initiallyExpanded = true,
                         trailing = {
                             IconButton(onClick = {

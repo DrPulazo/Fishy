@@ -132,6 +132,16 @@ object ShipmentCalculator {
     }
 
     fun progressPercent(payload: ShipmentPayload): Float {
+        if (batchControlActive(payload) && payload.batchLimits.isNotEmpty()) {
+            // Status bar progress must follow batch control plan (plannedPlaces),
+            // even when product.quantity is not filled in transport UI.
+            val statuses = batchStatuses(payload, payload.batchWarnThreshold)
+            val planned = statuses.sumOf { it.planned }
+            if (planned <= EPS) return 0f
+            val used = statuses.sumOf { it.used }
+            val ratio = used / planned
+            return if (ratio > 1f + EPS) 1.01f else ratio.toFloat()
+        }
         val t = totals(payload)
         if (t.quantity <= 0) return 0f
         if (hasAnyProductOverload(payload)) return 1.01f
@@ -333,11 +343,55 @@ object ShipmentCalculator {
     fun batchKey(limit: BatchLimit): String =
         batchKey(limit.productName, limit.batchName, limit.manufacturer, limit.packageWeight)
 
+    /** Batch UI / enforcement only for multi-vehicle and unload. */
+    fun batchControlActive(payload: ShipmentPayload): Boolean =
+        payload.batchControlEnabled &&
+            (payload.mode == ShipmentMode.MULTI_VEHICLE || payload.mode == ShipmentMode.UNLOAD)
+
+    fun batchPlanTonnageKg(payload: ShipmentPayload): Double =
+        payload.batchLimits.sumOf { it.packageWeight * it.plannedPlaces }
+
+    /**
+     * Planner / notification tonnage: batch plan when control is active and limits exist,
+     * otherwise product quantities ([totals] targetWeight).
+     */
+    fun plannedTonnageKg(payload: ShipmentPayload): Double {
+        if (batchControlActive(payload) && payload.batchLimits.isNotEmpty()) {
+            return batchPlanTonnageKg(payload)
+        }
+        return totals(payload).targetWeight
+    }
+
+    data class BatchTransportMismatch(
+        val key: String,
+        val plannedPlaces: Double,
+        val transportPlaces: Double
+    )
+
+    /**
+     * Compares batch [BatchLimit.plannedPlaces] to sum of product [Product.quantity] per key.
+     * Only keys with a positive limit and positive transport quantity; either direction counts.
+     */
+    fun batchTransportMismatches(payload: ShipmentPayload): List<BatchTransportMismatch> {
+        if (!batchControlActive(payload) || payload.batchLimits.isEmpty()) return emptyList()
+        val qtyByKey = allProducts(payload)
+            .groupBy { batchKey(it) }
+            .mapValues { (_, list) -> list.sumOf { it.quantity.toDouble() } }
+        return payload.batchLimits.mapNotNull { limit ->
+            if (limit.plannedPlaces <= EPS) return@mapNotNull null
+            val key = batchKey(limit)
+            val transport = qtyByKey[key] ?: 0.0
+            if (transport <= EPS) return@mapNotNull null
+            if (abs(transport - limit.plannedPlaces) <= EPS) return@mapNotNull null
+            BatchTransportMismatch(key, limit.plannedPlaces, transport)
+        }
+    }
+
     fun batchStatuses(
         payload: ShipmentPayload,
         warnThreshold: Int
     ): List<BatchStatus> {
-        if (!payload.batchControlEnabled) return emptyList()
+        if (!batchControlActive(payload)) return emptyList()
         val usedByKey = allProducts(payload)
             .groupBy { batchKey(it) }
             .mapValues { (_, list) ->
@@ -363,7 +417,7 @@ object ShipmentCalculator {
         product: Product,
         additionalPlaces: Double
     ): Boolean {
-        if (!payload.batchControlEnabled) return true
+        if (!batchControlActive(payload)) return true
         val key = batchKey(product)
         val limit = payload.batchLimits.find { batchKey(it) == key } ?: return true
         val used = allProducts(payload)
@@ -377,7 +431,7 @@ object ShipmentCalculator {
      * (name + batch + manufacturer + tare), and its batchKey matches none of the limits.
      */
     fun isUnknownBatch(product: Product, payload: ShipmentPayload): Boolean {
-        if (!payload.batchControlEnabled || payload.batchLimits.isEmpty()) return false
+        if (!batchControlActive(payload) || payload.batchLimits.isEmpty()) return false
         if (product.name.isBlank() ||
             product.batch.isBlank() ||
             product.manufacturer.isBlank() ||

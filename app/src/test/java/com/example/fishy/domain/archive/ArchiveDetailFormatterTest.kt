@@ -36,9 +36,9 @@ class ArchiveDetailFormatterTest {
             payload,
             formatContainerSpaces = true
         ).joinToString("\n\n")
-        assertTrue(archive.contains("Холодильник"))
-        assertTrue(archive.contains("Судно А"))
-        assertTrue(archive.contains("Подвоз"))
+        assertTrue(archive.contains("Порт: Холодильник"))
+        assertTrue(archive.contains("Судно: Судно А"))
+        assertTrue(archive.contains("Порт: Подвоз"))
         assertTrue(archive.contains("614 мест"))
         assertTrue(archive.contains("1 место"))
         assertFalse(archive.contains("615 мест"))
@@ -63,13 +63,45 @@ class ArchiveDetailFormatterTest {
             )
         )
         val text = ArchiveDetailFormatter.contentBlocks(payload).joinToString("\n")
-        assertTrue(text.contains("Порт"))
-        assertFalse(text.lines().any { it.isBlank() && it != "" })
-        // vessel blank should not add an empty-looking dedicated vessel line between port and product
-        val portIdx = text.indexOf("Порт")
+        assertTrue(text.contains("Порт: Порт"))
+        assertFalse(text.contains("Судно:"))
+        val portIdx = text.indexOf("Порт: Порт")
         val productIdx = text.indexOf("A ")
         val between = text.substring(portIdx, productIdx)
         assertEquals(1, between.lines().count { it.isNotBlank() })
+    }
+
+    @Test
+    fun containerWithRoadShowsAllFieldsWithoutDriver() {
+        val lines = ArchiveDetailFormatter.formatTransportFull(
+            Transport(
+                containerNumber = "CSQU3054383",
+                truckNumber = "A123BC77",
+                trailerNumber = "AB123477",
+                sealNumber = "SEAL1",
+                wagonNumber = "12345678" // ignored when road present
+            ),
+            formatContainerSpaces = true,
+            formatVehicleSpaces = true
+        )
+        val text = lines.joinToString("\n")
+        assertTrue(text.contains("Контейнер:"))
+        assertTrue(text.contains("Авто:"))
+        assertTrue(text.contains("Прицеп:"))
+        assertTrue(text.contains("Пломба: SEAL1"))
+        assertFalse(text.contains("Вагон:"))
+        assertFalse(text.contains("Водитель"))
+    }
+
+    @Test
+    fun wagonOnlyWhenNoRoad() {
+        val lines = ArchiveDetailFormatter.formatTransportFull(
+            Transport(wagonNumber = "12345678", sealNumber = "S1")
+        )
+        assertEquals(
+            listOf("Вагон: 12345678", "Пломба: S1"),
+            lines
+        )
     }
 
     @Test

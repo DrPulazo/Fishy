@@ -468,7 +468,9 @@ fun UnloadReceptionFields(
 fun transportTitle(
     transport: Transport,
     autoSpaceContainers: Boolean = false,
-    autoSpaceVehicles: Boolean = false
+    autoSpaceVehicles: Boolean = false,
+    /** Separator between filled positions (shipment uses "\\n" for one position per line). */
+    positionsSeparator: String = " "
 ): String {
     val wagon = transport.wagonNumber.trim()
     if (wagon.isNotEmpty()) {
@@ -499,7 +501,7 @@ fun transportTitle(
     return if (parts.isEmpty()) {
         stringResource(R.string.new_transport)
     } else {
-        parts.joinToString(" ")
+        parts.joinToString(positionsSeparator)
     }
 }
 

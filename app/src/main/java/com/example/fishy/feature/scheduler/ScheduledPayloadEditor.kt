@@ -348,6 +348,12 @@ fun ScheduledPayloadFields(
 
     @Composable
     fun BatchAccordionUnderInfo() {
+        if (
+            payload.mode != ShipmentMode.MULTI_VEHICLE &&
+            payload.mode != ShipmentMode.UNLOAD
+        ) {
+            return
+        }
         if (!payload.batchControlEnabled || onEnterBatches == null || onEditBatch == null) return
         AccordionCard(
             title = stringResource(R.string.batch_control),
@@ -489,8 +495,10 @@ fun ScheduledPayloadFields(
                         title = transportTitle(
                             vehicle.transport,
                             autoSpaceContainers,
-                            autoSpaceVehicles
+                            autoSpaceVehicles,
+                            positionsSeparator = "\n"
                         ),
+                        titleSoftWrap = false,
                         trailing = {
                             IconButton(onClick = {
                                 onRequestDelete(

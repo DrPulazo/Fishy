@@ -263,7 +263,8 @@ fun StatisticsScreen(
                 } else {
                     EmptyListPlaceholder(
                         emoji = "📊",
-                        title = stringResource(R.string.archive_no_filters_match)
+                        title = stringResource(R.string.archive_no_filters_match),
+                        hint = stringResource(R.string.stats_filters_empty_hint)
                     )
                 }
             }

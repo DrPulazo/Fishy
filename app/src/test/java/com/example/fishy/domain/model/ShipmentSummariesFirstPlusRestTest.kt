@@ -41,4 +41,23 @@ class ShipmentSummariesFirstPlusRestTest {
         val names = listOf("P1", "P2", "P3", "P4", "P5", "P6")
         assertEquals("P1 + 5 портов", ShipmentSummaries.firstPlusRestRu(names))
     }
+
+    @Test
+    fun twoPorts_oneRest_countOnly() {
+        assertEquals("A + 1", ShipmentSummaries.firstPlusRestCountOnlyRu(listOf("A", "B")))
+    }
+
+    @Test
+    fun threePorts_twoRest_countOnly_skipsBlanks() {
+        assertEquals(
+            "Находка + 2",
+            ShipmentSummaries.firstPlusRestCountOnlyRu(listOf("", "Находка", " ", "B", "C"))
+        )
+    }
+
+    @Test
+    fun empty_null_countOnly() {
+        assertNull(ShipmentSummaries.firstPlusRestCountOnlyRu(emptyList()))
+        assertNull(ShipmentSummaries.firstPlusRestCountOnlyRu(listOf(" ", "")))
+    }
 }

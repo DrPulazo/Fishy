@@ -3,7 +3,11 @@ package com.example.fishy.domain.calc
 import com.example.fishy.domain.model.BatchLimit
 import com.example.fishy.domain.model.Pallet
 import com.example.fishy.domain.model.Product
+import com.example.fishy.domain.model.ShipmentMode
 import com.example.fishy.domain.model.ShipmentPayload
+import com.example.fishy.domain.model.VehicleGroup
+import com.example.fishy.domain.model.UnloadInbound
+import com.example.fishy.domain.model.UnloadReception
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -135,6 +139,36 @@ class ShipmentCalculatorTest {
             pallets = listOf(Pallet(places = 50.0))
         )
         val payload = ShipmentPayload(
+            mode = ShipmentMode.MULTI_VEHICLE,
+            batchControlEnabled = true,
+            batchLimits = listOf(
+                BatchLimit(
+                    productName = "Fish",
+                    batchName = "A",
+                    manufacturer = "Plant",
+                    packageWeight = 10.0,
+                    plannedPlaces = 50.0
+                )
+            ),
+            multiVehicles = listOf(
+                VehicleGroup(products = listOf(product))
+            )
+        )
+        assertFalse(ShipmentCalculator.canAddPlaces(payload, product, 1.0))
+        assertTrue(ShipmentCalculator.canAddPlaces(payload, product, 0.0))
+    }
+
+    @Test
+    fun batchControlInactiveInMonoEvenWhenEnabled() {
+        val product = Product(
+            name = "Fish",
+            batch = "A",
+            manufacturer = "Plant",
+            packageWeight = 10.0,
+            pallets = listOf(Pallet(places = 50.0))
+        )
+        val payload = ShipmentPayload(
+            mode = ShipmentMode.MONO,
             batchControlEnabled = true,
             batchLimits = listOf(
                 BatchLimit(
@@ -147,13 +181,70 @@ class ShipmentCalculatorTest {
             ),
             products = listOf(product)
         )
-        assertFalse(ShipmentCalculator.canAddPlaces(payload, product, 1.0))
-        assertTrue(ShipmentCalculator.canAddPlaces(payload, product, 0.0))
+        assertFalse(ShipmentCalculator.batchControlActive(payload))
+        assertTrue(ShipmentCalculator.canAddPlaces(payload, product, 100.0))
+    }
+
+    @Test
+    fun plannedTonnageUsesBatchWhenActive() {
+        val payload = ShipmentPayload(
+            mode = ShipmentMode.MULTI_VEHICLE,
+            batchControlEnabled = true,
+            batchLimits = listOf(
+                BatchLimit(
+                    productName = "Fish",
+                    batchName = "A",
+                    manufacturer = "Plant",
+                    packageWeight = 22.0,
+                    plannedPlaces = 1000.0
+                )
+            ),
+            multiVehicles = listOf(
+                VehicleGroup(
+                    products = listOf(Product(name = "Fish", quantity = 0, packageWeight = 22.0))
+                )
+            )
+        )
+        assertEquals(22_000.0, ShipmentCalculator.plannedTonnageKg(payload), 0.01)
+    }
+
+    @Test
+    fun batchTransportMismatchBothDirections() {
+        val limit = BatchLimit(
+            productName = "Fish",
+            batchName = "A",
+            manufacturer = "Plant",
+            packageWeight = 10.0,
+            plannedPlaces = 1000.0
+        )
+        fun payload(qty: Int) = ShipmentPayload(
+            mode = ShipmentMode.MULTI_VEHICLE,
+            batchControlEnabled = true,
+            batchLimits = listOf(limit),
+            multiVehicles = listOf(
+                VehicleGroup(
+                    products = listOf(
+                        Product(
+                            name = "Fish",
+                            batch = "A",
+                            manufacturer = "Plant",
+                            packageWeight = 10.0,
+                            quantity = qty
+                        )
+                    )
+                )
+            )
+        )
+        assertTrue(ShipmentCalculator.batchTransportMismatches(payload(900)).isNotEmpty())
+        assertTrue(ShipmentCalculator.batchTransportMismatches(payload(1050)).isNotEmpty())
+        assertTrue(ShipmentCalculator.batchTransportMismatches(payload(1000)).isEmpty())
+        assertTrue(ShipmentCalculator.batchTransportMismatches(payload(0)).isEmpty())
     }
 
     @Test
     fun unknownBatchDetectsMismatchOnFullKey() {
         val payload = ShipmentPayload(
+            mode = ShipmentMode.MULTI_VEHICLE,
             batchControlEnabled = true,
             batchLimits = listOf(
                 BatchLimit(
@@ -206,6 +297,104 @@ class ShipmentCalculatorTest {
                 Product(quantity = 100, pallets = listOf(Pallet(places = 120.0)))
             )
         )
-        assertEquals(1.2f, ShipmentCalculator.progressPercent(payload), 0.001f)
+        assertEquals(1.01f, ShipmentCalculator.progressPercent(payload), 0.001f)
+    }
+
+    @Test
+    fun progressPercentBatchControlUsesPlannedPlaces_multiVehicle() {
+        val limit = BatchLimit(
+            productName = "Fish",
+            batchName = "A",
+            manufacturer = "Plant",
+            packageWeight = 10.0,
+            plannedPlaces = 1000.0
+        )
+        val payload = ShipmentPayload(
+            mode = ShipmentMode.MULTI_VEHICLE,
+            batchControlEnabled = true,
+            batchLimits = listOf(limit),
+            // quantity is NOT filled (or could be 0), but pallet places are.
+            multiVehicles = listOf(
+                VehicleGroup(
+                    products = listOf(
+                        Product(
+                            name = "Fish",
+                            batch = "A",
+                            manufacturer = "Plant",
+                            packageWeight = 10.0,
+                            quantity = 0,
+                            pallets = listOf(Pallet(places = 500.0))
+                        )
+                    )
+                )
+            )
+        )
+        assertEquals(0.5f, ShipmentCalculator.progressPercent(payload), 0.001f)
+    }
+
+    @Test
+    fun progressPercentBatchControlOverloadTurnsRed_multiVehicle() {
+        val limit = BatchLimit(
+            productName = "Fish",
+            batchName = "A",
+            manufacturer = "Plant",
+            packageWeight = 10.0,
+            plannedPlaces = 1000.0
+        )
+        val payload = ShipmentPayload(
+            mode = ShipmentMode.MULTI_VEHICLE,
+            batchControlEnabled = true,
+            batchLimits = listOf(limit),
+            multiVehicles = listOf(
+                VehicleGroup(
+                    products = listOf(
+                        Product(
+                            name = "Fish",
+                            batch = "A",
+                            manufacturer = "Plant",
+                            packageWeight = 10.0,
+                            quantity = 0,
+                            pallets = listOf(Pallet(places = 1050.0))
+                        )
+                    )
+                )
+            )
+        )
+        assertEquals(1.01f, ShipmentCalculator.progressPercent(payload), 0.001f)
+    }
+
+    @Test
+    fun progressPercentBatchControlUsesPlannedPlaces_unload() {
+        val limit = BatchLimit(
+            productName = "Fish",
+            batchName = "A",
+            manufacturer = "Plant",
+            packageWeight = 10.0,
+            plannedPlaces = 1000.0
+        )
+        val payload = ShipmentPayload(
+            mode = ShipmentMode.UNLOAD,
+            batchControlEnabled = true,
+            batchLimits = listOf(limit),
+            unloadReceptions = listOf(
+                UnloadReception(
+                    inbounds = listOf(
+                        UnloadInbound(
+                            products = listOf(
+                                Product(
+                                    name = "Fish",
+                                    batch = "A",
+                                    manufacturer = "Plant",
+                                    packageWeight = 10.0,
+                                    quantity = 0,
+                                    pallets = listOf(Pallet(places = 500.0))
+                                )
+                            )
+                        )
+                    )
+                )
+            )
+        )
+        assertEquals(0.5f, ShipmentCalculator.progressPercent(payload), 0.001f)
     }
 }

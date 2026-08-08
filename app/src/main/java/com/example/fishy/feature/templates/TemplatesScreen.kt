@@ -30,7 +30,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -71,8 +71,11 @@ fun TemplatesScreen(onBack: () -> Unit) {
     var tab by remember { mutableIntStateOf(0) }
     val repo = FishyApp.instance.repository
     val dictType = types[tab].first
-    val items by remember(dictType) { repo.observeDictionary(dictType) }
-        .collectAsState(initial = null)
+    var items by remember { mutableStateOf<List<DictionaryEntity>?>(null) }
+    LaunchedEffect(dictType) {
+        items = null
+        repo.observeDictionary(dictType).collect { items = it }
+    }
     val scope = rememberCoroutineScope()
     var dialogValue by remember { mutableStateOf("") }
     var editing by remember { mutableStateOf<DictionaryEntity?>(null) }
@@ -135,7 +138,11 @@ fun TemplatesScreen(onBack: () -> Unit) {
                 )
             },
             empty = {
-                EmptyListPlaceholder(emoji = emptyEmoji, title = emptyTitle)
+                EmptyListPlaceholder(
+                    emoji = emptyEmoji,
+                    title = emptyTitle,
+                    hint = stringResource(R.string.templates_empty_hint)
+                )
             }
         ) {
             if (list == null) {

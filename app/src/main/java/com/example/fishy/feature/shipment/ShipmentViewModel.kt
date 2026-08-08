@@ -53,6 +53,11 @@ sealed interface ShipmentUiEvent {
         val value: String,
         val onConfirm: () -> Unit
     ) : ShipmentUiEvent
+    /** Soft batch overload: OK writes places, Cancel discards. */
+    class BatchLimitConfirm(
+        val message: String,
+        val onConfirm: () -> Unit
+    ) : ShipmentUiEvent
     data object Saved : ShipmentUiEvent
     data class NavigateArchiveDetail(val id: Long) : ShipmentUiEvent
     data class ForecastRunning(val running: Boolean) : ShipmentUiEvent
@@ -261,6 +266,10 @@ class ShipmentViewModel(application: Application) : AndroidViewModel(application
         } else if (payload.accordionExpanded != current) {
             _payload.value = payload.copy(accordionExpanded = current)
         }
+        val quickPlaces = _quickPlacesByKey.value
+        if (payload.quickPlacesByKey != quickPlaces) {
+            _payload.value = _payload.value.copy(quickPlacesByKey = quickPlaces)
+        }
         viewModelScope.launch {
             flushDraftAndAwait()
         }
@@ -268,6 +277,10 @@ class ShipmentViewModel(application: Application) : AndroidViewModel(application
 
     private fun applyAccordionFromPayload(payload: ShipmentPayload) {
         _accordionExpanded.value = payload.accordionExpanded
+    }
+
+    private fun applyQuickPlacesFromPayload(payload: ShipmentPayload) {
+        _quickPlacesByKey.value = payload.quickPlacesByKey
     }
 
     private fun isProductLoaded(
@@ -309,6 +322,7 @@ class ShipmentViewModel(application: Application) : AndroidViewModel(application
         }
         _payload.value = payload
         applyAccordionFromPayload(payload)
+        applyQuickPlacesFromPayload(payload)
         baselinePayloadJson = FishyJson.encodePayload(payload)
         viewModelScope.launch {
             repo.log(
@@ -330,6 +344,7 @@ class ShipmentViewModel(application: Application) : AndroidViewModel(application
             val payload = decoded.copy(checklistEnabled = true)
             _payload.value = payload
             applyAccordionFromPayload(payload)
+            applyQuickPlacesFromPayload(payload)
             baselinePayloadJson = FishyJson.encodePayload(payload)
             // Do not log STARTED again — reopen should not spam the audit trail.
         }
@@ -350,6 +365,7 @@ class ShipmentViewModel(application: Application) : AndroidViewModel(application
                     val payload = decoded.copy(checklistEnabled = true)
                     _payload.value = payload
                     applyAccordionFromPayload(payload)
+                    applyQuickPlacesFromPayload(payload)
                     baselinePayloadJson = FishyJson.encodePayload(payload)
                     return@launch
                 }
@@ -375,7 +391,8 @@ class ShipmentViewModel(application: Application) : AndroidViewModel(application
                 batchWarnThreshold = settings.value.defaultBatchWarnThreshold,
                 checklistEnabled = true,
                 checklist = mergeShipmentChecklist(base.checklist, incompletePrep),
-                accordionExpanded = emptyMap()
+                accordionExpanded = emptyMap(),
+                quickPlacesByKey = emptyMap()
             )
             autoSaveJob?.cancel()
             _draftId.value = null
@@ -383,6 +400,7 @@ class ShipmentViewModel(application: Application) : AndroidViewModel(application
             _sessionKey.value = "from_sched_$scheduledId"
             _payload.value = payload
             applyAccordionFromPayload(payload)
+            applyQuickPlacesFromPayload(payload)
             baselinePayloadJson = null
             repo.log(
                 _sessionKey.value,
@@ -421,7 +439,7 @@ class ShipmentViewModel(application: Application) : AndroidViewModel(application
         unknownBatchWarnJob = viewModelScope.launch {
             delay(500)
             val p = _payload.value
-            if (!p.batchControlEnabled || p.batchLimits.isEmpty()) {
+            if (!ShipmentCalculator.batchControlActive(p) || p.batchLimits.isEmpty()) {
                 unknownBatchWarnedKeys.clear()
                 return@launch
             }
@@ -709,7 +727,10 @@ class ShipmentViewModel(application: Application) : AndroidViewModel(application
     fun setQuickPlacesText(product: Product, raw: String) {
         val key = quickPlacesMapKey(product)
         val sanitized = QuantityFormatters.sanitizeDecimalInput(raw)
-        _quickPlacesByKey.update { it + (key to sanitized) }
+        val map = _quickPlacesByKey.value + (key to sanitized)
+        _quickPlacesByKey.value = map
+        _payload.value = _payload.value.copy(quickPlacesByKey = map)
+        scheduleAutoSave()
     }
 
     fun quickPlacesTextFor(product: Product): String =
@@ -789,18 +810,37 @@ class ShipmentViewModel(application: Application) : AndroidViewModel(application
             .sumOf { ShipmentCalculator.placesForProduct(it, payload.doubleControlEnabled) }
     }
 
-    private fun emitBatchLimitAlert(product: Product, availablePlaces: Double) {
+    private fun batchLimitExceededMessage(
+        product: Product,
+        usedAfterWrite: Double,
+        plannedPlaces: Double
+    ): String {
+        val nameBatch = listOf(product.name.trim(), product.batch.trim())
+            .filter { it.isNotEmpty() }
+            .joinToString(" ")
+            .ifBlank { "—" }
+        val tare = QuantityFormatters.formatWeight(product.packageWeight, thousandsSeparator = false)
+        val manufacturer = product.manufacturer.trim().ifBlank { "—" }
+        return app.getString(
+            R.string.batch_limit_exceeded_detail,
+            nameBatch,
+            "1/$tare",
+            manufacturer,
+            QuantityFormatters.formatCount(usedAfterWrite),
+            QuantityFormatters.formatCount(plannedPlaces)
+        )
+    }
+
+    private fun emitBatchLimitConfirm(
+        product: Product,
+        usedAfterWrite: Double,
+        plannedPlaces: Double,
+        onConfirm: () -> Unit
+    ) {
         vibrateShort()
+        val message = batchLimitExceededMessage(product, usedAfterWrite, plannedPlaces)
         viewModelScope.launch {
-            _events.emit(
-                ShipmentUiEvent.Alert(
-                    app.getString(
-                        R.string.batch_limit_exceeded,
-                        product.batch.ifBlank { product.name }.ifBlank { "—" },
-                        ShipmentCalculator.formatPlacesRu(availablePlaces.coerceAtLeast(0.0))
-                    )
-                )
-            )
+            _events.emit(ShipmentUiEvent.BatchLimitConfirm(message, onConfirm))
         }
     }
 
@@ -808,16 +848,6 @@ class ShipmentViewModel(application: Application) : AndroidViewModel(application
         flushPendingPlacesLog()
         val s = settings.value
         val product = findProduct(productId) ?: return
-
-        if (places > 0.0 && !ShipmentCalculator.canAddPlaces(_payload.value, product, places)) {
-            val limit = _payload.value.batchLimits.find {
-                ShipmentCalculator.batchKey(it) == ShipmentCalculator.batchKey(product)
-            }
-            val used = batchPlacesUsed(_payload.value, product)
-            val avail = (limit?.plannedPlaces ?: 0.0) - used
-            emitBatchLimitAlert(product, avail)
-            return
-        }
 
         fun apply() {
             forecastAppliedSignature.remove(productId)
@@ -879,130 +909,158 @@ class ShipmentViewModel(application: Application) : AndroidViewModel(application
             }
         }
 
-        if (places > 0.0 &&
-            s.inputGuardEnabled &&
-            s.maxPlacesPerPallet > 0 &&
-            places > s.maxPlacesPerPallet &&
-            guardKey("places", "new:$productId") !in confirmedGuards
-        ) {
-            viewModelScope.launch {
-                _events.emit(
-                    ShipmentUiEvent.GuardConfirm("places", QuantityFormatters.formatCount(places)) {
-                        confirmedGuards += guardKey("places", "new:$productId")
-                        viewModelScope.launch {
-                            repo.log(
-                                _sessionKey.value,
-                                ShipmentEventType.INPUT_GUARD_CONFIRMED,
-                                app.getString(
-                                    R.string.history_msg_guard_places,
-                                    QuantityFormatters.formatCount(places)
+        fun proceedWithGuardOrApply() {
+            if (places > 0.0 &&
+                s.inputGuardEnabled &&
+                s.maxPlacesPerPallet > 0 &&
+                places > s.maxPlacesPerPallet &&
+                guardKey("places", "new:$productId") !in confirmedGuards
+            ) {
+                viewModelScope.launch {
+                    _events.emit(
+                        ShipmentUiEvent.GuardConfirm("places", QuantityFormatters.formatCount(places)) {
+                            confirmedGuards += guardKey("places", "new:$productId")
+                            viewModelScope.launch {
+                                repo.log(
+                                    _sessionKey.value,
+                                    ShipmentEventType.INPUT_GUARD_CONFIRMED,
+                                    app.getString(
+                                        R.string.history_msg_guard_places,
+                                        QuantityFormatters.formatCount(places)
+                                    )
                                 )
-                            )
+                            }
+                            apply()
                         }
-                        apply()
-                    }
-                )
+                    )
+                }
+                return
             }
+            apply()
+        }
+
+        if (places > 0.0 && !ShipmentCalculator.canAddPlaces(_payload.value, product, places)) {
+            val limit = _payload.value.batchLimits.find {
+                ShipmentCalculator.batchKey(it) == ShipmentCalculator.batchKey(product)
+            }
+            val usedAfter = batchPlacesUsed(_payload.value, product) + places
+            emitBatchLimitConfirm(
+                product = product,
+                usedAfterWrite = usedAfter,
+                plannedPlaces = limit?.plannedPlaces ?: 0.0,
+                onConfirm = { proceedWithGuardOrApply() }
+            )
             return
         }
-        apply()
+        proceedWithGuardOrApply()
     }
 
     fun updatePalletPlaces(productId: Long, palletId: Long, places: Double) {
         val settings = settings.value
+        val product = findProduct(productId) ?: return
+        val target = product.pallets.find { it.id == palletId } ?: return
+        val oldPlaces = target.places
+        val delta = places - oldPlaces
+
         val apply = {
             var shouldSchedule = false
-            mutateProductPallet(productId) { product ->
-                val target = product.pallets.find { it.id == palletId } ?: return@mutateProductPallet product
-                val oldPlaces = target.places
-                val delta = places - oldPlaces
-                if (!ShipmentCalculator.canAddPlaces(_payload.value, product, delta)) {
-                    val limit = _payload.value.batchLimits.find {
-                        ShipmentCalculator.batchKey(it) == ShipmentCalculator.batchKey(product)
-                    }
-                    val used = batchPlacesUsed(_payload.value, product)
-                    val avail = (limit?.plannedPlaces ?: 0.0) - used + oldPlaces
-                    emitBatchLimitAlert(product, avail)
-                    return@mutateProductPallet product
-                }
-                if (_payload.value.batchControlEnabled &&
-                    ShipmentCalculator.batchStatuses(_payload.value, _payload.value.batchWarnThreshold)
-                        .any { it.key == ShipmentCalculator.batchKey(product) && it.exhausted }
-                ) {
-                    vibrateShort()
-                }
-                if (oldPlaces != places) {
+            mutateProductPallet(productId) { p ->
+                val row = p.pallets.find { it.id == palletId } ?: return@mutateProductPallet p
+                if (row.places != places) {
                     schedulePlacesLog(
                         productId = productId,
                         palletId = palletId,
-                        palletNumber = target.palletNumber,
-                        productName = product.name,
-                        oldPlaces = oldPlaces,
+                        palletNumber = row.palletNumber,
+                        productName = p.name,
+                        oldPlaces = row.places,
                         newPlaces = places
                     )
                 }
 
-                if (target.isPlaceholder) {
+                if (row.isPlaceholder) {
                     // Confirm one forecast row as real; keep other placeholders. No re-forecast.
-                    return@mutateProductPallet product.copy(
-                        pallets = product.pallets.map {
+                    return@mutateProductPallet p.copy(
+                        pallets = p.pallets.map {
                             if (it.id == palletId) it.copy(places = places, isPlaceholder = false) else it
                         }
                     )
                 }
 
-                val real = ShipmentCalculator.realPallets(product)
+                val real = ShipmentCalculator.realPallets(p)
                 val isFirst = real.firstOrNull()?.id == palletId
                 val updatedReals = real.map {
                     if (it.id == palletId) it.copy(places = places, isPlaceholder = false) else it
                 }
-                val placeholders = product.pallets.filter { it.isPlaceholder }
+                val placeholders = p.pallets.filter { it.isPlaceholder }
 
                 when {
                     // Only first real pallet exists → typing places may (re)run forecast.
                     isFirst && real.size == 1 -> {
                         forecastAppliedSignature.remove(productId)
-                        shouldSchedule = places > 0 && product.quantity > 0
-                        product.copy(pallets = updatedReals) // drop old placeholders until debounce fires
+                        shouldSchedule = places > 0 && p.quantity > 0
+                        p.copy(pallets = updatedReals) // drop old placeholders until debounce fires
                     }
                     // Second+ reals already present → editing first must not re-forecast.
                     isFirst -> {
-                        product.copy(pallets = updatedReals + placeholders)
+                        p.copy(pallets = updatedReals + placeholders)
                     }
                     else -> {
-                        product.copy(pallets = updatedReals + placeholders)
+                        p.copy(pallets = updatedReals + placeholders)
                     }
                 }
+            }
+            if (_payload.value.batchControlEnabled &&
+                ShipmentCalculator.batchStatuses(_payload.value, _payload.value.batchWarnThreshold)
+                    .any { it.key == ShipmentCalculator.batchKey(product) && it.exhausted }
+            ) {
+                vibrateShort()
             }
             if (shouldSchedule) scheduleForecastIfEligible(productId)
         }
 
-        if (settings.inputGuardEnabled &&
-            settings.maxPlacesPerPallet > 0 &&
-            places > settings.maxPlacesPerPallet &&
-            guardKey("places", "$productId:$palletId") !in confirmedGuards
-        ) {
-            viewModelScope.launch {
-                _events.emit(
-                    ShipmentUiEvent.GuardConfirm("places", QuantityFormatters.formatCount(places)) {
-                        confirmedGuards += guardKey("places", "$productId:$palletId")
-                        viewModelScope.launch {
-                            repo.log(
-                                _sessionKey.value,
-                                ShipmentEventType.INPUT_GUARD_CONFIRMED,
-                                app.getString(
-                                    R.string.history_msg_guard_places,
-                                    QuantityFormatters.formatCount(places)
+        fun proceedWithGuardOrApply() {
+            if (settings.inputGuardEnabled &&
+                settings.maxPlacesPerPallet > 0 &&
+                places > settings.maxPlacesPerPallet &&
+                guardKey("places", "$productId:$palletId") !in confirmedGuards
+            ) {
+                viewModelScope.launch {
+                    _events.emit(
+                        ShipmentUiEvent.GuardConfirm("places", QuantityFormatters.formatCount(places)) {
+                            confirmedGuards += guardKey("places", "$productId:$palletId")
+                            viewModelScope.launch {
+                                repo.log(
+                                    _sessionKey.value,
+                                    ShipmentEventType.INPUT_GUARD_CONFIRMED,
+                                    app.getString(
+                                        R.string.history_msg_guard_places,
+                                        QuantityFormatters.formatCount(places)
+                                    )
                                 )
-                            )
+                            }
+                            apply()
                         }
-                        apply()
-                    }
-                )
+                    )
+                }
+                return
             }
+            apply()
+        }
+
+        if (delta > 0.0 && !ShipmentCalculator.canAddPlaces(_payload.value, product, delta)) {
+            val limit = _payload.value.batchLimits.find {
+                ShipmentCalculator.batchKey(it) == ShipmentCalculator.batchKey(product)
+            }
+            val usedAfter = batchPlacesUsed(_payload.value, product) + delta
+            emitBatchLimitConfirm(
+                product = product,
+                usedAfterWrite = usedAfter,
+                plannedPlaces = limit?.plannedPlaces ?: 0.0,
+                onConfirm = { proceedWithGuardOrApply() }
+            )
             return
         }
-        apply()
+        proceedWithGuardOrApply()
     }
 
     fun togglePalletImported(productId: Long, palletId: Long) {

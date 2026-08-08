@@ -155,7 +155,6 @@ import com.example.fishy.ui.components.UnloadReceptionFields
 import com.example.fishy.ui.components.fishyCheckboxColors
 import com.example.fishy.ui.components.fishySwitchColors
 import com.example.fishy.ui.components.transportTitle
-import com.example.fishy.ui.components.unloadReceptionTitle
 import com.example.fishy.ui.theme.Error
 import com.example.fishy.ui.theme.FishyAccent
 import com.example.fishy.ui.theme.Success
@@ -265,6 +264,7 @@ fun ShipmentScreen(
     var showCompleteConfirm by remember { mutableStateOf(false) }
     var completeConfirmMessage by remember { mutableStateOf("") }
     var guardDialog by remember { mutableStateOf<ShipmentUiEvent.GuardConfirm?>(null) }
+    var batchLimitDialog by remember { mutableStateOf<ShipmentUiEvent.BatchLimitConfirm?>(null) }
     var alertDialogMessage by remember { mutableStateOf<String?>(null) }
     var pendingDelete by remember { mutableStateOf<PendingDelete?>(null) }
     var forecastExpectationMsg by remember { mutableStateOf<String?>(null) }
@@ -385,6 +385,10 @@ fun ShipmentScreen(
                 is ShipmentUiEvent.GuardConfirm -> {
                     ErrorFeedback.vibrate(context)
                     guardDialog = event
+                }
+                is ShipmentUiEvent.BatchLimitConfirm -> {
+                    ErrorFeedback.vibrate(context)
+                    batchLimitDialog = event
                 }
                 is ShipmentUiEvent.NavigateArchiveDetail -> onShipmentCompleted(event.id)
                 ShipmentUiEvent.Saved -> Unit
@@ -577,16 +581,21 @@ fun ShipmentScreen(
                                     checked = payload.palletForecastEnabled,
                                     onCheckedChange = vm::setPalletForecast
                                 )
-                                SettingsMenuSwitchRow(
-                                    label = stringResource(R.string.batch_control),
-                                    checked = payload.batchControlEnabled,
-                                    onCheckedChange = { enabled ->
-                                        vm.setBatchControl(enabled)
-                                        if (enabled) {
-                                            batchPanelExpanded = true
+                                if (
+                                    payload.mode == ShipmentMode.MULTI_VEHICLE ||
+                                    payload.mode == ShipmentMode.UNLOAD
+                                ) {
+                                    SettingsMenuSwitchRow(
+                                        label = stringResource(R.string.batch_control),
+                                        checked = payload.batchControlEnabled,
+                                        onCheckedChange = { enabled ->
+                                            vm.setBatchControl(enabled)
+                                            if (enabled) {
+                                                batchPanelExpanded = true
+                                            }
                                         }
-                                    }
-                                )
+                                    )
+                                }
                                 SettingsMenuSwitchRow(
                                     label = stringResource(R.string.gross_weight),
                                     checked = payload.grossWeightEnabled,
@@ -627,7 +636,10 @@ fun ShipmentScreen(
                     }
                 )
                 FillProgressBar(progress = progress)
-                if (payload.batchControlEnabled) {
+                if (
+                    payload.batchControlEnabled &&
+                    (payload.mode == ShipmentMode.MULTI_VEHICLE || payload.mode == ShipmentMode.UNLOAD)
+                ) {
                     BatchControlPanel(
                         payload = payload,
                         batchStatuses = batchStatuses,
@@ -788,6 +800,16 @@ fun ShipmentScreen(
                         val dc = payload.doubleControlEnabled || vehicle.doubleControlEnabled
                         val vTotals = ShipmentCalculator.totalsForProducts(vehicle.products, dc)
                         val done = kotlin.math.abs(vTotals.remainder) < 1e-9 && vehicle.products.any { it.quantity > 0 }
+                        val vehicleSubtitle = if (vehicle.products.isNotEmpty()) {
+                            stringResource(
+                                R.string.port_products_summary,
+                                ShipmentCalculator.formatKindsRu(vehicle.products.size),
+                                ShipmentCalculator.formatPlacesRu(
+                                    vTotals.places,
+                                    settings.effectiveThousandsSeparator
+                                )
+                            )
+                        } else null
                         val focusInVehicle = focusPalletTarget?.let { t ->
                             vehicle.products.any { it.id == t.productId }
                         } == true
@@ -795,8 +817,11 @@ fun ShipmentScreen(
                             title = transportTitle(
                                 vehicle.transport,
                                 settings.effectiveAutoSpaceContainers,
-                                settings.effectiveAutoSpaceVehicles
+                                settings.effectiveAutoSpaceVehicles,
+                                positionsSeparator = "\n"
                             ),
+                            subtitle = vehicleSubtitle,
+                            titleSoftWrap = false,
                             titleColor = if (done) Success else MaterialTheme.colorScheme.onSurface,
                             expanded = acc("vehicle:${vehicle.id}"),
                             onExpandedChange = { vm.setAccordionExpanded("vehicle:${vehicle.id}", it) },
@@ -1075,12 +1100,9 @@ fun ShipmentScreen(
                             doubleControl = false,
                             unload = true
                         )
-                        val receptionTitle = unloadReceptionTitle(
-                            reception.name,
-                            reception.transport,
-                            settings.effectiveAutoSpaceContainers,
-                            settings.effectiveAutoSpaceVehicles
-                        )
+                        val receptionTitle = reception.name.trim().ifBlank {
+                            stringResource(R.string.reception_point)
+                        }
                         val focusInReception = focusPalletTarget?.let { t ->
                             reception.inbounds.any { ib -> ib.products.any { it.id == t.productId } }
                         } == true
@@ -1133,7 +1155,8 @@ fun ShipmentScreen(
                                 val inboundTitle = transportTitle(
                                     inbound.transport,
                                     settings.effectiveAutoSpaceContainers,
-                                    settings.effectiveAutoSpaceVehicles
+                                    settings.effectiveAutoSpaceVehicles,
+                                    positionsSeparator = "\n"
                                 ).let { t ->
                                     if (t != stringResource(R.string.new_transport)) t
                                     else stringResource(R.string.unload_source)
@@ -1143,6 +1166,7 @@ fun ShipmentScreen(
                                 } == true
                                 AccordionCard(
                                     title = inboundTitle,
+                                    titleSoftWrap = false,
                                     expanded = acc("reception:${reception.id}/inbound:${inbound.id}"),
                                     onExpandedChange = {
                                         vm.setAccordionExpanded(
@@ -1546,6 +1570,25 @@ fun ShipmentScreen(
                     },
                     confirmText = stringResource(R.string.confirm),
                     cancelText = stringResource(R.string.no)
+                )
+            }
+        )
+    }
+
+    batchLimitDialog?.let { d ->
+        AlertDialog(
+            onDismissRequest = { batchLimitDialog = null },
+            containerColor = MaterialTheme.colorScheme.background,
+            title = { CenteredDialogTitle(stringResource(R.string.batch_control)) },
+            text = { CenteredDialogMessage(d.message) },
+            confirmButton = {
+                DialogCancelConfirmActions(
+                    onCancel = { batchLimitDialog = null },
+                    onConfirm = {
+                        d.onConfirm()
+                        batchLimitDialog = null
+                    },
+                    confirmText = stringResource(R.string.ok)
                 )
             }
         )

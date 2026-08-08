@@ -93,7 +93,8 @@ object ReportGenerator {
      * Primary transport unit only (mutually exclusive):
      * - container → container number only (truck/trailer/seal ignored in report)
      * - else wagon → wagon number only
-     * - else fura → truck – trailer, driver placeholder, optional "Пломба: …"
+     * - else fura (truck and/or trailer) → truck – trailer, driver placeholder, optional "Пломба: …"
+     * Wagon and road fields are XOR in UI; container wins if both somehow present.
      */
     fun formatTransportLine(
         transport: Transport,
@@ -121,10 +122,11 @@ object ReportGenerator {
         }.joinToString(" – ")
         return buildList {
             if (vehicleLine.isNotEmpty()) add(vehicleLine)
-            if (vehicleLine.isNotEmpty() || seal.isNotEmpty()) {
+            // Driver only for a real fura (truck/trailer), not seal-only.
+            if (vehicleLine.isNotEmpty()) {
                 add("Водитель: *Добавьте ФИО и контактный телефон водителя*")
             }
-            if (seal.isNotEmpty()) add("Пломба: $seal")
+            if (seal.isNotEmpty() && vehicleLine.isNotEmpty()) add("Пломба: $seal")
         }.joinToString("\n")
     }
 

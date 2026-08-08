@@ -102,6 +102,7 @@ import com.example.fishy.notifications.NotificationScheduler
 import com.example.fishy.ui.ErrorFeedback
 import com.example.fishy.ui.components.BatchEntryDialog
 import com.example.fishy.ui.components.ConfirmDeleteDialog
+import com.example.fishy.ui.components.ConfirmSaveDialog
 import com.example.fishy.ui.components.CenteredDialogMessage
 import com.example.fishy.ui.components.CenteredDialogTitle
 import com.example.fishy.ui.components.CenteredEmptyBody
@@ -613,6 +614,8 @@ private fun ScheduledShipmentCard(
     val repo = FishyApp.instance.repository
     val checklist by repo.observeChecklist(item.id).collectAsState(initial = emptyList())
     val status = remember(checklist) { checklistStatusOf(checklist) }
+    val checklistDone = checklist.count { it.isCompleted }
+    val checklistTotal = checklist.size
     var showMenu by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val summaryCopy = remember(context) { SummaryStrings.from(context.resources) }
@@ -812,9 +815,21 @@ private fun ScheduledShipmentCard(
                     )
                     Text(
                         text = when (status) {
-                            ChecklistStatus.COMPLETED -> stringResource(R.string.checklist_completed)
-                            ChecklistStatus.PARTIAL -> stringResource(R.string.checklist_partial)
-                            ChecklistStatus.NONE -> stringResource(R.string.checklist_none)
+                            ChecklistStatus.COMPLETED -> stringResource(
+                                R.string.checklist_completed,
+                                checklistDone,
+                                checklistTotal
+                            )
+                            ChecklistStatus.PARTIAL -> stringResource(
+                                R.string.checklist_partial,
+                                checklistDone,
+                                checklistTotal
+                            )
+                            ChecklistStatus.NONE -> stringResource(
+                                R.string.checklist_none,
+                                checklistDone,
+                                checklistTotal
+                            )
                             ChecklistStatus.EMPTY -> stringResource(R.string.checklist_missing)
                         },
                         style = MaterialTheme.typography.labelSmall,
@@ -915,6 +930,7 @@ private fun ScheduledEditorDialog(
     val baselineDateMillis = remember { initial.scheduledDateMillis }
     var pendingDelete by remember { mutableStateOf<PendingSchedulerDelete?>(null) }
     var showDiscardConfirm by remember { mutableStateOf(false) }
+    var pendingBatchMismatchSave by remember { mutableStateOf<(() -> Unit)?>(null) }
     var showSettingsMenu by remember { mutableStateOf(false) }
     var batchForceExpandToken by remember { mutableStateOf<Any?>(null) }
     var batchEditor by remember { mutableStateOf<BatchLimit?>(null) }
@@ -1076,37 +1092,42 @@ private fun ScheduledEditorDialog(
                         expanded = showSettingsMenu,
                         onDismissRequest = { showSettingsMenu = false }
                     ) {
-                        DropdownMenuItem(
-                            text = {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text(
-                                        stringResource(R.string.batch_control),
-                                        modifier = Modifier.weight(1f).padding(end = 12.dp)
-                                    )
-                                    Switch(
-                                        checked = payload.batchControlEnabled,
-                                        onCheckedChange = { enabled ->
-                                            payload = payload.copy(batchControlEnabled = enabled)
-                                            if (enabled) {
-                                                batchForceExpandToken = System.currentTimeMillis()
-                                            }
-                                        },
-                                        colors = fishySwitchColors()
-                                    )
+                        if (
+                            payload.mode == ShipmentMode.MULTI_VEHICLE ||
+                            payload.mode == ShipmentMode.UNLOAD
+                        ) {
+                            DropdownMenuItem(
+                                text = {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            stringResource(R.string.batch_control),
+                                            modifier = Modifier.weight(1f).padding(end = 12.dp)
+                                        )
+                                        Switch(
+                                            checked = payload.batchControlEnabled,
+                                            onCheckedChange = { enabled ->
+                                                payload = payload.copy(batchControlEnabled = enabled)
+                                                if (enabled) {
+                                                    batchForceExpandToken = System.currentTimeMillis()
+                                                }
+                                            },
+                                            colors = fishySwitchColors()
+                                        )
+                                    }
+                                },
+                                onClick = {
+                                    val enabled = !payload.batchControlEnabled
+                                    payload = payload.copy(batchControlEnabled = enabled)
+                                    if (enabled) {
+                                        batchForceExpandToken = System.currentTimeMillis()
+                                    }
                                 }
-                            },
-                            onClick = {
-                                val enabled = !payload.batchControlEnabled
-                                payload = payload.copy(batchControlEnabled = enabled)
-                                if (enabled) {
-                                    batchForceExpandToken = System.currentTimeMillis()
-                                }
-                            }
-                        )
+                            )
+                        }
                         DropdownMenuItem(
                             text = {
                                 Row(
@@ -1418,27 +1439,34 @@ private fun ScheduledEditorDialog(
                                 .filter { it.isNotBlank() }
                                 .joinToString(" · ")
                                 .ifBlank { context.getString(R.string.shipment_default) }
-                            onSave(
-                                initial.copy(
-                                    title = autoTitle,
-                                    customer = finalPayload.customer,
-                                    port = finalPayload.port.ifBlank {
-                                        finalPayload.multiPorts.firstOrNull()?.port.orEmpty()
-                                    },
-                                    vessel = finalPayload.vessel.ifBlank {
-                                        finalPayload.multiPorts.firstOrNull()?.vessel.orEmpty()
-                                    },
-                                    payloadJson = FishyJson.encodePayload(finalPayload),
-                                    scheduledTime = time,
-                                    scheduledDateMillis = dateMillis,
-                                    notificationEnabled = notify && reminders.isNotEmpty(),
-                                    notificationAtMillis = null,
-                                    notificationSent = false,
-                                    mode = finalPayload.mode.name,
-                                    updatedAtMillis = System.currentTimeMillis()
-                                ),
-                                reminders
-                            )
+                            val doSave = {
+                                onSave(
+                                    initial.copy(
+                                        title = autoTitle,
+                                        customer = finalPayload.customer,
+                                        port = finalPayload.port.ifBlank {
+                                            finalPayload.multiPorts.firstOrNull()?.port.orEmpty()
+                                        },
+                                        vessel = finalPayload.vessel.ifBlank {
+                                            finalPayload.multiPorts.firstOrNull()?.vessel.orEmpty()
+                                        },
+                                        payloadJson = FishyJson.encodePayload(finalPayload),
+                                        scheduledTime = time,
+                                        scheduledDateMillis = dateMillis,
+                                        notificationEnabled = notify && reminders.isNotEmpty(),
+                                        notificationAtMillis = null,
+                                        notificationSent = false,
+                                        mode = finalPayload.mode.name,
+                                        updatedAtMillis = System.currentTimeMillis()
+                                    ),
+                                    reminders
+                                )
+                            }
+                            if (ShipmentCalculator.batchTransportMismatches(finalPayload).isNotEmpty()) {
+                                pendingBatchMismatchSave = doSave
+                            } else {
+                                doSave()
+                            }
                         }
                     }
                 },
@@ -1459,6 +1487,18 @@ private fun ScheduledEditorDialog(
                 pendingReminderDelete = null
             },
             onDismiss = { pendingReminderDelete = null }
+        )
+    }
+
+    pendingBatchMismatchSave?.let { doSave ->
+        ConfirmSaveDialog(
+            title = stringResource(R.string.complete_confirm_title),
+            message = stringResource(R.string.batch_transport_mismatch),
+            onConfirm = {
+                pendingBatchMismatchSave = null
+                doSave()
+            },
+            onDismiss = { pendingBatchMismatchSave = null }
         )
     }
 

@@ -436,12 +436,22 @@ private fun buildShipmentNotifBody(
     thousandsSeparator: Boolean = false
 ): ShipmentNotifBody {
     val payload = decodePayload(shipment)
-    val dateStr = SimpleDateFormat("dd.MM.yyyy", Locale.getDefault())
-        .format(Date(shipment.scheduledDateMillis))
+    val dateStr = formatShipmentDate(context, shipment.scheduledDateMillis)
     val timeText = formatTimeUntil(context, shipment)
     val portText = resolvePortText(context, shipment, payload)
+    val plannedPortsCount = when (payload?.mode) {
+        ShipmentMode.MULTI_PORT -> payload.multiPorts
+            .map { it.port.trim() }
+            .filter { it.isNotBlank() }
+            .distinct()
+            .size
+
+        else -> 1
+    }
     val customer = shipment.customer.ifBlank { payload?.customer.orEmpty() }
     val checklistStatus = checklistStatus(checklist)
+    val checklistDone = checklist.count { it.isCompleted }
+    val checklistTotal = checklist.size
     val systemNight =
         (context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) ==
             Configuration.UI_MODE_NIGHT_YES
@@ -452,13 +462,25 @@ private fun buildShipmentNotifBody(
         ChecklistStatus.EMPTY -> if (systemNight) "⚪" else "⚫"
     }
     val checklistText = when (checklistStatus) {
-        ChecklistStatus.COMPLETED -> context.getString(R.string.notif_checklist_done)
-        ChecklistStatus.PARTIAL -> context.getString(R.string.notif_checklist_partial)
-        ChecklistStatus.NONE -> context.getString(R.string.notif_checklist_none)
+        ChecklistStatus.COMPLETED -> context.getString(
+            R.string.checklist_completed,
+            checklistDone,
+            checklistTotal
+        )
+        ChecklistStatus.PARTIAL -> context.getString(
+            R.string.checklist_partial,
+            checklistDone,
+            checklistTotal
+        )
+        ChecklistStatus.NONE -> context.getString(
+            R.string.checklist_none,
+            checklistDone,
+            checklistTotal
+        )
         ChecklistStatus.EMPTY -> context.getString(R.string.notif_checklist_empty)
     }
     val customerLabel = customer.ifBlank { context.getString(R.string.notif_customer_unknown) }
-    val tonnageKg = payload?.let { ShipmentCalculator.totals(it).targetWeight } ?: 0.0
+    val tonnageKg = payload?.let { ShipmentCalculator.plannedTonnageKg(it) } ?: 0.0
     val bigText = buildString {
         if (!timeText.isNullOrBlank()) {
             appendLine(timeText)
@@ -471,7 +493,12 @@ private fun buildShipmentNotifBody(
             val formatted = QuantityFormatters.formatWeight(tonnageKg, thousandsSeparator)
             appendLine("🪝 ${context.getString(R.string.schedule_tonnage, formatted)}")
         }
-        appendLine("⚓ ${context.getString(R.string.port)}: $portText")
+        val portLabel = if (plannedPortsCount > 1) {
+            context.getString(R.string.ports_prefix, portText)
+        } else {
+            context.getString(R.string.port_prefix, portText)
+        }
+        appendLine("⚓ $portLabel")
         append("$checklistEmoji $checklistText")
     }
     return ShipmentNotifBody(
@@ -499,19 +526,34 @@ private fun resolvePortText(
     when (mode) {
         ShipmentMode.MULTI_PORT -> {
             if (payload != null) {
-                ShipmentSummaries.firstPlusRestRu(payload.multiPorts.map { it.port })
+                ShipmentSummaries.firstPlusRestCountOnlyRu(payload.multiPorts.map { it.port })
                     ?.let { return it }
             }
         }
         ShipmentMode.UNLOAD -> {
             if (payload != null) {
-                ShipmentSummaries.firstPlusRestRu(payload.unloadReceptions.map { it.name })
+                ShipmentSummaries.firstPlusRestCountOnlyRu(payload.unloadReceptions.map { it.name })
                     ?.let { return it }
             }
         }
         else -> Unit
     }
     return shipment.port.ifBlank { payload?.port.orEmpty() }.ifBlank { unknown }
+}
+
+private fun formatShipmentDate(context: Context, millis: Long): String {
+    val datePart = SimpleDateFormat("dd.MM.yyyy", Locale.getDefault()).format(Date(millis))
+    val cal = Calendar.getInstance().apply { timeInMillis = millis }
+    val weekdayRes = when (cal.get(Calendar.DAY_OF_WEEK)) {
+        Calendar.MONDAY -> R.string.weekday_short_mon
+        Calendar.TUESDAY -> R.string.weekday_short_tue
+        Calendar.WEDNESDAY -> R.string.weekday_short_wed
+        Calendar.THURSDAY -> R.string.weekday_short_thu
+        Calendar.FRIDAY -> R.string.weekday_short_fri
+        Calendar.SATURDAY -> R.string.weekday_short_sat
+        else -> R.string.weekday_short_sun
+    }
+    return "$datePart ${context.getString(weekdayRes)}"
 }
 
 private fun formatTimeUntil(context: Context, shipment: ScheduledShipmentEntity): String? {
@@ -531,13 +573,13 @@ private fun formatTimeUntil(context: Context, shipment: ScheduledShipmentEntity)
                 val dayPart = ruCountWord(days.toInt(), "день", "дня", "дней")
                 if (hours > 0) {
                     val hourPart = ruCountWord(hours.toInt(), "час", "часа", "часов")
-                    "До погрузки $dayPart $hourPart"
+                    "До начала: $dayPart $hourPart"
                 } else {
-                    "До погрузки $dayPart"
+                    "До начала: $dayPart"
                 }
             }
-            hours > 0 -> "До погрузки ${ruCountWord(hours.toInt(), "час", "часа", "часов")}"
-            minutes > 0 -> "До погрузки ${ruMinutesAccusative(minutes.toInt())}"
+            hours > 0 -> "До начала: ${ruCountWord(hours.toInt(), "час", "часа", "часов")}"
+            minutes > 0 -> "До начала: ${ruMinutesAccusative(minutes.toInt())}"
             else -> null
         }
     } else {

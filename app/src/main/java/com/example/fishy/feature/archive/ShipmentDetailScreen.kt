@@ -3,9 +3,11 @@ package com.example.fishy.feature.archive
 import android.widget.Toast
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -37,6 +39,7 @@ import com.example.fishy.FishyApp
 import com.example.fishy.R
 import com.example.fishy.data.serialization.FishyJson
 import com.example.fishy.domain.archive.ArchiveDetailFormatter
+import com.example.fishy.domain.archive.ArchiveDetailLabels
 import com.example.fishy.domain.calc.ShipmentCalculator
 import com.example.fishy.domain.format.QuantityFormatters
 import com.example.fishy.domain.model.ShipmentMode
@@ -139,19 +142,25 @@ fun ShipmentDetailScreen(
                         )
                     )
                 }
-                Text(
-                    stringResource(R.string.detail_products),
-                    style = MaterialTheme.typography.titleLarge,
-                    modifier = Modifier.padding(top = 12.dp)
+                val archiveLabels = ArchiveDetailLabels(
+                    portFmt = stringResource(R.string.port_prefix),
+                    vesselFmt = stringResource(R.string.vessel_prefix),
+                    wagonFmt = stringResource(R.string.wagon_prefix),
+                    containerFmt = stringResource(R.string.container_prefix),
+                    truckFmt = stringResource(R.string.truck_prefix),
+                    trailerFmt = stringResource(R.string.trailer_prefix),
+                    sealFmt = stringResource(R.string.seal_prefix)
                 )
+                Spacer(modifier = Modifier.height(12.dp))
                 ArchiveDetailFormatter.contentBlocks(
                     payload = payload,
                     formatContainerSpaces = settings.effectiveAutoSpaceContainers,
                     formatVehicleSpaces = settings.effectiveAutoSpaceVehicles,
-                    thousandsSeparator = ts
+                    thousandsSeparator = ts,
+                    labels = archiveLabels
                 ).filter { it.isNotBlank() }.forEachIndexed { index, block ->
                     if (index > 0) {
-                        Text("", modifier = Modifier.padding(top = 8.dp))
+                        Spacer(modifier = Modifier.height(8.dp))
                     }
                     block.lineSequence().forEach { line ->
                         if (line.isNotBlank()) {

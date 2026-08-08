@@ -26,7 +26,6 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.SearchOff
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CenterAlignedTopAppBar
@@ -384,34 +383,22 @@ fun ArchiveScreen(
                 )
             },
             empty = {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    if (items.isEmpty()) {
-                        EmptyListPlaceholder(
-                            emoji = "📦",
-                            title = stringResource(R.string.archive_empty),
-                            hint = stringResource(R.string.archive_empty_hint)
-                        )
-                    } else if (searchText.isEmpty()) {
-                        EmptyListPlaceholder(
-                            emoji = "🔍",
-                            title = stringResource(R.string.archive_no_filters_match),
-                            hint = ""
-                        )
-                    } else {
-                        Icon(
-                            Icons.Default.SearchOff,
-                            contentDescription = null,
-                            modifier = Modifier.size(48.dp),
-                            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
-                        )
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Text(stringResource(R.string.nothing_found))
-                        Text(
-                            stringResource(R.string.query_label, searchText),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
-                        )
-                    }
+                when {
+                    items.isEmpty() -> EmptyListPlaceholder(
+                        emoji = "📦",
+                        title = stringResource(R.string.archive_empty),
+                        hint = stringResource(R.string.archive_empty_hint)
+                    )
+                    searchText.isEmpty() -> EmptyListPlaceholder(
+                        emoji = "🔍",
+                        title = stringResource(R.string.archive_no_filters_match),
+                        hint = stringResource(R.string.archive_filters_empty_hint)
+                    )
+                    else -> EmptyListPlaceholder(
+                        emoji = "🔍",
+                        title = stringResource(R.string.nothing_found),
+                        hint = stringResource(R.string.query_label, searchText)
+                    )
                 }
             }
         ) {

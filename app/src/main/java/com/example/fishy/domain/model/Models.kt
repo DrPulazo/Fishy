@@ -168,6 +168,8 @@ data class ShipmentPayload(
     val lastUsedUnloadReceptionId: Long? = null,
     /** UI accordion open/closed; survives leave/return via draft JSON. */
     val accordionExpanded: Map<String, Boolean> = emptyMap(),
+    /** Simplified-counter draft text per product key; survives leave/return via draft JSON. */
+    val quickPlacesByKey: Map<String, String> = emptyMap(),
     val notes: String = "",
     val editedReportText: String? = null,
     val createdAtMillis: Long = System.currentTimeMillis(),
