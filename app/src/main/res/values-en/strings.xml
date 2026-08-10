@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Fishy</string>
-    <string name="home_title">Fishy</string>
+    <string name="home_title">FISHY</string>
     <string name="home_title_ru">ФИШКА</string>
     <string name="nav_new_shipment">NEW SHIPMENT</string>
     <string name="nav_continue">CONTINUE</string>
@@ -211,7 +211,7 @@
     <string name="double_control">Double control</string>
     <string name="double_control_label">Double control:</string>
     <string name="pallet_forecast">Pallet forecast</string>
-    <string name="forecast_running">Forecast in progress...</string>
+    <string name="forecast_result_title">Calculation result</string>
     <string name="forecast_error">Forecast error!</string>
     <string name="checklist_toggle">Shipment progress checklist</string>
     <string name="batch_control">Batch control</string>
@@ -545,7 +545,7 @@
     <string name="faq_double_control_title">Double control</string>
     <string name="faq_double_control_body">Each pallet shows an “Imported” mark. Actual loaded places are counted only for pallets marked as imported.</string>
     <string name="faq_forecast_title">Pallet forecast</string>
-    <string name="faq_forecast_body">After you enter places on the first pallet, the app estimates how many pallets you need and the remainder, showing draft rows ready for input.</string>
+    <string name="faq_forecast_body">After you enter or change places on the first pallet (while a second real pallet is not confirmed), the app recalculates the estimated pallet count and remainder, showing draft rows ready for input.</string>
     <string name="faq_batch_title">Batch control</string>
     <string name="faq_batch_body">You can set limits per product. When loaded places for a product exceed the limit, a notification appears.</string>
     <string name="faq_gross_title">Gross weight</string>

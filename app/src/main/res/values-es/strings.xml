@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Fishy</string>
-    <string name="home_title">Fishy</string>
+    <string name="home_title">FISHY</string>
     <string name="home_title_ru">ФИШКА</string>
     <string name="nav_new_shipment">NUEVO ENVÍO</string>
     <string name="nav_continue">CONTINUAR</string>
@@ -211,7 +211,7 @@
     <string name="double_control">Doble control</string>
     <string name="double_control_label">Doble control:</string>
     <string name="pallet_forecast">Previsión de palés</string>
-    <string name="forecast_running">Calculando previsión...</string>
+    <string name="forecast_result_title">Resultado del cálculo</string>
     <string name="forecast_error">¡Error de previsión!</string>
     <string name="checklist_toggle">Lista de progreso del envío</string>
     <string name="batch_control">Control de lotes</string>

@@ -78,7 +78,12 @@ object StatisticsBreakdown {
     const val OTHER_KEY = "__other__"
     const val UNSPECIFIED_KEY = "__unspecified__"
     const val DEFAULT_TOP_GROUPS = 10
-    const val DEFAULT_TOP_SERIES = 9
+    /**
+     * Max legend/chart series slots (2 columns × 10 rows).
+     * ≤20 distinct series → all named, no «Прочее».
+     * ≥21 → top 19 by tonnage + «Прочее» as slot 20.
+     */
+    const val DEFAULT_TOP_SERIES = 20
 
     private val monthLabelFmt = SimpleDateFormat("MM.yyyy", Locale.getDefault())
 
@@ -330,14 +335,21 @@ object StatisticsBreakdown {
             contributions.groupBy { dimensionValue(it, splitDim) }
                 .mapValues { (_, list) -> list.sumOf { it.weightKg } }
         }
-        val topSeriesKeys = if (splitDim == null) emptySet() else topKeys(seriesTotals, topSeries).toSet()
+        // Fit all series when they fit in [topSeries]; otherwise reserve one slot for Other.
+        val namedSeriesLimit = when {
+            splitDim == null -> 0
+            seriesTotals.size <= topSeries -> seriesTotals.size
+            else -> (topSeries - 1).coerceAtLeast(1)
+        }
+        val topSeriesKeys =
+            if (splitDim == null) emptySet() else topKeys(seriesTotals, namedSeriesLimit).toSet()
         fun mappedSeriesKey(raw: String): String =
             if (splitDim == null || raw in topSeriesKeys) raw else OTHER_KEY
 
         val legendSeriesKeys = if (splitDim == null) {
             emptyList()
         } else {
-            val keys = topKeys(seriesTotals, topSeries).toMutableList()
+            val keys = topKeys(seriesTotals, namedSeriesLimit).toMutableList()
             if (seriesTotals.keys.any { it !in topSeriesKeys }) keys += OTHER_KEY
             keys
         }
@@ -408,6 +420,50 @@ object StatisticsBreakdown {
         if (seriesKey == OTHER_KEY) return otherLabel
         return contributions.firstOrNull { dimensionValue(it, splitDim) == seriesKey }
             ?.let { dimensionLabel(it, splitDim) } ?: seriesKey
+    }
+
+    /**
+     * Full split breakdown for a selected bar — every series, no «Прочее» bucket.
+     * Chart/legend may still collapse to top-N + Other.
+     */
+    fun barDetailSeries(
+        entities: List<ShipmentEntity>,
+        groupBy: StatDimension,
+        splitBy: StatSplit,
+        entry: StackedStatBarEntry,
+        portFilter: String = "",
+        productFilter: String = ""
+    ): List<Pair<String, Double>> {
+        val splitDim = splitToDimension(splitBy) ?: return emptyList()
+        val contributions = entities
+            .flatMap { extractContributions(it) }
+            .let { filterContributionsByPort(it, portFilter) }
+            .let { filterContributionsByProduct(it, productFilter) }
+            .filter { matchesBarGroup(it, groupBy, entry) }
+        return contributions
+            .groupBy { dimensionValue(it, splitDim) }
+            .map { (key, list) ->
+                val label = list.firstOrNull()?.let { dimensionLabel(it, splitDim) } ?: key
+                label to list.sumOf { it.weightKg }
+            }
+            .filter { it.second > 0.0 }
+            .sortedByDescending { it.second }
+    }
+
+    private fun matchesBarGroup(
+        contribution: StatContribution,
+        groupBy: StatDimension,
+        entry: StackedStatBarEntry
+    ): Boolean = when (groupBy) {
+        StatDimension.MONTH ->
+            (entry.meta != 0L && contribution.monthStartMillis == entry.meta) ||
+                contribution.monthLabel == entry.label
+        StatDimension.CUSTOMER -> contribution.customer == entry.label
+        StatDimension.PORT -> contribution.port == entry.label
+        StatDimension.PRODUCT -> contribution.productLabel == entry.label
+        StatDimension.MANUFACTURER -> contribution.manufacturer == entry.label
+        StatDimension.VESSEL -> contribution.vessel == entry.label
+        StatDimension.MODE -> contribution.mode == entry.label
     }
 
     private data class GroupInfo(val key: String, val label: String, val meta: Long = 0L)

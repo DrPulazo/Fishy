@@ -4,13 +4,15 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Shapes
 import androidx.compose.ui.unit.dp
 
-/** Unified corner radius for cards, buttons, text fields, etc. */
-val FishyCornerRadius = 5.dp
-
+/**
+ * Material3-style radii: small for buttons/fields, medium for cards/accordions.
+ * extraLarge matches medium so AlertDialog corners align with AccordionCard
+ * (M3 dialogs use shapes.extraLarge by default).
+ */
 val FishyShapes = Shapes(
-    extraSmall = RoundedCornerShape(FishyCornerRadius),
-    small = RoundedCornerShape(FishyCornerRadius),
-    medium = RoundedCornerShape(FishyCornerRadius),
-    large = RoundedCornerShape(FishyCornerRadius),
-    extraLarge = RoundedCornerShape(FishyCornerRadius)
+    extraSmall = RoundedCornerShape(4.dp),
+    small = RoundedCornerShape(8.dp),
+    medium = RoundedCornerShape(12.dp),
+    large = RoundedCornerShape(16.dp),
+    extraLarge = RoundedCornerShape(12.dp)
 )

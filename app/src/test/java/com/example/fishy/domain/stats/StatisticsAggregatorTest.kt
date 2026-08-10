@@ -87,6 +87,51 @@ class StatisticsAggregatorTest {
         assertEquals(prevTo - (to - from), prevFrom)
     }
 
+    @Test
+    fun monthChoicesFromFirstShipmentUsesAnchorMinus12Months() {
+        // First ship Oct 2027 → earliest Oct 2026; now = Oct 2027 → 13 months.
+        val first = calendarMillis(2027, Calendar.OCTOBER, 15)
+        val now = calendarMillis(2027, Calendar.OCTOBER, 20)
+        val choices = StatisticsAggregator.monthChoicesFromFirstShipment(
+            firstShipmentMillis = first,
+            nowMillis = now
+        )
+        assertEquals(13, choices.size)
+        val earliest = Calendar.getInstance().apply { timeInMillis = choices.last().startMillis }
+        val latest = Calendar.getInstance().apply { timeInMillis = choices.first().startMillis }
+        assertEquals(Calendar.OCTOBER, earliest.get(Calendar.MONTH))
+        assertEquals(2026, earliest.get(Calendar.YEAR))
+        assertEquals(Calendar.OCTOBER, latest.get(Calendar.MONTH))
+        assertEquals(2027, latest.get(Calendar.YEAR))
+    }
+
+    @Test
+    fun monthChoicesFromEmptyArchiveUsesTodayMinus12Months() {
+        val now = calendarMillis(2026, Calendar.JULY, 18)
+        val choices = StatisticsAggregator.monthChoicesFromFirstShipment(
+            firstShipmentMillis = null,
+            nowMillis = now
+        )
+        assertEquals(13, choices.size)
+        val earliest = Calendar.getInstance().apply { timeInMillis = choices.last().startMillis }
+        assertEquals(Calendar.JULY, earliest.get(Calendar.MONTH))
+        assertEquals(2025, earliest.get(Calendar.YEAR))
+    }
+
+    @Test
+    fun monthChoicesBetweenIsNewestFirstInclusive() {
+        val from = calendarMillis(2026, Calendar.MAY, 1)
+        val to = calendarMillis(2026, Calendar.JULY, 1)
+        val choices = StatisticsAggregator.monthChoicesBetween(from, to)
+        assertEquals(3, choices.size)
+        val first = Calendar.getInstance().apply { timeInMillis = choices.first().startMillis }
+        val last = Calendar.getInstance().apply { timeInMillis = choices.last().startMillis }
+        assertEquals(Calendar.JULY, first.get(Calendar.MONTH))
+        assertEquals(2026, first.get(Calendar.YEAR))
+        assertEquals(Calendar.MAY, last.get(Calendar.MONTH))
+        assertEquals(2026, last.get(Calendar.YEAR))
+    }
+
     private fun entity(id: Long, completedAt: Long, weight: Double) = ShipmentEntity(
         id = id,
         payloadJson = "{}",

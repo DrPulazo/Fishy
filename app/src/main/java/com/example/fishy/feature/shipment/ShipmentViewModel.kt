@@ -60,10 +60,13 @@ sealed interface ShipmentUiEvent {
     ) : ShipmentUiEvent
     data object Saved : ShipmentUiEvent
     data class NavigateArchiveDetail(val id: Long) : ShipmentUiEvent
-    data class ForecastRunning(val running: Boolean) : ShipmentUiEvent
     data class ForecastExpectation(val message: String) : ShipmentUiEvent
-    /** After smart FAB adds a pallet — UI should expand and focus places field. */
-    data class FocusPalletPlaces(val productId: Long, val palletId: Long) : ShipmentUiEvent
+    /** After FAB / focus request — optionally focus places and/or only bring into view. */
+    data class FocusPalletPlaces(
+        val productId: Long,
+        val palletId: Long,
+        val requestKeyboardFocus: Boolean = true
+    ) : ShipmentUiEvent
 }
 
 class ShipmentViewModel(application: Application) : AndroidViewModel(application) {
@@ -81,8 +84,15 @@ class ShipmentViewModel(application: Application) : AndroidViewModel(application
     private val _sessionKey = MutableStateFlow("session_${System.currentTimeMillis()}")
     val sessionKey: StateFlow<String> = _sessionKey.asStateFlow()
 
-    /** Product whose pallet places field currently has keyboard focus (FAB teleport gate). */
+    /** Product whose pallet places field currently has keyboard focus (FAB focus gate). */
     private var focusedPalletProductId: Long? = null
+
+    /**
+     * Last UI context: pallet-table zone of this product.
+     * Sticky until elsewhere gains focus or the product accordion is collapsed.
+     * Not cleared when places field loses focus (keyboard dismissed).
+     */
+    private var lastPalletZoneProductId: Long? = null
 
     private val _fabSuccessTick = MutableStateFlow(0L)
     val fabSuccessTick: StateFlow<Long> = _fabSuccessTick.asStateFlow()
@@ -106,6 +116,11 @@ class ShipmentViewModel(application: Application) : AndroidViewModel(application
     private var pendingForecastProductId: Long? = null
     /** productId → "quantity:firstPlaces" last successfully applied forecast. */
     private val forecastAppliedSignature = mutableMapOf<Long, String>()
+    /**
+     * Products whose forecast was applied (or had placeholders) and then invalidated
+     * by clearing/editing the sole first real pallet — next schedule uses recalc debounce.
+     */
+    private val forecastAwaitingRecalc = mutableSetOf<Long>()
     /** Encoded payload after init; autosave skipped while unchanged. Null = always dirty (e.g. from scheduler). */
     private var baselinePayloadJson: String? = null
     /** Scheduler row to mark completed once a draft exists or shipment is archived. */
@@ -113,6 +128,8 @@ class ShipmentViewModel(application: Application) : AndroidViewModel(application
 
     companion object {
         private const val FORECAST_DEBOUNCE_MS = 2_500L
+        /** After first apply, clear/edit of first pallet re-runs sooner. */
+        private const val FORECAST_RECALC_DEBOUNCE_MS = 1_000L
         private const val PLACES_LOG_DEBOUNCE_MS = 1_000L
     }
 
@@ -301,6 +318,7 @@ class ShipmentViewModel(application: Application) : AndroidViewModel(application
         forecastJobs.values.forEach { it.cancel() }
         forecastJobs.clear()
         forecastAppliedSignature.clear()
+        forecastAwaitingRecalc.clear()
         _draftId.value = null
         _sessionKey.value = "session_${System.currentTimeMillis()}"
         var payload = ShipmentPayload(
@@ -577,6 +595,8 @@ class ShipmentViewModel(application: Application) : AndroidViewModel(application
                 manualSaveJob = null
                 forecastJobs.values.forEach { it.cancel() }
                 forecastJobs.clear()
+                forecastAppliedSignature.clear()
+                forecastAwaitingRecalc.clear()
                 // Wait out any in-flight save before flipping the row to archive.
                 draftSaveMutex.withLock { /* barrier */ }
                 val previousKey = _sessionKey.value
@@ -611,7 +631,7 @@ class ShipmentViewModel(application: Application) : AndroidViewModel(application
             forecastJobs.clear()
             pendingForecastProductId = null
             forecastAppliedSignature.clear()
-            viewModelScope.launch { _events.emit(ShipmentUiEvent.ForecastRunning(false)) }
+            forecastAwaitingRecalc.clear()
             update { payload ->
                 clearAllForecastPlaceholders(payload).copy(palletForecastEnabled = false)
             }
@@ -674,7 +694,7 @@ class ShipmentViewModel(application: Application) : AndroidViewModel(application
         if (!_payload.value.palletForecastEnabled || before == null) return
         if (before.quantity == after.quantity) return
         // Quantity changed → allow one new forecast if still only the first real pallet.
-        forecastAppliedSignature.remove(productId)
+        invalidateForecastForProduct(productId, markRecalc = true)
         mutateProductPallet(productId) { it.copy(pallets = ShipmentCalculator.realPallets(it)) }
         scheduleForecastIfEligible(productId)
     }
@@ -682,6 +702,8 @@ class ShipmentViewModel(application: Application) : AndroidViewModel(application
     fun deleteProduct(productId: Long) {
         val name = findProduct(productId)?.name.orEmpty()
         forecastAppliedSignature.remove(productId)
+        forecastAwaitingRecalc.remove(productId)
+        cancelForecastJob(productId)
         when (_payload.value.mode) {
             ShipmentMode.MONO -> update {
                 it.copy(products = it.products.filter { p -> p.id != productId })
@@ -772,7 +794,7 @@ class ShipmentViewModel(application: Application) : AndroidViewModel(application
         if (s.simplifiedCounterEnabled) {
             stampNextPlaceholderOrAdd(productId)
         } else {
-            addPalletWithPlaces(productId, places = 0.0, focusAfter = focusAfter)
+            addPalletWithPlaces(productId, places = 0.0, focusAfter = focusAfter, fromFab = false)
         }
     }
 
@@ -844,13 +866,22 @@ class ShipmentViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
-    private fun addPalletWithPlaces(productId: Long, places: Double, focusAfter: Boolean) {
+    private fun addPalletWithPlaces(
+        productId: Long,
+        places: Double,
+        focusAfter: Boolean,
+        fromFab: Boolean = false
+    ) {
         flushPendingPlacesLog()
         val s = settings.value
         val product = findProduct(productId) ?: return
 
         fun apply() {
-            forecastAppliedSignature.remove(productId)
+            invalidateForecastForProduct(
+                productId,
+                markRecalc = product.pallets.any { it.isPlaceholder } ||
+                    forecastAppliedSignature.containsKey(productId)
+            )
             var newPalletId: Long? = null
             var newPalletNumber = 0
             val productName = findProduct(productId)?.name.orEmpty()
@@ -899,11 +930,19 @@ class ShipmentViewModel(application: Application) : AndroidViewModel(application
                 scheduleForecastIfEligible(productId)
             }
             if (focusAfter && places == 0.0) {
-                notifyFabSuccess()
                 val palletId = newPalletId ?: return
-                if (shouldFocusAfterFab(productId)) {
+                if (fromFab) {
+                    notifyFabSuccess()
+                    emitFabRevealIfNeeded(productId, palletId)
+                } else if (!effectiveDoubleControlForProduct(productId)) {
                     viewModelScope.launch {
-                        _events.emit(ShipmentUiEvent.FocusPalletPlaces(productId, palletId))
+                        _events.emit(
+                            ShipmentUiEvent.FocusPalletPlaces(
+                                productId = productId,
+                                palletId = palletId,
+                                requestKeyboardFocus = true
+                            )
+                        )
                     }
                 }
             }
@@ -964,6 +1003,8 @@ class ShipmentViewModel(application: Application) : AndroidViewModel(application
 
         val apply = {
             var shouldSchedule = false
+            var invalidateSoleFirst = false
+            var markRecalc = false
             mutateProductPallet(productId) { p ->
                 val row = p.pallets.find { it.id == palletId } ?: return@mutateProductPallet p
                 if (row.places != places) {
@@ -996,7 +1037,10 @@ class ShipmentViewModel(application: Application) : AndroidViewModel(application
                 when {
                     // Only first real pallet exists → typing places may (re)run forecast.
                     isFirst && real.size == 1 -> {
-                        forecastAppliedSignature.remove(productId)
+                        invalidateSoleFirst = true
+                        markRecalc = forecastAppliedSignature.containsKey(productId) ||
+                            placeholders.isNotEmpty() ||
+                            productId in forecastAwaitingRecalc
                         shouldSchedule = places > 0 && p.quantity > 0
                         p.copy(pallets = updatedReals) // drop old placeholders until debounce fires
                     }
@@ -1008,6 +1052,12 @@ class ShipmentViewModel(application: Application) : AndroidViewModel(application
                         p.copy(pallets = updatedReals + placeholders)
                     }
                 }
+            }
+            if (invalidateSoleFirst) {
+                forecastAppliedSignature.remove(productId)
+                if (markRecalc) forecastAwaitingRecalc.add(productId)
+                // Clear-to-zero: stop wave. Reschedule path keeps progress visible (one toast).
+                if (!shouldSchedule) cancelForecastJob(productId)
             }
             if (_payload.value.batchControlEnabled &&
                 ShipmentCalculator.batchStatuses(_payload.value, _payload.value.batchWarnThreshold)
@@ -1107,13 +1157,10 @@ class ShipmentViewModel(application: Application) : AndroidViewModel(application
             val remaining = product.pallets
                 .filter { it.id != palletId }
                 .map { it.copy(palletNumber = num++) }
-            if (!removedPlaceholder) {
-                // Deleting a real pallet invalidates forecast lock.
-                forecastAppliedSignature.remove(productId)
-            }
             product.copy(pallets = remaining)
         }
         if (!removedPlaceholder) {
+            invalidateForecastForProduct(productId, markRecalc = true)
             logEvent(
                 ShipmentEventType.PALLET_DELETED,
                 app.getString(
@@ -1127,6 +1174,20 @@ class ShipmentViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
+    /** Drop applied signature / pending job; optionally mark for shorter recalc debounce. */
+    private fun invalidateForecastForProduct(productId: Long, markRecalc: Boolean) {
+        forecastAppliedSignature.remove(productId)
+        if (markRecalc) forecastAwaitingRecalc.add(productId)
+        cancelForecastJob(productId)
+    }
+
+    /** Cancel pending forecast debounce without applying (e.g. places cleared to 0). */
+    private fun cancelForecastJob(productId: Long) {
+        val job = forecastJobs.remove(productId) ?: return
+        job.cancel()
+        if (pendingForecastProductId == productId) pendingForecastProductId = null
+    }
+
     private fun scheduleForecastIfEligible(productId: Long) {
         if (!_payload.value.palletForecastEnabled) return
         val product = findProduct(productId) ?: return
@@ -1134,12 +1195,17 @@ class ShipmentViewModel(application: Application) : AndroidViewModel(application
         val signature = ShipmentCalculator.forecastSignature(product) ?: return
         if (forecastAppliedSignature[productId] == signature) return
 
+        val debounceMs = if (productId in forecastAwaitingRecalc) {
+            FORECAST_RECALC_DEBOUNCE_MS
+        } else {
+            FORECAST_DEBOUNCE_MS
+        }
         pendingForecastProductId = productId
-        forecastJobs[productId]?.cancel()
-        forecastJobs[productId] = viewModelScope.launch {
-            _events.emit(ShipmentUiEvent.ForecastRunning(true))
+        val previous = forecastJobs[productId]
+        lateinit var job: Job
+        job = viewModelScope.launch {
             try {
-                delay(FORECAST_DEBOUNCE_MS)
+                delay(debounceMs)
                 val message = applyForecastNow(productId)
                 if (message != null) {
                     _events.emit(ShipmentUiEvent.ForecastExpectation(message))
@@ -1147,16 +1213,19 @@ class ShipmentViewModel(application: Application) : AndroidViewModel(application
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } finally {
-                forecastJobs.remove(productId)
-                if (pendingForecastProductId == productId) pendingForecastProductId = null
-                if (forecastJobs.isEmpty()) {
-                    _events.emit(ShipmentUiEvent.ForecastRunning(false))
+                // Only the active job clears the slot (cancelled predecessor must not wipe successor).
+                if (forecastJobs[productId] === job) {
+                    forecastJobs.remove(productId)
+                    if (pendingForecastProductId == productId) pendingForecastProductId = null
                 }
             }
         }
+        // Replace before cancel so the old job's finally does not clear the new entry.
+        forecastJobs[productId] = job
+        previous?.cancel()
     }
 
-    /** @return expectation snackbar text, or null if nothing was applied */
+    /** @return expectation dialog text, or null if nothing was applied */
     private fun applyForecastNow(productId: Long): String? {
         val product = findProduct(productId) ?: return null
         if (!ShipmentCalculator.canAutoForecast(product)) return null
@@ -1183,6 +1252,7 @@ class ShipmentViewModel(application: Application) : AndroidViewModel(application
         val message = ShipmentCalculator.formatForecastExpectationRu(product.quantity, firstPlaces)
         mutateProductPallet(productId) { ShipmentCalculator.applyForecastPlaceholders(it) }
         forecastAppliedSignature[productId] = signature
+        forecastAwaitingRecalc.remove(productId)
         return message
     }
 
@@ -1414,18 +1484,14 @@ class ShipmentViewModel(application: Application) : AndroidViewModel(application
         job.cancel()
         applyForecastNow(productId)
         if (pendingForecastProductId == productId) pendingForecastProductId = null
-        if (forecastJobs.isEmpty()) {
-            viewModelScope.launch {
-                _events.emit(ShipmentUiEvent.ForecastRunning(false))
-            }
-        }
     }
 
     /**
-     * FAB: if forecast placeholders exist, focus the next pallet after the last real one
-     * (keep placeholders). Otherwise add a new real pallet and focus it.
+     * FAB: if forecast placeholders exist, reveal/focus the next pallet after the last real one
+     * (keep placeholders). Otherwise add a new real pallet.
      * With simplified counter: stamp draft places onto next placeholder or add first + forecast.
-     * Focus/scroll only when the places field of this product is focused and DC is off.
+     * Keyboard focus only when places field of this product is focused and DC is off.
+     * Bring-into-view when last UI context was this product's pallet zone.
      */
     private fun focusOrAddPallet(productId: Long) {
         flushPendingForecast(productId)
@@ -1433,7 +1499,15 @@ class ShipmentViewModel(application: Application) : AndroidViewModel(application
             ?: return
         val s = settings.value
         if (s.simplifiedCounterEnabled) {
-            if (stampNextPlaceholderOrAdd(productId)) notifyFabSuccess()
+            if (stampNextPlaceholderOrAdd(productId)) {
+                notifyFabSuccess()
+                val stamped = ShipmentCalculator.allProducts(_payload.value).find { it.id == productId }
+                val palletId = stamped?.let { p ->
+                    val lastReal = p.pallets.indexOfLast { !it.isPlaceholder }
+                    p.pallets.getOrNull(lastReal)?.id
+                }
+                if (palletId != null) emitFabRevealIfNeeded(productId, palletId)
+            }
             return
         }
         if (_payload.value.palletForecastEnabled && product.pallets.any { it.isPlaceholder }) {
@@ -1443,30 +1517,65 @@ class ShipmentViewModel(application: Application) : AndroidViewModel(application
             if (next != null) {
                 touchLastUsedProduct(productId)
                 notifyFabSuccess()
-                if (shouldFocusAfterFab(productId)) {
-                    viewModelScope.launch {
-                        _events.emit(ShipmentUiEvent.FocusPalletPlaces(productId, next.id))
-                    }
-                }
+                emitFabRevealIfNeeded(productId, next.id)
                 return
             }
         }
-        addPalletWithPlaces(productId, places = 0.0, focusAfter = true)
+        addPalletWithPlaces(productId, places = 0.0, focusAfter = true, fromFab = true)
     }
 
     fun setPalletPlacesFocused(productId: Long, focused: Boolean) {
         if (focused) {
             focusedPalletProductId = productId
+            lastPalletZoneProductId = productId
         } else if (focusedPalletProductId == productId) {
             focusedPalletProductId = null
+            // Keep lastPalletZoneProductId — keyboard dismissed, still in pallet work.
+        }
+    }
+
+    fun markPalletZone(productId: Long) {
+        lastPalletZoneProductId = productId
+    }
+
+    fun markElsewhere() {
+        lastPalletZoneProductId = null
+    }
+
+    /** Accordion collapsed: drop zone if it pointed at this product. */
+    fun clearPalletZoneIfProduct(productId: Long) {
+        if (lastPalletZoneProductId == productId) {
+            lastPalletZoneProductId = null
         }
     }
 
     private fun notifyFabSuccess() {
         _fabSuccessTick.update { it + 1 }
+        ErrorFeedback.vibrate(app)
     }
 
+    private fun emitFabRevealIfNeeded(productId: Long, palletId: Long) {
+        val wantFocus = shouldFocusAfterFab(productId)
+        val wantReveal = shouldRevealAfterFab(productId)
+        if (!wantFocus && !wantReveal) return
+        viewModelScope.launch {
+            _events.emit(
+                ShipmentUiEvent.FocusPalletPlaces(
+                    productId = productId,
+                    palletId = palletId,
+                    requestKeyboardFocus = wantFocus
+                )
+            )
+        }
+    }
+
+    /** Scroll/reveal when last UI work was this product's pallet zone. */
+    private fun shouldRevealAfterFab(productId: Long): Boolean =
+        lastPalletZoneProductId == productId
+
+    /** Keyboard focus only while places field is focused, not simplified, not DC. */
     private fun shouldFocusAfterFab(productId: Long): Boolean {
+        if (settings.value.simplifiedCounterEnabled) return false
         if (effectiveDoubleControlForProduct(productId)) return false
         return focusedPalletProductId == productId
     }

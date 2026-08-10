@@ -54,7 +54,6 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import com.example.fishy.ui.theme.FishyCornerRadius
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
@@ -268,7 +267,6 @@ fun ShipmentScreen(
     var alertDialogMessage by remember { mutableStateOf<String?>(null) }
     var pendingDelete by remember { mutableStateOf<PendingDelete?>(null) }
     var forecastExpectationMsg by remember { mutableStateOf<String?>(null) }
-    val forecastRunningMsg = stringResource(R.string.forecast_running)
     var focusPalletTarget by remember {
         mutableStateOf<ShipmentUiEvent.FocusPalletPlaces?>(null)
     }
@@ -393,11 +391,6 @@ fun ShipmentScreen(
                 is ShipmentUiEvent.NavigateArchiveDetail -> onShipmentCompleted(event.id)
                 ShipmentUiEvent.Saved -> Unit
                 is ShipmentUiEvent.FocusPalletPlaces -> focusPalletTarget = event
-                is ShipmentUiEvent.ForecastRunning -> {
-                    if (event.running) {
-                        Toast.makeText(context, forecastRunningMsg, Toast.LENGTH_SHORT).show()
-                    }
-                }
                 is ShipmentUiEvent.ForecastExpectation -> {
                     ErrorFeedback.vibrate(context)
                     forecastExpectationMsg = event.message
@@ -678,6 +671,12 @@ fun ShipmentScreen(
                     expanded = acc("info"),
                     onExpandedChange = { vm.setAccordionExpanded("info", it) }
                 ) {
+                    Column(
+                        modifier = Modifier.onFocusChanged { focus ->
+                            if (focus.hasFocus) vm.markElsewhere()
+                        },
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
                     DictionaryAutocomplete(
                         label = stringResource(R.string.customer),
                         value = payload.customer,
@@ -725,6 +724,7 @@ fun ShipmentScreen(
                         }
                         ShipmentMode.MULTI_PORT, ShipmentMode.UNLOAD -> Unit
                     }
+                    }
                 }
             }
 
@@ -739,7 +739,10 @@ fun ShipmentScreen(
                             transport = payload.transport,
                             onChange = { t -> vm.updateTransport { t } },
                             autoSpaceContainers = settings.effectiveAutoSpaceContainers,
-                            autoSpaceVehicles = settings.effectiveAutoSpaceVehicles
+                            autoSpaceVehicles = settings.effectiveAutoSpaceVehicles,
+                            modifier = Modifier.onFocusChanged { focus ->
+                                if (focus.hasFocus) vm.markElsewhere()
+                            }
                         )
                     }
                 }
@@ -752,12 +755,19 @@ fun ShipmentScreen(
                             product = product,
                             modifier = Modifier.animateItem(),
                             expanded = acc("product:${product.id}"),
-                            onExpandedChange = { vm.setAccordionExpanded("product:${product.id}", it) },
+                            onExpandedChange = { expanded ->
+                                vm.setAccordionExpanded("product:${product.id}", expanded)
+                                if (!expanded) vm.clearPalletZoneIfProduct(product.id)
+                            },
                             forceExpandToken = focusPalletTarget
                                 ?.takeIf { it.productId == product.id },
                             focusPalletId = focusPalletTarget
                                 ?.takeIf { it.productId == product.id }
                                 ?.palletId,
+                            requestKeyboardFocus = focusPalletTarget
+                                ?.takeIf { it.productId == product.id }
+                                ?.requestKeyboardFocus
+                                ?: true,
                             onFocusHandled = { focusPalletTarget = null },
                             doubleControl = payload.doubleControlEnabled,
                             productsDict = productsDict,
@@ -765,7 +775,12 @@ fun ShipmentScreen(
                             onUpdate = { transform: (Product) -> Product ->
                                 vm.updateProduct(product.id, transform)
                             },
-                            onAddPallet = { vm.addPallet(product.id) },
+                            onAddPallet = {
+                                vm.addPallet(
+                                    product.id,
+                                    focusAfter = !settings.simplifiedCounterEnabled
+                                )
+                            },
                             onPlaces = { pid, places -> vm.updatePalletPlaces(product.id, pid, places) },
                             onToggleImport = { pid -> vm.togglePalletImported(product.id, pid) },
                             onDeletePallet = { pid -> vm.deletePallet(product.id, pid) },
@@ -786,7 +801,9 @@ fun ShipmentScreen(
                             onQuickPlacesChange = { vm.setQuickPlacesText(product, it) },
                             onPalletPlacesFocus = { focused ->
                                 vm.setPalletPlacesFocused(product.id, focused)
-                            }
+                            },
+                            onMarkPalletZone = { vm.markPalletZone(product.id) },
+                            onMarkElsewhere = { vm.markElsewhere() }
                         )
                     }
                     item {
@@ -855,7 +872,10 @@ fun ShipmentScreen(
                                         vm.updateVehicle(vehicle.id) { vg -> vg.copy(transport = t) }
                                     },
                                     autoSpaceContainers = settings.effectiveAutoSpaceContainers,
-                                    autoSpaceVehicles = settings.effectiveAutoSpaceVehicles
+                                    autoSpaceVehicles = settings.effectiveAutoSpaceVehicles,
+                                    modifier = Modifier.onFocusChanged { focus ->
+                                        if (focus.hasFocus) vm.markElsewhere()
+                                    }
                                 )
                             }
                             AccordionCard(
@@ -871,12 +891,19 @@ fun ShipmentScreen(
                                     ProductCard(
                                         product = product,
                                         expanded = acc(pKey),
-                                        onExpandedChange = { vm.setAccordionExpanded(pKey, it) },
+                                        onExpandedChange = { expanded ->
+                                            vm.setAccordionExpanded(pKey, expanded)
+                                            if (!expanded) vm.clearPalletZoneIfProduct(product.id)
+                                        },
                                         forceExpandToken = focusPalletTarget
                                             ?.takeIf { it.productId == product.id },
                                         focusPalletId = focusPalletTarget
                                             ?.takeIf { it.productId == product.id }
                                             ?.palletId,
+                                        requestKeyboardFocus = focusPalletTarget
+                                            ?.takeIf { it.productId == product.id }
+                                            ?.requestKeyboardFocus
+                                            ?: true,
                                         onFocusHandled = { focusPalletTarget = null },
                                         doubleControl = dc,
                                         productsDict = productsDict,
@@ -884,7 +911,12 @@ fun ShipmentScreen(
                                         onUpdate = { transform ->
                                             vm.updateProduct(product.id, transform)
                                         },
-                                        onAddPallet = { vm.addPallet(product.id) },
+                                        onAddPallet = {
+                                            vm.addPallet(
+                                                product.id,
+                                                focusAfter = !settings.simplifiedCounterEnabled
+                                            )
+                                        },
                                         onPlaces = { pid, places ->
                                             vm.updatePalletPlaces(product.id, pid, places)
                                         },
@@ -913,7 +945,9 @@ fun ShipmentScreen(
                                         onQuickPlacesChange = { vm.setQuickPlacesText(product, it) },
                                         onPalletPlacesFocus = { focused ->
                                             vm.setPalletPlacesFocused(product.id, focused)
-                                        }
+                                        },
+                                        onMarkPalletZone = { vm.markPalletZone(product.id) },
+                                        onMarkElsewhere = { vm.markElsewhere() }
                                     )
                                 }
                                 FishyButton(
@@ -986,6 +1020,12 @@ fun ShipmentScreen(
                                 }
                             }
                         ) {
+                            Column(
+                                modifier = Modifier.onFocusChanged { focus ->
+                                    if (focus.hasFocus) vm.markElsewhere()
+                                },
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
                             DictionaryAutocomplete(
                                 label = stringResource(R.string.port),
                                 value = group.port,
@@ -1006,6 +1046,7 @@ fun ShipmentScreen(
                                 dictionaryType = DictionaryType.VESSEL,
                                 onAddToDictionary = vm::addToDictionary
                             )
+                            }
                             AccordionCard(
                                 title = stringResource(R.string.products_section),
                                 expanded = acc("port:${group.id}/products"),
@@ -1019,12 +1060,19 @@ fun ShipmentScreen(
                                     ProductCard(
                                         product = product,
                                         expanded = acc(pKey),
-                                        onExpandedChange = { vm.setAccordionExpanded(pKey, it) },
+                                        onExpandedChange = { expanded ->
+                                            vm.setAccordionExpanded(pKey, expanded)
+                                            if (!expanded) vm.clearPalletZoneIfProduct(product.id)
+                                        },
                                         forceExpandToken = focusPalletTarget
                                             ?.takeIf { it.productId == product.id },
                                         focusPalletId = focusPalletTarget
                                             ?.takeIf { it.productId == product.id }
                                             ?.palletId,
+                                        requestKeyboardFocus = focusPalletTarget
+                                            ?.takeIf { it.productId == product.id }
+                                            ?.requestKeyboardFocus
+                                            ?: true,
                                         onFocusHandled = { focusPalletTarget = null },
                                         doubleControl = dc,
                                         productsDict = productsDict,
@@ -1032,7 +1080,12 @@ fun ShipmentScreen(
                                         onUpdate = { transform ->
                                             vm.updateProduct(product.id, transform)
                                         },
-                                        onAddPallet = { vm.addPallet(product.id) },
+                                        onAddPallet = {
+                                            vm.addPallet(
+                                                product.id,
+                                                focusAfter = !settings.simplifiedCounterEnabled
+                                            )
+                                        },
                                         onPlaces = { pid, places ->
                                             vm.updatePalletPlaces(product.id, pid, places)
                                         },
@@ -1061,7 +1114,9 @@ fun ShipmentScreen(
                                         onQuickPlacesChange = { vm.setQuickPlacesText(product, it) },
                                         onPalletPlacesFocus = { focused ->
                                             vm.setPalletPlacesFocused(product.id, focused)
-                                        }
+                                        },
+                                        onMarkPalletZone = { vm.markPalletZone(product.id) },
+                                        onMarkElsewhere = { vm.markElsewhere() }
                                     )
                                 }
                                 FishyButton(
@@ -1148,7 +1203,10 @@ fun ShipmentScreen(
                                     ports = ports,
                                     onAddToDictionary = { type, value -> vm.addToDictionary(type, value) },
                                     autoSpaceContainers = settings.effectiveAutoSpaceContainers,
-                                    autoSpaceVehicles = settings.effectiveAutoSpaceVehicles
+                                    autoSpaceVehicles = settings.effectiveAutoSpaceVehicles,
+                                    modifier = Modifier.onFocusChanged { focus ->
+                                        if (focus.hasFocus) vm.markElsewhere()
+                                    }
                                 )
                             }
                             reception.inbounds.forEach { inbound ->
@@ -1190,6 +1248,12 @@ fun ShipmentScreen(
                                         }
                                     }
                                 ) {
+                                    Column(
+                                        modifier = Modifier.onFocusChanged { focus ->
+                                            if (focus.hasFocus) vm.markElsewhere()
+                                        },
+                                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
                                     DictionaryAutocomplete(
                                         label = stringResource(R.string.port),
                                         value = inbound.port,
@@ -1224,18 +1288,26 @@ fun ShipmentScreen(
                                         autoSpaceContainers = settings.effectiveAutoSpaceContainers,
                                         autoSpaceVehicles = settings.effectiveAutoSpaceVehicles
                                     )
+                                    }
                                     inbound.products.forEach { product ->
                                         val pKey =
                                             "reception:${reception.id}/inbound:${inbound.id}/product:${product.id}"
                                         ProductCard(
                                             product = product,
                                             expanded = acc(pKey),
-                                            onExpandedChange = { vm.setAccordionExpanded(pKey, it) },
+                                            onExpandedChange = { expanded ->
+                                                vm.setAccordionExpanded(pKey, expanded)
+                                                if (!expanded) vm.clearPalletZoneIfProduct(product.id)
+                                            },
                                             forceExpandToken = focusPalletTarget
                                                 ?.takeIf { it.productId == product.id },
                                             focusPalletId = focusPalletTarget
                                                 ?.takeIf { it.productId == product.id }
                                                 ?.palletId,
+                                            requestKeyboardFocus = focusPalletTarget
+                                                ?.takeIf { it.productId == product.id }
+                                                ?.requestKeyboardFocus
+                                                ?: true,
                                             onFocusHandled = { focusPalletTarget = null },
                                             doubleControl = false,
                                             productsDict = productsDict,
@@ -1243,7 +1315,12 @@ fun ShipmentScreen(
                                             onUpdate = { transform ->
                                                 vm.updateProduct(product.id, transform)
                                             },
-                                            onAddPallet = { vm.addPallet(product.id) },
+                                            onAddPallet = {
+                                                vm.addPallet(
+                                                    product.id,
+                                                    focusAfter = !settings.simplifiedCounterEnabled
+                                                )
+                                            },
                                             onPlaces = { pid, places ->
                                                 vm.updatePalletPlaces(product.id, pid, places)
                                             },
@@ -1274,7 +1351,9 @@ fun ShipmentScreen(
                                             onQuickPlacesChange = { vm.setQuickPlacesText(product, it) },
                                             onPalletPlacesFocus = { focused ->
                                                 vm.setPalletPlacesFocused(product.id, focused)
-                                            }
+                                            },
+                                            onMarkPalletZone = { vm.markPalletZone(product.id) },
+                                            onMarkElsewhere = { vm.markElsewhere() }
                                         )
                                     }
                                     FishyButton(
@@ -1386,6 +1465,7 @@ fun ShipmentScreen(
                                     .bringIntoViewRequester(notesBringIntoView)
                                     .onFocusChanged { focus ->
                                         if (focus.isFocused) {
+                                            vm.markElsewhere()
                                             scope.launch {
                                                 delay(100)
                                                 notesBringIntoView.bringIntoView()
@@ -1526,6 +1606,7 @@ fun ShipmentScreen(
         AlertDialog(
             onDismissRequest = { forecastExpectationMsg = null },
             containerColor = MaterialTheme.colorScheme.background,
+            title = { CenteredDialogTitle(stringResource(R.string.forecast_result_title)) },
             text = {
                 Text(
                     text = msg,
@@ -1747,6 +1828,7 @@ private fun ProductCard(
     onExpandedChange: (Boolean) -> Unit,
     forceExpandToken: Any? = null,
     focusPalletId: Long? = null,
+    requestKeyboardFocus: Boolean = true,
     onFocusHandled: () -> Unit = {},
     doubleControl: Boolean,
     productsDict: List<com.example.fishy.data.local.entity.DictionaryEntity>,
@@ -1767,6 +1849,8 @@ private fun ProductCard(
     quickPlacesText: String = "",
     onQuickPlacesChange: (String) -> Unit = {},
     onPalletPlacesFocus: (Boolean) -> Unit = {},
+    onMarkPalletZone: () -> Unit = {},
+    onMarkElsewhere: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val rem = ShipmentCalculator.remainder(product, doubleControl, unload)
@@ -1801,11 +1885,15 @@ private fun ProductCard(
         animationSpec = tween(200),
         label = "productStatus"
     )
-    val scope = rememberCoroutineScope()
     val footerBringIntoView = remember { BringIntoViewRequester() }
-    val scrollFooterIntoView: () -> Unit = {
+    val scope = rememberCoroutineScope()
+    fun addPalletFromCard() {
+        onMarkPalletZone()
+        onAddPallet()
         scope.launch {
-            delay(80)
+            delay(220)
+            footerBringIntoView.bringIntoView()
+            delay(100)
             footerBringIntoView.bringIntoView()
         }
     }
@@ -1829,196 +1917,205 @@ private fun ProductCard(
             }
         }
     ) {
-        DictionaryAutocomplete(
-            label = stringResource(R.string.product),
-            value = product.name,
-            suggestions = productsDict,
-            onValueChange = { v: String -> onUpdate { p: Product -> p.copy(name = v) } },
-            dictionaryType = DictionaryType.PRODUCT,
-            onAddToDictionary = onAddToDictionary,
-            isError = batchMismatch
-        )
-        OutlinedTextField(
-            value = product.batch,
-            onValueChange = { v: String ->
-                onUpdate { p: Product -> p.copy(batch = v) }
+        Column(
+            modifier = Modifier.onFocusChanged { focus ->
+                if (focus.hasFocus) onMarkElsewhere()
             },
-            label = { Text(stringResource(R.string.batch)) },
-            textStyle = MaterialTheme.typography.bodyLarge,
-            modifier = Modifier.fillMaxWidth(),
-            singleLine = true,
-            isError = batchMismatch,
-            keyboardOptions = FishySentenceKeyboardOptions
-        )
-        DictionaryAutocomplete(
-            label = stringResource(R.string.manufacturer),
-            value = product.manufacturer,
-            suggestions = manufacturers,
-            onValueChange = { v: String -> onUpdate { p: Product -> p.copy(manufacturer = v) } },
-            dictionaryType = DictionaryType.MANUFACTURER,
-            onAddToDictionary = onAddToDictionary,
-            isError = batchMismatch
-        )
-        // Тара / Кол-во / Масса (или 3×2 при включённом брутто)
-        ProductWeightQuantityFields(
-            product = product,
-            grossWeightEnabled = grossWeightEnabled,
-            onPackageWeightChange = { weight ->
-                onWeightGuard(weight) { confirmed ->
-                    onUpdate { p -> p.copy(packageWeight = confirmed) }
-                }
-            },
-            onQuantityChange = { qty -> onUpdate { p -> p.copy(quantity = qty) } },
-            onCoefficientChange = { k -> onUpdate { p -> p.copy(grossCoefficient = k) } },
-            thousandsSeparator = thousandsSeparator,
-            tareError = batchMismatch,
-            showCalculatedIcon = true
-        )
-        if (product.pallets.isNotEmpty()) {
-            Column(
-                modifier = Modifier.animateContentSize(),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                PalletTableHeader(doubleControl = doubleControl)
-                product.pallets.forEach { pallet ->
-                    PalletRow(
-                        pallet = pallet,
-                        doubleControl = doubleControl,
-                        onPlacesChange = { onPlaces(pallet.id, it) },
-                        onToggleImported = { onToggleImport(pallet.id) },
-                        onDelete = { onDeletePallet(pallet.id) },
-                        requestFocus = focusPalletId == pallet.id,
-                        onFocusHandled = onFocusHandled,
-                        thousandsSeparator = thousandsSeparator,
-                        onPlacesFocusChange = onPalletPlacesFocus
-                    )
-                }
-            }
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            DictionaryAutocomplete(
+                label = stringResource(R.string.product),
+                value = product.name,
+                suggestions = productsDict,
+                onValueChange = { v: String -> onUpdate { p: Product -> p.copy(name = v) } },
+                dictionaryType = DictionaryType.PRODUCT,
+                onAddToDictionary = onAddToDictionary,
+                isError = batchMismatch
+            )
+            OutlinedTextField(
+                value = product.batch,
+                onValueChange = { v: String ->
+                    onUpdate { p: Product -> p.copy(batch = v) }
+                },
+                label = { Text(stringResource(R.string.batch)) },
+                textStyle = MaterialTheme.typography.bodyLarge,
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                isError = batchMismatch,
+                keyboardOptions = FishySentenceKeyboardOptions
+            )
+            DictionaryAutocomplete(
+                label = stringResource(R.string.manufacturer),
+                value = product.manufacturer,
+                suggestions = manufacturers,
+                onValueChange = { v: String -> onUpdate { p: Product -> p.copy(manufacturer = v) } },
+                dictionaryType = DictionaryType.MANUFACTURER,
+                onAddToDictionary = onAddToDictionary,
+                isError = batchMismatch
+            )
+            // Тара / Кол-во / Масса (или 3×2 при включённом брутто)
+            ProductWeightQuantityFields(
+                product = product,
+                grossWeightEnabled = grossWeightEnabled,
+                onPackageWeightChange = { weight ->
+                    onWeightGuard(weight) { confirmed ->
+                        onUpdate { p -> p.copy(packageWeight = confirmed) }
+                    }
+                },
+                onQuantityChange = { qty -> onUpdate { p -> p.copy(quantity = qty) } },
+                onCoefficientChange = { k -> onUpdate { p -> p.copy(grossCoefficient = k) } },
+                thousandsSeparator = thousandsSeparator,
+                tareError = batchMismatch,
+                showCalculatedIcon = true
+            )
         }
-
-        Column(modifier = Modifier.bringIntoViewRequester(footerBringIntoView)) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(animatedStatusColor.copy(alpha = 0.12f))
-                    .padding(8.dp)
-            ) {
-                val placesTotal = ShipmentCalculator.placesForProduct(product, doubleControl)
-                Text(
-                    stringResource(
-                        R.string.places_progress,
-                        QuantityFormatters.formatCount(placesTotal, thousandsSeparator),
-                        QuantityFormatters.formatInteger(product.quantity, thousandsSeparator)
-                    )
-                )
-                if (hasTargetPlaces) {
-                    Text(
-                        text = when {
-                            rem > 0 -> stringResource(R.string.underload, ShipmentCalculator.formatPlacesRu(rem, thousandsSeparator))
-                            rem < 0 -> stringResource(R.string.overload, ShipmentCalculator.formatPlacesRu(-rem, thousandsSeparator))
-                            else -> stringResource(R.string.norm_ok)
-                        },
-                        color = animatedStatusColor,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-                if (doubleControl) {
-                    val real = ShipmentCalculator.realPallets(product)
-                    val exportedCount = real.size
-                    val importedPallets = real.filter { it.isImported }
-                    val exportedPlaces = real.sumOf { it.places }
-                    val importedPlaces = importedPallets.sumOf { it.places }
-                    Text(
-                        stringResource(
-                            R.string.dc_exported_line,
-                            ShipmentCalculator.formatPalletsRu(exportedCount),
-                            ShipmentCalculator.formatPlacesRu(exportedPlaces, thousandsSeparator)
-                        ),
-                        style = MaterialTheme.typography.bodySmall
-                    )
-                    Text(
-                        stringResource(
-                            R.string.dc_imported_line,
-                            ShipmentCalculator.formatPalletsRu(importedPallets.size),
-                            ShipmentCalculator.formatPlacesRu(importedPlaces, thousandsSeparator)
-                        ),
-                        style = MaterialTheme.typography.bodySmall
-                    )
+        Column(
+            modifier = Modifier.onFocusChanged { focus ->
+                if (focus.hasFocus) onMarkPalletZone()
+            },
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            if (product.pallets.isNotEmpty()) {
+                Column(
+                    modifier = Modifier.animateContentSize(),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    PalletTableHeader(doubleControl = doubleControl)
+                    product.pallets.forEach { pallet ->
+                        PalletRow(
+                            pallet = pallet,
+                            doubleControl = doubleControl,
+                            onPlacesChange = { onPlaces(pallet.id, it) },
+                            onToggleImported = { onToggleImport(pallet.id) },
+                            onDelete = { onDeletePallet(pallet.id) },
+                            requestFocus = focusPalletId == pallet.id,
+                            requestKeyboardFocus = requestKeyboardFocus,
+                            onFocusHandled = onFocusHandled,
+                            thousandsSeparator = thousandsSeparator,
+                            onPlacesFocusChange = onPalletPlacesFocus
+                        )
+                    }
                 }
             }
-            Spacer(modifier = Modifier.height(8.dp))
-            if (simplifiedCounterEnabled) {
-                val counterRowHeight = 56.dp
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+
+            Column(modifier = Modifier.bringIntoViewRequester(footerBringIntoView)) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(animatedStatusColor.copy(alpha = 0.12f))
+                        .padding(8.dp)
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .requiredHeight(counterRowHeight)
-                            .border(
-                                width = 1.dp,
-                                color = MaterialTheme.colorScheme.outline,
-                                shape = RoundedCornerShape(FishyCornerRadius)
-                            )
-                            .padding(horizontal = 12.dp),
-                        contentAlignment = Alignment.CenterStart
-                    ) {
-                        BasicTextField(
-                            value = quickPlacesText,
-                            onValueChange = onQuickPlacesChange,
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                            textStyle = LocalTextStyle.current.copy(
-                                color = MaterialTheme.colorScheme.onSurface
-                            ),
-                            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-                            decorationBox = { inner ->
-                                Box(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    contentAlignment = Alignment.CenterStart
-                                ) {
-                                    if (quickPlacesText.isEmpty()) {
-                                        Text(
-                                            text = stringResource(R.string.places_per_pallet_short),
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
-                                    inner()
-                                }
-                            }
+                    val placesTotal = ShipmentCalculator.placesForProduct(product, doubleControl)
+                    Text(
+                        stringResource(
+                            R.string.places_progress,
+                            QuantityFormatters.formatCount(placesTotal, thousandsSeparator),
+                            QuantityFormatters.formatInteger(product.quantity, thousandsSeparator)
+                        )
+                    )
+                    if (hasTargetPlaces) {
+                        Text(
+                            text = when {
+                                rem > 0 -> stringResource(R.string.underload, ShipmentCalculator.formatPlacesRu(rem, thousandsSeparator))
+                                rem < 0 -> stringResource(R.string.overload, ShipmentCalculator.formatPlacesRu(-rem, thousandsSeparator))
+                                else -> stringResource(R.string.norm_ok)
+                            },
+                            color = animatedStatusColor,
+                            fontWeight = FontWeight.Bold
                         )
                     }
-                    FishyButton(
-                        onClick = {
-                            onAddPallet()
-                            scrollFooterIntoView()
-                        },
-                        modifier = Modifier
-                            .weight(1f)
-                            .requiredHeight(counterRowHeight)
-                            .defaultMinSize(minHeight = 0.dp),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp)
-                    ) {
+                    if (doubleControl) {
+                        val real = ShipmentCalculator.realPallets(product)
+                        val exportedCount = real.size
+                        val importedPallets = real.filter { it.isImported }
+                        val exportedPlaces = real.sumOf { it.places }
+                        val importedPlaces = importedPallets.sumOf { it.places }
                         Text(
-                            text = stringResource(R.string.add_pallet),
-                            textAlign = TextAlign.Center,
-                            maxLines = 2
+                            stringResource(
+                                R.string.dc_exported_line,
+                                ShipmentCalculator.formatPalletsRu(exportedCount),
+                                ShipmentCalculator.formatPlacesRu(exportedPlaces, thousandsSeparator)
+                            ),
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                        Text(
+                            stringResource(
+                                R.string.dc_imported_line,
+                                ShipmentCalculator.formatPalletsRu(importedPallets.size),
+                                ShipmentCalculator.formatPlacesRu(importedPlaces, thousandsSeparator)
+                            ),
+                            style = MaterialTheme.typography.bodySmall
                         )
                     }
                 }
-            } else {
-                FishyButton(
-                    onClick = {
-                        onAddPallet()
-                        scrollFooterIntoView()
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text(stringResource(R.string.add_pallet))
+                Spacer(modifier = Modifier.height(8.dp))
+                if (simplifiedCounterEnabled) {
+                    val counterRowHeight = 56.dp
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .requiredHeight(counterRowHeight)
+                                .border(
+                                    width = 1.dp,
+                                    color = MaterialTheme.colorScheme.outline,
+                                    shape = MaterialTheme.shapes.small
+                                )
+                                .padding(horizontal = 12.dp),
+                            contentAlignment = Alignment.CenterStart
+                        ) {
+                            BasicTextField(
+                                value = quickPlacesText,
+                                onValueChange = onQuickPlacesChange,
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true,
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                textStyle = LocalTextStyle.current.copy(
+                                    color = MaterialTheme.colorScheme.onSurface
+                                ),
+                                cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                                decorationBox = { inner ->
+                                    Box(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        contentAlignment = Alignment.CenterStart
+                                    ) {
+                                        if (quickPlacesText.isEmpty()) {
+                                            Text(
+                                                text = stringResource(R.string.places_per_pallet_short),
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                        inner()
+                                    }
+                                }
+                            )
+                        }
+                        FishyButton(
+                            onClick = { addPalletFromCard() },
+                            modifier = Modifier
+                                .weight(1f)
+                                .requiredHeight(counterRowHeight)
+                                .defaultMinSize(minHeight = 0.dp),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp)
+                        ) {
+                            Text(
+                                text = stringResource(R.string.add_pallet),
+                                textAlign = TextAlign.Center,
+                                maxLines = 2
+                            )
+                        }
+                    }
+                } else {
+                    FishyButton(
+                        onClick = { addPalletFromCard() },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(stringResource(R.string.add_pallet))
+                    }
                 }
             }
         }

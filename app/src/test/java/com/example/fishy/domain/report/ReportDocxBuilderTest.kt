@@ -22,6 +22,8 @@ class ReportDocxBuilderTest {
         assertTrue(ReportDocxBuilder.shouldBoldLine("общий тоннаж; 10"))
         assertTrue(ReportDocxBuilder.shouldBoldLine("Итого расход 1200"))
         assertTrue(ReportDocxBuilder.shouldBoldLine("заметки: Итого расход топлива"))
+        assertTrue(ReportDocxBuilder.shouldBoldLine("Общий тоннаж за период: 52 000 кг"))
+        assertFalse(ReportDocxBuilder.shouldBoldLine("Общий тоннаж за август 2026: 38 000 кг"))
         assertFalse(ReportDocxBuilder.shouldBoldLine("Фактический тоннаж брутто"))
         assertFalse(ReportDocxBuilder.shouldBoldLine("Обычная строка"))
     }

@@ -127,6 +127,7 @@ fun PalletRow(
     onToggleImported: () -> Unit,
     onDelete: () -> Unit,
     requestFocus: Boolean = false,
+    requestKeyboardFocus: Boolean = true,
     onFocusHandled: () -> Unit = {},
     thousandsSeparator: Boolean = false,
     onPlacesFocusChange: (Boolean) -> Unit = {}
@@ -144,13 +145,15 @@ fun PalletRow(
     val bringIntoViewRequester = remember { BringIntoViewRequester() }
     val keyboard = LocalSoftwareKeyboardController.current
 
-    LaunchedEffect(requestFocus, pallet.id) {
+    LaunchedEffect(requestFocus, requestKeyboardFocus, pallet.id) {
         if (!requestFocus) return@LaunchedEffect
-        // Wait for accordion expand / LazyColumn layout.
-        delay(80)
+        // Wait for accordion expand (~200ms) / LazyColumn layout.
+        delay(220)
         bringIntoViewRequester.bringIntoView()
-        focusRequester.requestFocus()
-        keyboard?.show()
+        if (requestKeyboardFocus) {
+            focusRequester.requestFocus()
+            keyboard?.show()
+        }
         onFocusHandled()
     }
 

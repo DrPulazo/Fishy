@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Fishy</string>
-    <string name="home_title">Fishy</string>
+    <string name="home_title">FISHY</string>
     <string name="home_title_ru">ФИШКА</string>
     <string name="nav_new_shipment">새로운 배송</string>
     <string name="nav_continue">계속하다</string>
@@ -211,7 +211,7 @@
     <string name="double_control">더블 컨트롤</string>
     <string name="double_control_label">이중 제어:</string>
     <string name="pallet_forecast">팔레트 예측</string>
-    <string name="forecast_running">예측을 계산하는 중...</string>
+    <string name="forecast_result_title">계산 결과</string>
     <string name="forecast_error">예측 계산 오류!</string>
     <string name="checklist_toggle">출하 진행 체크리스트</string>
     <string name="batch_control">일괄 제어</string>

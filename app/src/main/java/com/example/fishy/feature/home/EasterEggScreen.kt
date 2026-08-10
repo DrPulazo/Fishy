@@ -42,6 +42,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.fishy.ui.components.ColumnScrollIndicator
+import com.example.fishy.ui.components.FishyButton
 import com.example.fishy.ui.theme.FishyAccent
 import com.example.fishy.ui.theme.FishyAccentLink
 import com.example.fishy.ui.theme.isLightTheme
@@ -114,6 +115,17 @@ fun EasterEggScreen(onBack: () -> Unit) {
                     color = runesColor,
                     modifier = Modifier.fillMaxWidth()
                 )
+                Spacer(modifier = Modifier.height(28.dp))
+                FishyButton(
+                    onClick = onBack,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = "SKÅL!!!",
+                        fontWeight = FontWeight.Bold,
+                        textAlign = TextAlign.Center
+                    )
+                }
                 Spacer(modifier = Modifier.height(16.dp))
             }
             ColumnScrollIndicator(

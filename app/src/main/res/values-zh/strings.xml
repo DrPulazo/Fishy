@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Fishy</string>
-    <string name="home_title">Fishy</string>
+    <string name="home_title">FISHY</string>
     <string name="home_title_ru">ФИШКА</string>
     <string name="nav_new_shipment">新建发货</string>
     <string name="nav_continue">继续</string>
@@ -211,7 +211,7 @@
     <string name="double_control">双重核对</string>
     <string name="double_control_label">双重核对：</string>
     <string name="pallet_forecast">托盘预估</string>
-    <string name="forecast_running">正在计算预估...</string>
+    <string name="forecast_result_title">计算结果</string>
     <string name="forecast_error">预估计算错误！</string>
     <string name="checklist_toggle">发货进度检查清单</string>
     <string name="batch_control">批次控制</string>

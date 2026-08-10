@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Фишка</string>
-    <string name="home_title">Fishy</string>
+    <string name="home_title">FISHY</string>
     <string name="home_title_ru">ФИШКА</string>
     <string name="nav_new_shipment">НОВАЯ ОТГРУЗКА</string>
     <string name="nav_continue">ПРОДОЛЖИТЬ</string>
@@ -211,7 +211,7 @@
     <string name="double_control">Двойной контроль</string>
     <string name="double_control_label">Двойной контроль:</string>
     <string name="pallet_forecast">Предрасчёт поддонов</string>
-    <string name="forecast_running">Ведётся предрасчёт...</string>
+    <string name="forecast_result_title">Результат расчёта</string>
     <string name="forecast_error">Ошибка предрасчёта!</string>
     <string name="checklist_toggle">Чек-лист хода отгрузки</string>
     <string name="batch_control">Контроль партий</string>
@@ -545,7 +545,7 @@
     <string name="faq_double_control_title">Двойной контроль</string>
     <string name="faq_double_control_body">Напротив каждого поддона появляется отметка «Завезён». Фактическое загруженное количество мест считается только по поддонам, отмеченным как завезённые.</string>
     <string name="faq_forecast_title">Предрасчёт поддонов</string>
-    <string name="faq_forecast_body">После ввода количества мест на первом поддоне приложение высчитывает ориентировочное количество поддонов и остаток, отображая заготовки для ввода.</string>
+    <string name="faq_forecast_body">После ввода или смены мест на первом поддоне (пока не подтверждён второй) приложение пересчитывает ориентировочное число поддонов и остаток, показывая заготовки для ввода.</string>
     <string name="faq_batch_title">Контроль партий</string>
     <string name="faq_batch_body">Можно ввести лимиты по каждой позиции. Когда количество загруженных мест какой-либо позиции превышает лимит, появляется оповещение.</string>
     <string name="faq_gross_title">Масса брутто</string>

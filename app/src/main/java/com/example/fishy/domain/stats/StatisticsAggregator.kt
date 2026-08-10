@@ -122,6 +122,51 @@ object StatisticsAggregator {
         }
     }
 
+    /**
+     * Picker range: from (first completed shipment month − [monthCount]-1 months)
+     * through the current month. Empty archive → same window from [nowMillis].
+     * Newest first.
+     */
+    fun monthChoicesFromFirstShipment(
+        firstShipmentMillis: Long?,
+        nowMillis: Long = System.currentTimeMillis(),
+        monthCount: Int = DEFAULT_MONTH_COUNT
+    ): List<MonthChoice> {
+        val anchor = firstShipmentMillis ?: nowMillis
+        val earliest = monthStart(anchor, monthsAgo = monthCount.coerceAtLeast(1) - 1)
+        val latest = monthStart(nowMillis, monthsAgo = 0)
+        return monthChoicesBetween(earliest, latest)
+    }
+
+    /** Inclusive months from [earliestMillis] through [latestMillis], newest first. */
+    fun monthChoicesBetween(
+        earliestMillis: Long,
+        latestMillis: Long
+    ): List<MonthChoice> {
+        val earliest = monthStart(earliestMillis, monthsAgo = 0)
+        val latest = monthStart(latestMillis, monthsAgo = 0)
+        val from = minOf(earliest, latest)
+        val to = maxOf(earliest, latest)
+        val labelFmt = SimpleDateFormat("MM.yyyy", Locale.getDefault())
+        return monthsInclusive(from, to)
+            .asReversed()
+            .map { MonthChoice(label = labelFmt.format(it), startMillis = it) }
+    }
+
+    /** Clamp default/selection bounds into an available picker range. */
+    fun clampMonthBounds(
+        fromMonthStart: Long,
+        toMonthStart: Long,
+        earliest: Long,
+        latest: Long
+    ): Pair<Long, Long> {
+        val lo = minOf(earliest, latest)
+        val hi = maxOf(earliest, latest)
+        val from = fromMonthStart.coerceIn(lo, hi)
+        val to = toMonthStart.coerceIn(lo, hi)
+        return minOf(from, to) to maxOf(from, to)
+    }
+
     fun tonnageByMonth(entities: List<ShipmentEntity>): List<StatBarEntry> {
         if (entities.isEmpty()) return emptyList()
         val fmt = SimpleDateFormat("MM.yyyy", Locale.getDefault())

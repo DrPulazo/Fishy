@@ -22,9 +22,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.RoundRect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -50,8 +53,16 @@ fun StackedVerticalBarChart(
     val maxValue = remember(entries) {
         entries.maxOfOrNull { it.totalTonnes }?.takeIf { it > 0.0 } ?: 1.0
     }
+    val hueMap = remember(entries) {
+        StatsChartColors.resolveHueMap(entries.flatMap { bar -> bar.segments.map { it.key } })
+    }
     val scrollState = rememberScrollState()
     val selectionStroke = if (isLightTheme()) Color.Black else Color.White
+    val segmentDivider = if (isLightTheme()) {
+        Color.White.copy(alpha = 0.85f)
+    } else {
+        Color.Black.copy(alpha = 0.55f)
+    }
 
     LaunchedEffect(entries.size, scrollState.maxValue) {
         if (scrollState.maxValue > 0) {
@@ -118,45 +129,80 @@ fun StackedVerticalBarChart(
                     ) {
                         Canvas(modifier = Modifier.matchParentSize()) {
                             val barHeightRatio = (entry.totalTonnes / maxValue).toFloat().coerceIn(0f, 1f)
-                            val totalBarHeight = size.height * barHeightRatio
+                            val availH = size.height
+                            val totalBarHeight = availH * barHeightRatio
                             if (totalBarHeight <= 0.5f) return@Canvas
 
                             val segments = entry.segments.filter { it.valueKg > 0.0 }
                             if (segments.isEmpty()) return@Canvas
 
-                            var bottomY = size.height
-                            segments.forEachIndexed { segIndex, segment ->
-                                val segRatio = if (entry.totalKg > 0.0) {
-                                    (segment.valueKg / entry.totalKg).toFloat()
-                                } else {
-                                    0f
-                                }
-                                val segHeight = totalBarHeight * segRatio
-                                if (segHeight <= 0f) return@forEachIndexed
-                                val topY = bottomY - segHeight
-                                val isBottom = segIndex == segments.lastIndex
-                                val isTop = segIndex == 0
-                                val radius = if (isTop || isBottom) CornerRadius(6f, 6f) else CornerRadius.Zero
-                                drawRoundRect(
-                                    color = segmentColor(segment),
-                                    topLeft = Offset(0f, topY),
-                                    size = Size(size.width, segHeight),
-                                    cornerRadius = radius
+                            // Room for an outside selection stroke (centered on fill edge → fully outside).
+                            val strokeWidth = 1.5.dp.toPx()
+                            val pad = strokeWidth
+                            val barLeft = pad
+                            val barRight = (size.width - pad).coerceAtLeast(barLeft + 1f)
+                            val barBottom = (size.height - pad).coerceAtLeast(pad + 1f)
+                            val barWidth = barRight - barLeft
+                            val maxFillH = (barBottom - pad).coerceAtLeast(1f)
+                            val fillH = (totalBarHeight * (maxFillH / availH)).coerceIn(1f, maxFillH)
+                            val barTop = barBottom - fillH
+                            val corner = CornerRadius(6f, 6f)
+                            val fillPath = Path().apply {
+                                addRoundRect(
+                                    RoundRect(
+                                        left = barLeft,
+                                        top = barTop,
+                                        right = barRight,
+                                        bottom = barBottom,
+                                        cornerRadius = corner
+                                    )
                                 )
-                                bottomY = topY
+                            }
+                            val dividerColor = if (selected) selectionStroke else segmentDivider
+                            val dividerWidth = if (selected) 2f else 1f
+                            clipPath(fillPath) {
+                                var bottomY = barBottom
+                                segments.forEachIndexed { index, segment ->
+                                    val segRatio = if (entry.totalKg > 0.0) {
+                                        (segment.valueKg / entry.totalKg).toFloat()
+                                    } else {
+                                        0f
+                                    }
+                                    val segHeight = fillH * segRatio
+                                    if (segHeight <= 0f) return@forEachIndexed
+                                    val topY = bottomY - segHeight
+                                    drawRect(
+                                        color = segmentColor(segment, hueMap),
+                                        topLeft = Offset(barLeft, topY),
+                                        size = Size(barWidth, segHeight)
+                                    )
+                                    if (index < segments.lastIndex) {
+                                        drawLine(
+                                            color = dividerColor,
+                                            start = Offset(barLeft, topY),
+                                            end = Offset(barRight, topY),
+                                            strokeWidth = dividerWidth
+                                        )
+                                    }
+                                    bottomY = topY
+                                }
                             }
                             if (selected) {
-                                val strokeWidth = 3.dp.toPx()
-                                val inset = strokeWidth / 2f
-                                val barTop = size.height - totalBarHeight
-                                drawRoundRect(
+                                val half = strokeWidth / 2f
+                                val strokePath = Path().apply {
+                                    addRoundRect(
+                                        RoundRect(
+                                            left = barLeft - half,
+                                            top = barTop - half,
+                                            right = barRight + half,
+                                            bottom = barBottom + half,
+                                            cornerRadius = CornerRadius(6f + half, 6f + half)
+                                        )
+                                    )
+                                }
+                                drawPath(
+                                    path = strokePath,
                                     color = selectionStroke,
-                                    topLeft = Offset(inset, barTop + inset),
-                                    size = Size(
-                                        (size.width - strokeWidth).coerceAtLeast(0f),
-                                        (totalBarHeight - strokeWidth).coerceAtLeast(0f)
-                                    ),
-                                    cornerRadius = CornerRadius(6f, 6f),
                                     style = Stroke(width = strokeWidth)
                                 )
                             }
@@ -178,9 +224,12 @@ fun StackedVerticalBarChart(
     }
 }
 
-private fun segmentColor(segment: com.example.fishy.domain.stats.StatSegment): Color =
+private fun segmentColor(
+    segment: com.example.fishy.domain.stats.StatSegment,
+    hueMap: Map<String, Float>
+): Color =
     when {
         segment.key == StatisticsBreakdown.OTHER_KEY -> StatsChartColors.otherColor
         segment.key == "total" -> FishyAccent
-        else -> StatsChartColors.colorForIndex(segment.colorIndex)
+        else -> StatsChartColors.colorFor(segment.key, segment.colorIndex, hueMap)
     }

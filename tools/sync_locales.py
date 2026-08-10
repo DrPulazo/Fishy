@@ -110,7 +110,7 @@ EN_OVERLAY = {
 
 ES_FULL_FIXES = {
     "app_name": "Fishy",
-    "home_title": "Fishy",
+    "home_title": "FISHY",
     "home_title_ru": "ФИШКА",
     "nav_new_shipment": "NUEVO ENVÍO",
     "nav_continue": "CONTINUAR",

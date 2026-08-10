@@ -33,7 +33,8 @@ object ReportDocxBuilder {
 
     fun shouldBoldLine(line: String): Boolean {
         val lower = line.lowercase(Locale.getDefault())
-        return lower.contains("общий тоннаж:") ||
+        return lower.contains("общий тоннаж за период") ||
+            lower.contains("общий тоннаж:") ||
             lower.contains("общий тоннаж;") ||
             lower.contains("итого расход")
     }

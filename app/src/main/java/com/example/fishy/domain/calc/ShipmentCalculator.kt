@@ -229,7 +229,7 @@ object ShipmentCalculator {
         return "${product.quantity}:${first.places}"
     }
 
-    /** Russian message: «Ожидается N поддон(а/ов) по M мест(а/о) …». */
+    /** Russian forecast dialog: multiline «Ожидается:» + «N поддон(а) × M мест». */
     fun formatForecastExpectationRu(totalQuantity: Int, firstPalletPlaces: Double): String? {
         val forecast = forecastFromFirstPallet(totalQuantity, firstPalletPlaces) ?: return null
         val full = forecast.fullPallets
@@ -237,11 +237,11 @@ object ShipmentCalculator {
         val remIsZero = abs(rem) < EPS
         return when {
             full == 0 && !remIsZero ->
-                "Ожидается ${ruPallets(1)} по ${ruPlaces(rem)}"
+                "Ожидается:\n${ruPallets(1)} × ${ruPlaces(rem)}"
             remIsZero ->
-                "Ожидается ${ruPallets(full)} по ${ruPlaces(firstPalletPlaces)}"
+                "Ожидается:\n${ruPallets(full)} × ${ruPlaces(firstPalletPlaces)}"
             else ->
-                "Ожидается ${ruPallets(full)} по ${ruPlaces(firstPalletPlaces)} и ${ruPallets(1)} по ${ruPlaces(rem)}"
+                "Ожидается:\n${ruPallets(full)} × ${ruPlaces(firstPalletPlaces)}\n${ruPallets(1)} × ${ruPlaces(rem)}"
         }
     }
 

@@ -100,19 +100,19 @@ class ShipmentCalculatorTest {
     @Test
     fun forecastExpectationMessagePlurals() {
         assertEquals(
-            "Ожидается 2 поддона по 40 мест и 1 поддон по 20 мест",
+            "Ожидается:\n2 поддона × 40 мест\n1 поддон × 20 мест",
             ShipmentCalculator.formatForecastExpectationRu(100, 40.0)
         )
         assertEquals(
-            "Ожидается 2 поддона по 50 мест",
+            "Ожидается:\n2 поддона × 50 мест",
             ShipmentCalculator.formatForecastExpectationRu(100, 50.0)
         )
         assertEquals(
-            "Ожидается 1 поддон по 1 место",
+            "Ожидается:\n1 поддон × 1 место",
             ShipmentCalculator.formatForecastExpectationRu(1, 1.0)
         )
         assertEquals(
-            "Ожидается 5 поддонов по 10 мест",
+            "Ожидается:\n5 поддонов × 10 мест",
             ShipmentCalculator.formatForecastExpectationRu(50, 10.0)
         )
     }
@@ -126,6 +126,41 @@ class ShipmentCalculatorTest {
             pallets = listOf(Pallet(places = 40.0), Pallet(places = 40.0))
         )
         assertFalse(ShipmentCalculator.canAutoForecast(locked))
+        val cleared = Product(quantity = 100, pallets = listOf(Pallet(places = 0.0)))
+        assertFalse(ShipmentCalculator.canAutoForecast(cleared))
+    }
+
+    @Test
+    fun forecastSignatureTracksQuantityAndFirstPlaces() {
+        val a = Product(quantity = 100, pallets = listOf(Pallet(places = 40.0)))
+        val b = Product(quantity = 100, pallets = listOf(Pallet(places = 50.0)))
+        assertEquals("100:40.0", ShipmentCalculator.forecastSignature(a))
+        assertEquals("100:50.0", ShipmentCalculator.forecastSignature(b))
+        assertTrue(ShipmentCalculator.forecastSignature(a) != ShipmentCalculator.forecastSignature(b))
+    }
+
+    @Test
+    fun reapplyForecastAfterChangingFirstPlacesRebuildsPlaceholders() {
+        val first = Product(
+            quantity = 100,
+            pallets = listOf(Pallet(places = 40.0, palletNumber = 1))
+        )
+        val with40 = ShipmentCalculator.applyForecastPlaceholders(first)
+        assertEquals(3, with40.pallets.size)
+
+        // Same as VM: drop placeholders, keep sole real with new places, then re-apply.
+        val edited = with40.copy(
+            pallets = listOf(with40.pallets.first().copy(places = 50.0, isPlaceholder = false))
+        )
+        assertTrue(ShipmentCalculator.canAutoForecast(edited))
+        val with50 = ShipmentCalculator.applyForecastPlaceholders(edited)
+        assertEquals(2, with50.pallets.size)
+        assertTrue(with50.pallets[1].isPlaceholder)
+        assertEquals(50.0, with50.pallets[1].places, 0.001)
+        assertEquals(
+            "Ожидается:\n2 поддона × 50 мест",
+            ShipmentCalculator.formatForecastExpectationRu(100, 50.0)
+        )
     }
 
     @Test

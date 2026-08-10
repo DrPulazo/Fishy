@@ -1,5 +1,8 @@
 package com.example.fishy.feature.statistics
 
+import android.content.ClipData
+import android.content.Intent
+import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,6 +17,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -35,10 +39,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.core.content.FileProvider
 import com.example.fishy.FishyApp
 import com.example.fishy.R
 import com.example.fishy.data.local.entity.ShipmentEntity
@@ -47,11 +53,14 @@ import com.example.fishy.domain.calc.ShipmentCalculator
 import com.example.fishy.domain.format.QuantityFormatters
 import com.example.fishy.domain.model.DictionaryType
 import com.example.fishy.domain.model.ShipmentFilters
+import com.example.fishy.domain.report.ReportDocxBuilder
 import com.example.fishy.domain.stats.StackedChartResult
 import com.example.fishy.domain.stats.StatDimension
 import com.example.fishy.domain.stats.StatSplit
 import com.example.fishy.domain.stats.StatisticsAggregator
 import com.example.fishy.domain.stats.StatisticsBreakdown
+import com.example.fishy.domain.stats.StatisticsExportGenerator
+import com.example.fishy.ui.ErrorFeedback
 import com.example.fishy.ui.components.AccordionCard
 import com.example.fishy.ui.components.CenteredEmptyBody
 import com.example.fishy.ui.components.ChartLegend
@@ -60,7 +69,11 @@ import com.example.fishy.ui.components.EmptyListPlaceholder
 import com.example.fishy.ui.components.FilterDropdown
 import com.example.fishy.ui.components.HintedScrollableTabs
 import com.example.fishy.ui.components.StackedVerticalBarChart
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.File
+import java.util.Locale
 
 private enum class StatsChartTab {
     MONTHS, CUSTOMERS, PORTS, PRODUCTS
@@ -74,6 +87,7 @@ fun StatisticsScreen(
 ) {
     val repo = FishyApp.instance.repository
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
     val settings by FishyApp.instance.settingsRepository.settings.collectAsState(
         initial = com.example.fishy.data.settings.FishySettings()
     )
@@ -82,12 +96,24 @@ fun StatisticsScreen(
     val products by repo.observeDictionary(DictionaryType.PRODUCT).collectAsState(initial = emptyList())
     val archive by repo.observeArchive().collectAsState(initial = emptyList())
 
-    val monthChoices = remember { StatisticsAggregator.monthChoices(count = 36) }
+    val firstShipmentMillis = remember(archive) {
+        archive.minOfOrNull { it.completedAtMillis }
+    }
+    val monthChoices = remember(firstShipmentMillis) {
+        StatisticsAggregator.monthChoicesFromFirstShipment(firstShipmentMillis)
+    }
     val monthLabels = remember(monthChoices) { monthChoices.map { it.label } }
     val labelToStart = remember(monthChoices) {
         monthChoices.associate { it.label to it.startMillis }
     }
-    val defaultBounds = remember { StatisticsAggregator.lastMonthsBounds() }
+    val defaultBounds = remember(monthChoices) {
+        val earliest = monthChoices.lastOrNull()?.startMillis
+            ?: StatisticsAggregator.lastMonthsBounds().first
+        val latest = monthChoices.firstOrNull()?.startMillis
+            ?: StatisticsAggregator.lastMonthsBounds().second
+        val (from, to) = StatisticsAggregator.lastMonthsBounds()
+        StatisticsAggregator.clampMonthBounds(from, to, earliest, latest)
+    }
 
     var customer by remember { mutableStateOf("") }
     var port by remember { mutableStateOf("") }
@@ -99,6 +125,16 @@ fun StatisticsScreen(
     var filteredEntities by remember { mutableStateOf<List<ShipmentEntity>>(emptyList()) }
     var selectedBarIndex by remember { mutableIntStateOf(-1) }
     var filtersExpanded by rememberSaveable { mutableStateOf(false) }
+
+    LaunchedEffect(monthChoices, defaultBounds) {
+        val earliest = monthChoices.lastOrNull()?.startMillis ?: return@LaunchedEffect
+        val latest = monthChoices.firstOrNull()?.startMillis ?: return@LaunchedEffect
+        val clamped = StatisticsAggregator.clampMonthBounds(
+            fromMonthStart, toMonthStart, earliest, latest
+        )
+        if (clamped.first != fromMonthStart) fromMonthStart = clamped.first
+        if (clamped.second != toMonthStart) toMonthStart = clamped.second
+    }
 
     val otherLabel = stringResource(R.string.stats_series_other)
     val tabTitles = listOf(
@@ -130,7 +166,7 @@ fun StatisticsScreen(
         StatsChartTab.PRODUCTS -> StatDimension.PRODUCT to StatSplit.MONTH
     }
 
-    val (activeGroupBy, _) = resolveAxes()
+    val (activeGroupBy, activeSplitBy) = resolveAxes()
     val chartTitleText = statsChartTitle(activeGroupBy)
 
     LaunchedEffect(
@@ -157,12 +193,82 @@ fun StatisticsScreen(
     }
 
     val selectedEntry = chartResult.bars.getOrNull(selectedBarIndex)
+    val selectedDetailSeries = remember(
+        selectedEntry, filteredEntities, activeGroupBy, activeSplitBy, port, productFilter
+    ) {
+        val entry = selectedEntry ?: return@remember emptyList()
+        StatisticsBreakdown.barDetailSeries(
+            entities = filteredEntities,
+            groupBy = activeGroupBy,
+            splitBy = activeSplitBy,
+            entry = entry,
+            portFilter = port,
+            productFilter = productFilter
+        )
+    }
+    val visibleLegend = remember(selectedEntry, chartResult.legend) {
+        val entry = selectedEntry ?: return@remember chartResult.legend
+        val kgByKey = entry.segments
+            .filter { it.valueKg > 0.0 }
+            .associate { it.key to it.valueKg }
+        if (kgByKey.isEmpty()) return@remember emptyList()
+        chartResult.legend
+            .mapNotNull { item ->
+                val kg = kgByKey[item.key] ?: return@mapNotNull null
+                item.copy(totalKg = kg)
+            }
+            .sortedByDescending { it.totalKg }
+    }
     val totalTonnageKg = remember(filteredEntities, port, productFilter) {
         StatisticsBreakdown.totalWeightKg(
             filteredEntities,
             portFilter = port,
             productFilter = productFilter
         )
+    }
+
+    fun shareStatsDocx() {
+        scope.launch {
+            try {
+                val text = StatisticsExportGenerator.generate(
+                    entities = filteredEntities,
+                    fromMonthStart = fromMonthStart,
+                    toMonthStart = toMonthStart,
+                    portFilter = port,
+                    productFilter = productFilter,
+                    thousandsSeparator = settings.effectiveThousandsSeparator,
+                    locale = Locale("ru", "RU")
+                )
+                val fileName = StatisticsExportGenerator.statsDocxFileName()
+                val file = withContext(Dispatchers.IO) {
+                    val bytes = ReportDocxBuilder.build(text)
+                    val out = File(context.cacheDir, fileName)
+                    out.writeBytes(bytes)
+                    out
+                }
+                val uri = FileProvider.getUriForFile(
+                    context,
+                    "${context.packageName}.fileprovider",
+                    file
+                )
+                val share = Intent(Intent.ACTION_SEND).apply {
+                    type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                    putExtra(Intent.EXTRA_STREAM, uri)
+                    clipData = ClipData.newUri(context.contentResolver, fileName, uri)
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                }
+                context.startActivity(
+                    Intent.createChooser(share, context.getString(R.string.export_docx))
+                )
+            } catch (_: Exception) {
+                ErrorFeedback.vibrate(context)
+                Toast.makeText(
+                    context,
+                    context.getString(R.string.export_docx_failed),
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+        }
     }
 
     Scaffold(
@@ -172,6 +278,17 @@ fun StatisticsScreen(
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null)
+                    }
+                },
+                actions = {
+                    IconButton(
+                        onClick = { shareStatsDocx() },
+                        enabled = filteredEntities.isNotEmpty()
+                    ) {
+                        Icon(
+                            Icons.Default.Share,
+                            contentDescription = stringResource(R.string.export_docx)
+                        )
                     }
                 }
             )
@@ -317,26 +434,24 @@ fun StatisticsScreen(
                                     textAlign = TextAlign.Center,
                                     modifier = Modifier.fillMaxWidth()
                                 )
-                                entry.segments
-                                    .sortedByDescending { it.valueKg }
-                                    .forEach { seg ->
-                                        val w = QuantityFormatters.formatWeight(
-                                            seg.valueKg,
-                                            settings.effectiveThousandsSeparator
-                                        )
-                                        Text(
-                                            text = "${seg.label}: $w кг",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            textAlign = TextAlign.Center,
-                                            modifier = Modifier.fillMaxWidth()
-                                        )
-                                    }
+                                selectedDetailSeries.forEach { (label, valueKg) ->
+                                    val w = QuantityFormatters.formatWeight(
+                                        valueKg,
+                                        settings.effectiveThousandsSeparator
+                                    )
+                                    Text(
+                                        text = "$label: $w кг",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        textAlign = TextAlign.Center,
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+                                }
                             }
-                            if (chartResult.legend.isNotEmpty()) {
+                            if (visibleLegend.isNotEmpty()) {
                                 ChartLegend(
-                                    items = chartResult.legend,
-                                    totalKg = chartResult.legend.sumOf { it.totalKg },
+                                    items = visibleLegend,
+                                    totalKg = visibleLegend.sumOf { it.totalKg },
                                     modifier = Modifier.padding(top = 8.dp, bottom = 8.dp)
                                 )
                             }

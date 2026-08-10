@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Fishy</string>
-    <string name="home_title">Fishy</string>
+    <string name="home_title">FISHY</string>
     <string name="home_title_ru">ФИШКА</string>
     <string name="nav_new_shipment">新しい出荷</string>
     <string name="nav_continue">続く</string>
@@ -211,7 +211,7 @@
     <string name="double_control">ダブルコントロール</string>
     <string name="double_control_label">ダブルコントロール:</string>
     <string name="pallet_forecast">パレット予測</string>
-    <string name="forecast_running">予測を計算しています...</string>
+    <string name="forecast_result_title">計算結果</string>
     <string name="forecast_error">予測計算エラー！</string>
     <string name="checklist_toggle">出荷進捗チェックリスト</string>
     <string name="batch_control">バッチ制御</string>
